@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run release:validate
+      - name: Verify clean package inventory
+        shell: pwsh
+        run: |
+          $pack = npm pack --dry-run --json | ConvertFrom-Json
+          if ($pack.Count -ne 1) { throw 'Expected exactly one npm artifact.' }
+          $pack[0].files.path | Set-Content -Encoding utf8 npm-artifact-inventory.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-artifact-inventory
+          path: npm-artifact-inventory.txt
+          if-no-files-found: error

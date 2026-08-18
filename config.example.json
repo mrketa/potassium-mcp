@@ -1,0 +1,35 @@
+{
+  "host": "127.0.0.1",
+  "port": 32145,
+  "proxyHost": "127.0.0.1",
+  "proxyPort": 32146,
+  "proxyMaxFrameBytes": 1048576,
+  "proxyHandshakeTimeoutMs": 5000,
+  "httpEnabled": false,
+  "httpHost": "127.0.0.1",
+  "httpPort": 32147,
+  "httpMaxBodyBytes": 1048576,
+  "httpMaxSessions": 32,
+  "httpAllowedOrigins": [],
+  "tokenFile": "../data/.potassium-mcp-token",
+  "requestTimeoutMs": 30000,
+  "maxMessageBytes": 1048576,
+  "maxPendingRequests": 64,
+  "shutdownGraceMs": 5000,
+  "allowUnsafeExecute": false,
+  "adminAuditPath": "../data/potassium-mcp-admin-audit.ndjson",
+  "artifactRoots": [
+    {
+      "name": "artifacts",
+      "path": "../data/potassium-mcp-artifacts",
+      "recursive": true,
+      "extensions": [".json", ".ndjson", ".txt", ".log"]
+    }
+  ],
+  "httpAllowedHosts": [
+    "apis.roblox.com",
+    "games.roblox.com",
+    "thumbnails.roblox.com",
+    "users.roblox.com"
+  ]
+}

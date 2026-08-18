@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Ref to assemble without publishing'
+        required: false
+        default: main
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  assemble:
+    runs-on: windows-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: npm ci
+      - run: npm test
+      - name: Validate tag and reserve the npm version
+        if: github.event_name == 'push'
+        shell: pwsh
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          NPM_DIST_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
+        run: |
+          node tools/release.mjs validate
+          node tools/release.mjs unique-version
+      - name: Stage the embedded Node runtime and exact npm artifact
+        shell: pwsh
+        run: node tools/release.mjs runtime
+      - name: Build self-contained Setup.exe
+        shell: pwsh
+        run: >-
+          dotnet publish app/PotassiumMcp.Setup/PotassiumMcp.Setup.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:Version=$(node -p "require('./package.json').version")
+      - name: Assemble deterministic release artifacts
+        shell: pwsh
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          NPM_DIST_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
+          SETUP_EXE: app/PotassiumMcp.Setup/bin/Release/net8.0-windows/win-x64/publish/PotassiumMcp.Setup.exe
+        run: node tools/release.mjs assemble
+      - uses: actions/upload-artifact@v4
+        with:
+          name: potassium-mcp-${{ github.ref_name || 'manual' }}
+          path: release-out/
+          if-no-files-found: error
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: release-out/*
+      - name: Publish npm package with OIDC provenance
+        if: github.event_name == 'push' && vars.NPM_PUBLISH_ENABLED == 'true'
+        shell: pwsh
+        env:
+          NPM_CONFIG_PROVENANCE: 'true'
+          NPM_CONFIG_ACCESS: public
+          NPM_CONFIG_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
+        run: npm publish release-out/*.tgz --provenance --access public --tag $env:NPM_CONFIG_TAG
+      - name: Publish GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create ${{ github.ref_name }} release-out/* --verify-tag --title ${{ github.ref_name }} --generate-notes

@@ -1,0 +1,52 @@
+{
+  "name": "@mrketa/potassium-mcp",
+  "version": "0.9.0-beta.1",
+  "description": "Windows-first local MCP bridge with default bounded inspection and opt-in trusted administration",
+  "type": "module",
+  "bin": {
+    "potassium-mcp": "bin/potassium-mcp.js"
+  },
+  "files": [
+    "AI-GUIDE.md",
+    "ADVANCED.md",
+    "assets/",
+    "bin/",
+    "config.example.json",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md",
+    "src/"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrketa/potassium-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mrketa/potassium-mcp/issues"
+  },
+  "homepage": "https://github.com/mrketa/potassium-mcp#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1",
+    "release:validate": "node tools/release.mjs validate",
+    "release:sbom": "node tools/release.mjs sbom",
+    "release:assemble": "node tools/release.mjs assemble"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "jsonc-parser": "3.3.1",
+    "ws": "8.21.3",
+    "zod": "4.1.12"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "os": [
+    "win32"
+  ],
+  "packageManager": "npm@11.12.1"
+}

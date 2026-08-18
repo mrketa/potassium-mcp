@@ -1,0 +1,10 @@
+node_modules/
+*.tgz
+release-out/
+config.json
+coverage/
+app/PotassiumMcp.Setup/assets/runtime-bundle.zip
+app/PotassiumMcp.Setup/assets/runtime-bundle.manifest.json
+app/**/bin/
+app/**/obj/
+.vs/

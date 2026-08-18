@@ -1,0 +1,15 @@
+# package.json files is the authoritative npm allowlist; retain explicit exclusions as a defense-in-depth policy.
+.github/
+app/
+test/
+tests/
+tools/
+release-out/
+node_modules/
+coverage/
+*.tgz
+*.zip
+*.exe
+.env
+.env.*
+config.json

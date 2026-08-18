@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>PotassiumMcp.Setup</AssemblyName>
+    <Version>0.9.0-beta.1</Version>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\LICENSE" Link="assets\Potassium-LICENSE.txt" LogicalName="PotassiumMcp.Setup.assets.Potassium-LICENSE.txt" />
+    <EmbeddedResource Include="assets\runtime-bundle.zip" LogicalName="PotassiumMcp.Setup.assets.runtime-bundle.zip" Condition="Exists('assets\runtime-bundle.zip')" />
+    <EmbeddedResource Include="assets\runtime-bundle.manifest.json" LogicalName="PotassiumMcp.Setup.assets.runtime-bundle.manifest.json" Condition="Exists('assets\runtime-bundle.manifest.json')" />
+  </ItemGroup>
+  <Target Name="RequireVerifiedRuntimeBundle" BeforeTargets="PrepareForPublish">
+    <Error Condition="!Exists('assets\runtime-bundle.zip') Or !Exists('assets\runtime-bundle.manifest.json')" Text="Stage the verified runtime bundle and manifest before publishing PotassiumMcp.Setup." />
+  </Target>
+</Project>
