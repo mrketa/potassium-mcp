@@ -99,5 +99,6 @@ test('npm latest promotion is authenticated, explicit, and verified', () => {
   assert.match(promoteWorkflow, /environment: release/);
   assert.match(promoteWorkflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
   assert.match(promoteWorkflow, /npm dist-tag add \$package latest/);
-  assert.match(promoteWorkflow, /tags\.latest -ne \$env:PACKAGE_VERSION/);
+  assert.match(promoteWorkflow, /Start-Sleep -Seconds 5/);
+  assert.match(promoteWorkflow, /actual -ne \$env:PACKAGE_VERSION/);
 });

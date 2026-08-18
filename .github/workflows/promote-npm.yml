@@ -39,7 +39,13 @@ jobs:
           if ($env:PACKAGE_VERSION.Contains('-')) {
             npm dist-tag add $package next
           }
-          $tags = npm view @mrketa/potassium-mcp dist-tags --json | ConvertFrom-Json
-          if ($tags.latest -ne $env:PACKAGE_VERSION) {
-            throw "latest points to $($tags.latest), expected $env:PACKAGE_VERSION"
+          $actual = $null
+          for ($attempt = 1; $attempt -le 12; $attempt++) {
+            $tags = npm view @mrketa/potassium-mcp dist-tags --json | ConvertFrom-Json
+            $actual = $tags.latest
+            if ($actual -eq $env:PACKAGE_VERSION) { break }
+            Start-Sleep -Seconds 5
+          }
+          if ($actual -ne $env:PACKAGE_VERSION) {
+            throw "latest points to $actual, expected $env:PACKAGE_VERSION"
           }
