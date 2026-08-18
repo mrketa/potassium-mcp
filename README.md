@@ -9,9 +9,21 @@ Potassium MCP lets an MCP-compatible AI app inspect the local Potassium connecti
 
 ## Install on Windows
 
-**Use the Windows `Setup.exe` from the release page when possible.** It includes the runtime it needs and opens the same installer used by the command line. Choose the AI app you want to connect, then let Setup finish.
+**Use the Windows `Setup.exe` from the [current GitHub prerelease](https://github.com/mrketa/potassium-mcp/releases/tag/v0.9.0-beta.2) when possible.** It includes the runtime it needs and opens the same installer used by the command line. Choose the AI app you want to connect, then let Setup finish.
 
-If you need a command-line installation, see [Advanced setup](ADVANCED.md#command-line-installer). Do not paste a generic install command into an AI app: use the single prompt in [AI-GUIDE.md](AI-GUIDE.md).
+The public npm package is [`@mrketa/potassium-mcp`](https://www.npmjs.com/package/@mrketa/potassium-mcp). The current public beta is published under the `next` tag and requires Node.js 22 or newer:
+
+```powershell
+npx --yes @mrketa/potassium-mcp@next setup
+```
+
+For reproducible installation, pin the exact version:
+
+```powershell
+npx --yes @mrketa/potassium-mcp@0.9.0-beta.2 setup
+```
+
+If you need noninteractive command-line installation, host selection, repair, verification, or uninstall commands, see [Advanced setup](ADVANCED.md#command-line-installer). Do not paste a generic install command into an AI app: use the single prompt in [AI-GUIDE.md](AI-GUIDE.md).
 
 ## Your first five steps
 
