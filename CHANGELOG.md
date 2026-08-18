@@ -2,6 +2,11 @@
 
 All notable public changes are documented here.
 
+## 0.9.0-beta.2 — 2026-08-18
+
+- Enabled token-backed npm publication with provenance after explicit repository activation.
+- Preserved the verified Windows installer, portable package, and bounded MCP behavior from beta 1.
+
 ## 0.9.0-beta.1 — 2026-08-18
 
 First public beta of Potassium MCP.

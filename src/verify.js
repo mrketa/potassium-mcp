@@ -68,7 +68,7 @@ export async function verify(options = {}) {
     return { ok: false, static: { ...staticCheck, ok: false, reason: "owned proxy, Node runtime, or configuration is missing", launcher: undefined }, live: { ok: false, state: "not-started" } };
   }
 
-  const makeClient = options.makeClient ?? (() => new Client({ name: "potassium-mcp-verify", version: "0.9.0-beta.1" }));
+  const makeClient = options.makeClient ?? (() => new Client({ name: "potassium-mcp-verify", version: "0.9.0-beta.2" }));
   const makeTransport = options.makeTransport ?? ((launcher) => new StdioClientTransport({
     command: launcher.command,
     args: launcher.args,
