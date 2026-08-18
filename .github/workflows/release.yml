@@ -75,7 +75,10 @@ jobs:
           NPM_CONFIG_PROVENANCE: 'true'
           NPM_CONFIG_ACCESS: public
           NPM_CONFIG_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
-        run: npm publish release-out/*.tgz --provenance --access public --tag $env:NPM_CONFIG_TAG
+        run: |
+          $packages = @(Get-ChildItem -LiteralPath release-out -Filter '*.tgz' -File)
+          if ($packages.Count -ne 1) { throw "Expected exactly one npm tarball, found $($packages.Count)." }
+          npm publish $packages[0].FullName --provenance --access public --tag $env:NPM_CONFIG_TAG
       - name: Publish GitHub release
         if: github.event_name == 'push'
         env:

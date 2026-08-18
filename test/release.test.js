@@ -78,9 +78,10 @@ test('version, tag, duplicate version, artifact naming, and provenance gates are
   assert.match(release, /potassium-mcp-\$\{version\}-Setup\.exe/);
   assert.match(release, /potassium-mcp-\$\{version\}\.cdx\.json/);
   assert.match(workflow, /tags: \['v\*'\]/);
-  assert.match(workflow, /npm publish .*--provenance/);
+  assert.match(workflow, /npm publish \$packages\[0\]\.FullName .*--provenance/);
   assert.match(workflow, /NPM_PUBLISH_ENABLED == 'true'/);
   assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
+  assert.match(workflow, /Get-ChildItem -LiteralPath release-out -Filter '\*\.tgz'/);
   assert.match(workflow, /if: github\.event_name == 'push'/);
   assert.match(workflow, /actions\/attest-build-provenance/);
   assert.match(workflow, /contains\(github\.ref_name, '-'\).*--prerelease/);
