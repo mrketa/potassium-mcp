@@ -82,6 +82,8 @@ test('version, tag, duplicate version, artifact naming, and provenance gates are
   assert.match(workflow, /NPM_PUBLISH_ENABLED == 'true'/);
   assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
   assert.match(workflow, /Get-ChildItem -LiteralPath release-out -Filter '\*\.tgz'/);
+  assert.match(workflow, /registry-url: https:\/\/registry\.npmjs\.org\//);
+  assert.match(workflow, /scope: '@mrketa'/);
   assert.match(workflow, /if: github\.event_name == 'push'/);
   assert.match(workflow, /actions\/attest-build-provenance/);
   assert.match(workflow, /contains\(github\.ref_name, '-'\).*--prerelease/);
