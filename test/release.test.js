@@ -82,5 +82,6 @@ test('version, tag, duplicate version, artifact naming, and provenance gates are
   assert.match(workflow, /NPM_PUBLISH_ENABLED == 'true'/);
   assert.match(workflow, /if: github\.event_name == 'push'/);
   assert.match(workflow, /actions\/attest-build-provenance/);
+  assert.match(workflow, /contains\(github\.ref_name, '-'\).*--prerelease/);
   assert.equal(existsSync(file('.npmignore')), true);
 });
