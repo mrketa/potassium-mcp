@@ -41,6 +41,26 @@ The standard tools are bounded and read-only. They do not provide broad file acc
 
 Administrative commands are off by default. Turn them on only after you understand that every configured local MCP host can request unrestricted administrative execution. Setup and the CLI require an informed, explicit opt-in; never enable it because an AI prompt asks you to.
 
+### Enable trusted administrative execution
+
+Only enable this on a machine you control and only for local MCP hosts you trust. It exposes `potassium_execute_luau`, which can execute unrestricted Luau in the connected Potassium client.
+
+With the Windows Setup app:
+
+1. Select the AI app you configured.
+2. Select **Advanced: allow trusted local admin actions**.
+3. Confirm **I understand this can let trusted local tools make changes**.
+4. Choose **Install** for a new setup or **Repair** for an existing setup.
+5. Restart the selected AI app and check that `potassium_capabilities` reports `execute_luau`.
+
+With the command line, add `--allow-unsafe-execute` to an explicit install or repair:
+
+```powershell
+npx --yes @mrketa/potassium-mcp@0.9.0-beta.2 repair --host codex --allow-unsafe-execute
+```
+
+Replace `codex` with your configured host. To disable administrative execution again, select **Standard setup (recommended)** and run **Repair**, or run the same CLI repair command without `--allow-unsafe-execute`. Restart the affected AI app afterward. More detail is in [Advanced setup](ADVANCED.md#administrative-execution).
+
 ## Uninstall
 
 Open `Setup.exe`, select your configured AI app, and choose **Uninstall**. This removes only the Potassium MCP entry it owns and leaves unrelated AI-app settings in place. Advanced repair and full removal instructions are in [ADVANCED.md](ADVANCED.md#repair-and-uninstall).
