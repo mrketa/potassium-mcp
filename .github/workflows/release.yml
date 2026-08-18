@@ -67,10 +67,11 @@ jobs:
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: release-out/*
-      - name: Publish npm package with OIDC provenance
+      - name: Publish npm package with token and provenance
         if: github.event_name == 'push' && vars.NPM_PUBLISH_ENABLED == 'true'
         shell: pwsh
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
           NPM_CONFIG_ACCESS: public
           NPM_CONFIG_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
