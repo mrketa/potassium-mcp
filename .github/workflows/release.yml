@@ -40,7 +40,7 @@ jobs:
         shell: pwsh
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
-          NPM_DIST_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
+          NPM_DIST_TAG: latest
         run: |
           node tools/release.mjs validate
           node tools/release.mjs unique-version
@@ -58,7 +58,7 @@ jobs:
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_SHA: ${{ github.sha }}
-          NPM_DIST_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
+          NPM_DIST_TAG: latest
           SETUP_EXE: app/PotassiumMcp.Setup/bin/Release/net8.0-windows/win-x64/publish/PotassiumMcp.Setup.exe
         run: node tools/release.mjs assemble
       - uses: actions/upload-artifact@v4
@@ -76,11 +76,15 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
           NPM_CONFIG_ACCESS: public
-          NPM_CONFIG_TAG: ${{ contains(github.ref_name, '-') && 'next' || 'latest' }}
+          NPM_CONFIG_TAG: latest
         run: |
           $packages = @(Get-ChildItem -LiteralPath release-out -Filter '*.tgz' -File)
           if ($packages.Count -ne 1) { throw "Expected exactly one npm tarball, found $($packages.Count)." }
           npm publish $packages[0].FullName --provenance --access public --tag $env:NPM_CONFIG_TAG
+          if ('${{ contains(github.ref_name, '-') }}' -eq 'true') {
+            $version = (Get-Content -LiteralPath package.json -Raw | ConvertFrom-Json).version
+            npm dist-tag add "@mrketa/potassium-mcp@$version" next
+          }
       - name: Publish GitHub release
         if: github.event_name == 'push'
         env:

@@ -10,6 +10,7 @@ const file = (path) => join(root, path);
 const manifest = JSON.parse(readFileSync(file('package.json'), 'utf8'));
 const release = readFileSync(file('tools/release.mjs'), 'utf8');
 const workflow = readFileSync(file('.github/workflows/release.yml'), 'utf8');
+const promoteWorkflow = readFileSync(file('.github/workflows/promote-npm.yml'), 'utf8');
 const allowed = new Set([
   'AI-GUIDE.md', 'ADVANCED.md', 'LICENSE', 'README.md', 'SECURITY.md',
   'config.example.json', 'package.json'
@@ -72,7 +73,7 @@ test('every independently distributed artifact carries required license material
 test('version, tag, duplicate version, artifact naming, and provenance gates are present', () => {
   assert.match(release, /tag \$\{tag\} does not match v\$\{version\}/);
   assert.match(release, /GITHUB_REF_TYPE === 'tag'/);
-  assert.match(release, /prereleases must not publish with the latest dist-tag/);
+  assert.match(release, /releases must publish with the latest dist-tag/);
   assert.match(release, /npm already contains/);
   assert.match(release, /potassium-mcp-\$\{version\}-windows-x64/);
   assert.match(release, /potassium-mcp-\$\{version\}-Setup\.exe/);
@@ -81,11 +82,22 @@ test('version, tag, duplicate version, artifact naming, and provenance gates are
   assert.match(workflow, /npm publish \$packages\[0\]\.FullName .*--provenance/);
   assert.match(workflow, /NPM_PUBLISH_ENABLED == 'true'/);
   assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
+  assert.match(workflow, /NPM_CONFIG_TAG: latest/);
+  assert.match(workflow, /npm dist-tag add "@mrketa\/potassium-mcp@\$version" next/);
   assert.match(workflow, /Get-ChildItem -LiteralPath release-out -Filter '\*\.tgz'/);
   assert.match(workflow, /registry-url: https:\/\/registry\.npmjs\.org\//);
   assert.match(workflow, /scope: '@mrketa'/);
   assert.match(workflow, /if: github\.event_name == 'push'/);
   assert.match(workflow, /actions\/attest-build-provenance/);
+
   assert.match(workflow, /contains\(github\.ref_name, '-'\).*--prerelease/);
   assert.equal(existsSync(file('.npmignore')), true);
+});
+
+test('npm latest promotion is authenticated, explicit, and verified', () => {
+  assert.match(promoteWorkflow, /workflow_dispatch:/);
+  assert.match(promoteWorkflow, /environment: release/);
+  assert.match(promoteWorkflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
+  assert.match(promoteWorkflow, /npm dist-tag add \$package latest/);
+  assert.match(promoteWorkflow, /tags\.latest -ne \$env:PACKAGE_VERSION/);
 });

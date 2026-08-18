@@ -55,10 +55,10 @@ Setup changes only the Potassium MCP entry it owns and preserves unrelated setti
 
 ### npm
 
-Use the current public beta through the `next` tag:
+Install the newest published version:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@next setup
+npx --yes @mrketa/potassium-mcp setup
 ```
 
 For a reproducible installation, pin the exact version:
