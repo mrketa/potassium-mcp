@@ -64,9 +64,11 @@ async function acquireInstallLock(installRoot) {
 
 export function defaults() {
   const local = process.env.LOCALAPPDATA ?? path.join(os.homedir(), ".local", "share");
+  const potassiumRoot = path.join(local, "Potassium");
   return {
-    installRoot: path.join(local, "Potassium", "MCP"),
-    workspaceRoot: path.join(local, "Potassium", "data"),
+    installRoot: path.join(potassiumRoot, "MCP"),
+    workspaceRoot: path.join(potassiumRoot, "workspace"),
+    autoexecRoot: path.join(potassiumRoot, "autoexec"),
   };
 }
 
@@ -79,9 +81,14 @@ export function installationPaths(options = {}) {
   const base = defaults();
   const installRoot = path.resolve(options.installRoot ?? base.installRoot);
   const workspaceRoot = path.resolve(options.workspaceRoot ?? base.workspaceRoot);
+  const autoexecRoot = path.resolve(options.autoexecRoot ?? (
+    options.workspaceRoot ? path.join(workspaceRoot, "..", "autoexec") : base.autoexecRoot
+  ));
   const mcpConfigPath = options.mcpConfigPath ? path.resolve(options.mcpConfigPath) : undefined;
-  if (overlaps(installRoot, workspaceRoot) || overlaps(workspaceRoot, installRoot)) {
-    throw new Error("install root and workspace must not overlap");
+  if (overlaps(installRoot, workspaceRoot) || overlaps(workspaceRoot, installRoot)
+    || overlaps(installRoot, autoexecRoot) || overlaps(autoexecRoot, installRoot)
+    || overlaps(workspaceRoot, autoexecRoot) || overlaps(autoexecRoot, workspaceRoot)) {
+    throw new Error("install root, workspace, and autoexec must not overlap");
   }
   if (mcpConfigPath && overlaps(installRoot, mcpConfigPath)) {
     throw new Error("MCP config must be outside the install root");
@@ -89,11 +96,50 @@ export function installationPaths(options = {}) {
   return {
     installRoot,
     workspaceRoot,
+    autoexecRoot,
     mcpConfigPath,
     appPath: path.join(installRoot, "app"),
     configPath: path.join(installRoot, "config.json"),
     statePath: path.join(installRoot, "ownership.json"),
   };
+}
+
+function ownedAutoexecRoot(state) {
+  if (typeof state?.autoexecRoot === "string" && path.isAbsolute(state.autoexecRoot)) {
+    return path.resolve(state.autoexecRoot);
+  }
+  const target = state?.scripts?.find(({ target: candidate }) => typeof candidate === "string"
+    && path.isAbsolute(candidate)
+    && path.basename(candidate) === "potassium_mcp_autoexec.lua")?.target;
+  return target ? path.dirname(target) : undefined;
+}
+
+/**
+ * Resolve omitted roots from schema-2 ownership without trusting a state file for mutation.
+ * Callers still prove the returned state before modifying any managed input.
+ */
+export async function ownedInstallationPaths(options = {}) {
+  const requested = installationPaths(options);
+  const state = await readJson(requested.statePath, null);
+  if (state?.schema !== 2) return { value: requested, state };
+  if (typeof state.installRoot !== "string" || !path.isAbsolute(state.installRoot)
+    || typeof state.workspaceRoot !== "string" || !path.isAbsolute(state.workspaceRoot)) {
+    return { value: requested, state };
+  }
+  const autoexecRoot = ownedAutoexecRoot(state);
+  if (!autoexecRoot) return { value: requested, state };
+  const owned = installationPaths({
+    ...options,
+    installRoot: state.installRoot,
+    workspaceRoot: state.workspaceRoot,
+    autoexecRoot,
+  });
+  for (const key of ["installRoot", "workspaceRoot", "autoexecRoot"]) {
+    if (options[key] !== undefined && requested[key] !== owned[key]) {
+      throw new Error(`explicit ${key} does not match owned installation`);
+    }
+  }
+  return { value: owned, state };
 }
 
 export async function restrictTokenAcl(tokenPath, run = spawnSync) {
@@ -240,21 +286,25 @@ function hostOptions(options, hostId, configPath, selectedCount = 1) {
     configPath: configPath ?? (selectedCount === 1 ? options.mcpConfigPath : undefined),
   };
 }
-
-function expectedScriptPaths(workspaceRoot) {
+function expectedScriptPaths(workspaceRoot, autoexecRoot = path.join(workspaceRoot, "..", "autoexec")) {
   return new Set([
     path.join(workspaceRoot, ".potassium-mcp-bootstrap.lua"),
-    path.join(workspaceRoot, "..", "autoexec", "potassium_mcp_autoexec.lua"),
+    path.join(autoexecRoot, "potassium_mcp_autoexec.lua"),
   ]);
 }
 
 function validateSchema2Shape(state, value) {
   const scripts = Array.isArray(state?.scripts) ? state.scripts : [];
   const scriptPaths = new Set(scripts.map(({ target }) => target));
-  const expected = expectedScriptPaths(value.workspaceRoot);
+  const ownedAutoexec = ownedAutoexecRoot(state);
+  const expected = ownedAutoexec && expectedScriptPaths(value.workspaceRoot, ownedAutoexec);
   return state?.schema === 2
+    && path.isAbsolute(state.installRoot)
+    && path.isAbsolute(state.workspaceRoot)
+    && typeof ownedAutoexec === "string" && path.isAbsolute(ownedAutoexec)
     && state.installRoot === value.installRoot
     && state.workspaceRoot === value.workspaceRoot
+    && ownedAutoexec === value.autoexecRoot
     && state.appPath === value.appPath
     && state.configPath === value.configPath
     && state.tokenPath === path.join(value.workspaceRoot, ".potassium-mcp-token")
@@ -523,7 +573,7 @@ async function stopOwnedBroker(value, options) {
 
 
 export async function install(options = {}) {
-  const value = installationPaths(options);
+  const { value, state: persistedState } = await ownedInstallationPaths(options);
   let streamableHttp = streamableHttpOptions(options);
   const source = options.packageSource ?? `@mrketa/potassium-mcp@${packageMetadata.version}`;
   const hostIds = selectedHosts(options);
@@ -591,9 +641,9 @@ export async function install(options = {}) {
     if (builtinFallbackTokenFile && !await exists(builtinFallbackTokenFile)) {
       throw new Error("built-in fallback token file does not exist");
     }
-    await Promise.all([value.installRoot, value.workspaceRoot].map(rejectLinkedPath));
+    await Promise.all([value.installRoot, value.workspaceRoot, value.autoexecRoot].map(rejectLinkedPath));
 
-    const persisted = await readJson(value.statePath, null);
+    const persisted = persistedState;
     const migratedSchema1 = persisted?.schema === 1;
     let priorState = await migrateSchema1(persisted, value);
     if (priorState?.schema === 2 && !migratedSchema1) {
@@ -635,7 +685,7 @@ export async function install(options = {}) {
       deployStatePath,
       value.statePath,
       tokenPath,
-      ...expectedScriptPaths(value.workspaceRoot),
+      ...expectedScriptPaths(value.workspaceRoot, value.autoexecRoot),
     ];
     if (!priorState && (await Promise.all(managedPaths.map(exists))).some(Boolean)) {
       throw new Error("refusing install: managed paths or launcher already exist without proven ownership");
@@ -711,7 +761,7 @@ export async function install(options = {}) {
     }
 
     const stateBackup = await remember(value.statePath);
-    scriptSnapshot = await Promise.all([...expectedScriptPaths(value.workspaceRoot)].map(async (target) => ({
+    scriptSnapshot = await Promise.all([...expectedScriptPaths(value.workspaceRoot, value.autoexecRoot)].map(async (target) => ({
       target,
       content: await exists(target) ? await readFile(target) : undefined,
     })));
@@ -719,6 +769,7 @@ export async function install(options = {}) {
     const deployed = await deploy({
       scriptSourceRoot: path.join(runtimePath(value.appPath), "assets"),
       workspaceRoot: value.workspaceRoot,
+      autoexecRoot: value.autoexecRoot,
       statePath: deployStatePath,
       compileProbe: options.compileProbe,
     });
@@ -727,12 +778,14 @@ export async function install(options = {}) {
       schema: 2,
       installRoot: value.installRoot,
       workspaceRoot: value.workspaceRoot,
+      autoexecRoot: value.autoexecRoot,
       appPath: value.appPath,
       configPath: value.configPath,
       tokenPath,
       hosts: {},
     };
     nextState.schema = 2;
+    nextState.autoexecRoot = value.autoexecRoot;
     nextState.hosts = { ...nextState.hosts };
     for (const hostPlan of hostPlans) nextState.hosts[hostPlan.hostId] = hostPlan.record;
     nextState.scripts = deployed.files.map(({ target, sha256 }) => ({ target, sha256 }));
@@ -744,6 +797,7 @@ export async function install(options = {}) {
     const result = await doctor({
       installRoot: value.installRoot,
       workspaceRoot: value.workspaceRoot,
+      autoexecRoot: value.autoexecRoot,
       configPath: value.configPath,
       packageRoot: runtimePath(value.appPath),
       hosts: Object.keys(nextState.hosts),
@@ -791,7 +845,7 @@ export function repair(options = {}) {
  * Existing transports intentionally fail authentication and must reconnect.
  */
 export async function rotateToken(options = {}) {
-  const value = installationPaths(options);
+  const { value } = await ownedInstallationPaths(options);
   const release = await acquireInstallLock(value.installRoot);
   let lifecycle;
   let tokenPath;
@@ -845,7 +899,7 @@ function canDeleteCreatedConfig(hostId, source, record) {
 }
 
 export async function uninstall(options = {}) {
-  const value = installationPaths(options);
+  const { value, state: persistedState } = await ownedInstallationPaths(options);
   const releaseLock = await acquireInstallLock(value.installRoot);
   const backups = [];
   const removedCli = [];
@@ -857,8 +911,8 @@ export async function uninstall(options = {}) {
     return parked;
   };
   try {
-    await Promise.all([value.installRoot, value.workspaceRoot].map(rejectLinkedPath));
-    let state = await migrateSchema1(await readJson(value.statePath, null), value);
+    await Promise.all([value.installRoot, value.workspaceRoot, value.autoexecRoot].map(rejectLinkedPath));
+    let state = await migrateSchema1(persistedState, value);
     try {
       state = await proveSchema2(state, value, options);
     } catch (error) {

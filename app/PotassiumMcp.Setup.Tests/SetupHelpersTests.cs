@@ -28,11 +28,114 @@ public sealed class SetupHelpersTests
     }
 
     [Fact]
-    public void Arguments_are_explicit_and_do_not_enable_admin_without_consent()
+    public void Install_arguments_include_explicit_paths_and_do_not_enable_admin_without_consent()
     {
-        var arguments = CliArguments.Build(new CliRequest("install", ["codex", "cursor", "codex"], "user", "C:\\bundle.tgz"));
-        Assert.Equal(["install", "--json", "--scope", "user", "--package-source", "C:\\bundle.tgz", "--host", "codex", "--host", "cursor"], arguments);
+        var arguments = CliArguments.Build(new CliRequest("install", ["codex", "cursor", "codex"], "user", "C:\\bundle.tgz", WorkspaceRoot: "C:\\Potassium\\workspace", AutoexecRoot: "C:\\Potassium\\autoexec"));
+        Assert.Equal(["install", "--json", "--scope", "user", "--package-source", "C:\\bundle.tgz", "--host", "codex", "--host", "cursor", "--workspace", "C:\\Potassium\\workspace", "--autoexec", "C:\\Potassium\\autoexec"], arguments);
         Assert.DoesNotContain("--allow-unsafe-execute", arguments);
+    }
+
+    [Fact]
+    public void Verify_arguments_exclude_install_only_options()
+    {
+        var arguments = CliArguments.Build(new CliRequest("verify", ["codex"], "user", "C:\\bundle.tgz", true, "C:\\Potassium\\workspace", "C:\\Potassium\\autoexec"));
+        Assert.Equal(["verify", "--json"], arguments);
+    }
+
+    [Fact]
+    public void Uninstall_arguments_request_owned_uninstall_only()
+    {
+        var arguments = CliArguments.Build(new CliRequest("uninstall", ["codex"], "user", "C:\\bundle.tgz", true, "C:\\Potassium\\workspace", "C:\\Potassium\\autoexec"));
+        Assert.Equal(["uninstall", "--json", "--all"], arguments);
+    }
+
+    [Fact]
+    public void Discovery_prefers_valid_ownership_paths()
+    {
+        var local = CreateTemporaryLocalAppData();
+        try
+        {
+            var ownedWorkspace = Directory.CreateDirectory(Path.Combine(local, "owned-workspace")).FullName;
+            var ownedAutoexec = Directory.CreateDirectory(Path.Combine(local, "owned-autoexec")).FullName;
+            var ownedScript = Path.Combine(ownedAutoexec, "potassium_mcp_autoexec.lua");
+            File.WriteAllText(ownedScript, "-- owned");
+            Directory.CreateDirectory(Path.Combine(local, "Potassium", "workspace"));
+            Directory.CreateDirectory(Path.Combine(local, "Potassium", "autoexec"));
+            File.WriteAllText(Path.Combine(local, "Potassium", "autoexec", "potassium_mcp_autoexec.lua"), "-- fallback");
+            Directory.CreateDirectory(Path.Combine(local, "Potassium", "MCP"));
+            File.WriteAllText(Path.Combine(local, "Potassium", "MCP", "ownership.json"),
+                $$"""{"schema":2,"workspaceRoot":"{{ownedWorkspace.Replace("\\", "\\\\")}}","autoexecRoot":"{{ownedAutoexec.Replace("\\", "\\\\")}}","scripts":[{"target":"{{ownedScript.Replace("\\", "\\\\")}}"}]}""");
+
+            var discovery = PotassiumPathDiscoveryService.Discover(local);
+
+            Assert.Equal(ownedWorkspace, discovery.WorkspaceRoot);
+            Assert.Equal(ownedAutoexec, discovery.AutoexecRoot);
+        }
+        finally { Directory.Delete(local, recursive: true); }
+    }
+
+    [Fact]
+    public void Discovery_derives_legacy_autoexec_only_from_its_owned_script()
+    {
+        var local = CreateTemporaryLocalAppData();
+        try
+        {
+            var workspace = Directory.CreateDirectory(Path.Combine(local, "Potassium", "workspace")).FullName;
+            var autoexec = Directory.CreateDirectory(Path.Combine(local, "Potassium", "autoexec")).FullName;
+            var autoexecScript = Path.Combine(autoexec, "potassium_mcp_autoexec.lua");
+            File.WriteAllText(autoexecScript, "-- owned");
+            Directory.CreateDirectory(Path.Combine(local, "Potassium", "MCP"));
+            File.WriteAllText(Path.Combine(local, "Potassium", "MCP", "ownership.json"),
+                $$"""{"schema":2,"workspaceRoot":"{{workspace.Replace("\\", "\\\\")}}","scripts":[{"target":"{{autoexecScript.Replace("\\", "\\\\")}}"}]}""");
+
+            var discovery = PotassiumPathDiscoveryService.Discover(local);
+
+            Assert.Equal(workspace, discovery.WorkspaceRoot);
+            Assert.Equal(autoexec, discovery.AutoexecRoot);
+        }
+        finally { Directory.Delete(local, recursive: true); }
+    }
+
+    [Theory]
+    [InlineData("workspace")]
+    [InlineData("data")]
+    public void Discovery_accepts_one_existing_workspace_candidate(string workspaceName)
+    {
+        var local = CreateTemporaryLocalAppData();
+        try
+        {
+            var workspace = Directory.CreateDirectory(Path.Combine(local, "Potassium", workspaceName)).FullName;
+            var autoexec = Directory.CreateDirectory(Path.Combine(local, "Potassium", "autoexec")).FullName;
+
+            var discovery = PotassiumPathDiscoveryService.Discover(local);
+
+            Assert.Equal(workspace, discovery.WorkspaceRoot);
+            Assert.Equal(autoexec, discovery.AutoexecRoot);
+        }
+        finally { Directory.Delete(local, recursive: true); }
+    }
+
+    [Fact]
+    public void Discovery_rejects_ambiguous_or_incomplete_candidates()
+    {
+        var ambiguous = CreateTemporaryLocalAppData();
+        var incomplete = CreateTemporaryLocalAppData();
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(ambiguous, "Potassium", "workspace"));
+            Directory.CreateDirectory(Path.Combine(ambiguous, "Potassium", "data"));
+            var autoexec = Directory.CreateDirectory(Path.Combine(ambiguous, "Potassium", "autoexec")).FullName;
+            File.WriteAllText(Path.Combine(autoexec, "potassium_mcp_autoexec.lua"), "-- installed");
+            Directory.CreateDirectory(Path.Combine(incomplete, "Potassium", "workspace"));
+
+            Assert.False(PotassiumPathDiscoveryService.Discover(ambiguous).IsResolved);
+            Assert.False(PotassiumPathDiscoveryService.Discover(incomplete).IsResolved);
+        }
+        finally
+        {
+            Directory.Delete(ambiguous, recursive: true);
+            Directory.Delete(incomplete, recursive: true);
+        }
     }
 
     [Fact]
@@ -62,5 +165,12 @@ public sealed class SetupHelpersTests
             File.WriteAllText(Path.Combine(path, "private.txt"), "temporary");
         }
         Assert.False(Directory.Exists(path));
+    }
+
+    private static string CreateTemporaryLocalAppData()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "PotassiumMcp.Setup.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(path);
+        return path;
     }
 }

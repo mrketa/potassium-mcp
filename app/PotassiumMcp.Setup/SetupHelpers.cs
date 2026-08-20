@@ -9,7 +9,7 @@ namespace PotassiumMcp.Setup;
 
 public sealed record BundleFile(string Path, string Sha256);
 public sealed record BundleManifest(IReadOnlyList<BundleFile> Files);
-public sealed record CliRequest(string Command, IReadOnlyCollection<string> Hosts, string Scope, string PackageSource, bool AllowUnsafeExecute = false);
+public sealed record CliRequest(string Command, IReadOnlyCollection<string> Hosts, string Scope, string PackageSource, bool AllowUnsafeExecute = false, string? WorkspaceRoot = null, string? AutoexecRoot = null);
 public sealed record CliResult(bool Ok, string Summary, string Details);
 
 public static class HostCatalog
@@ -32,14 +32,116 @@ public static class CliArguments
     public static IReadOnlyList<string> Build(CliRequest request)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Command);
+        var command = request.Command.ToLowerInvariant();
+        var arguments = new List<string> { command, "--json" };
+        if (command == "uninstall")
+        {
+            arguments.Add("--all");
+            return arguments;
+        }
+        if (command is not ("install" or "repair"))
+            return arguments;
+
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Scope);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.PackageSource);
-        var arguments = new List<string> { request.Command, "--json", "--scope", request.Scope, "--package-source", request.PackageSource };
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.WorkspaceRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(request.AutoexecRoot);
+        arguments.AddRange(["--scope", request.Scope, "--package-source", request.PackageSource]);
         foreach (var host in request.Hosts.Distinct(StringComparer.OrdinalIgnoreCase))
             arguments.AddRange(["--host", host]);
         if (request.AllowUnsafeExecute) arguments.Add("--allow-unsafe-execute");
+        arguments.AddRange(["--workspace", request.WorkspaceRoot!, "--autoexec", request.AutoexecRoot!]);
         return arguments;
     }
+}
+
+public sealed record PotassiumPathDiscovery(string? WorkspaceRoot, string? AutoexecRoot, string Status)
+{
+    public bool IsResolved => WorkspaceRoot is not null && AutoexecRoot is not null;
+}
+
+public static class PotassiumPathDiscoveryService
+{
+    private const string AutoexecScript = "potassium_mcp_autoexec.lua";
+
+    public static PotassiumPathDiscovery Discover(string localAppData)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(localAppData);
+        var potassiumRoot = Path.Combine(localAppData, "Potassium");
+        var fromOwnership = DiscoverOwnership(Path.Combine(potassiumRoot, "MCP", "ownership.json"));
+        if (fromOwnership is not null) return new(fromOwnership.Value.WorkspaceRoot, fromOwnership.Value.AutoexecRoot, "Using paths recorded by this Potassium installation.");
+
+        var autoexecRoot = Path.Combine(potassiumRoot, "autoexec");
+        if (!Directory.Exists(autoexecRoot)) return new(null, null, "Choose your Potassium workspace and autoexec folders.");
+
+        var workspaces = new[] { Path.Combine(potassiumRoot, "workspace"), Path.Combine(potassiumRoot, "data") }
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return workspaces.Length == 1
+            ? new(workspaces[0], autoexecRoot, "Using the detected Potassium folders.")
+            : new(null, null, workspaces.Length == 0
+                ? "Choose your Potassium workspace and autoexec folders."
+                : "More than one Potassium workspace was found. Choose the folders to use.");
+    }
+
+    private static (string WorkspaceRoot, string AutoexecRoot)? DiscoverOwnership(string statePath)
+    {
+        try
+        {
+            using var state = JsonDocument.Parse(File.ReadAllText(statePath));
+            var root = state.RootElement;
+            if (!root.TryGetProperty("schema", out var schema) || schema.ValueKind != JsonValueKind.Number || schema.GetInt32() != 2
+                || !TryFullPath(root, "workspaceRoot", out var workspaceRoot))
+                return null;
+
+            var autoexecRoot = TryFullPath(root, "autoexecRoot", out var ownedAutoexecRoot)
+                ? ownedAutoexecRoot
+                : LegacyAutoexecRoot(root, workspaceRoot);
+            if (autoexecRoot is null || !HasOwnedAutoexecTarget(root, autoexecRoot) || !Directory.Exists(workspaceRoot) || !HasAutoexec(autoexecRoot))
+                return null;
+            return (workspaceRoot, autoexecRoot);
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+        catch (JsonException) { return null; }
+    }
+
+    private static string? LegacyAutoexecRoot(JsonElement state, string workspaceRoot)
+    {
+        if (!state.TryGetProperty("scripts", out var scripts) || scripts.ValueKind != JsonValueKind.Array) return null;
+        var expected = Path.GetFullPath(Path.Combine(workspaceRoot, "..", "autoexec", AutoexecScript));
+        foreach (var script in scripts.EnumerateArray())
+        {
+            if (TryFullPath(script, "target", out var target) && string.Equals(target, expected, StringComparison.OrdinalIgnoreCase))
+                return Path.GetDirectoryName(target);
+        }
+        return null;
+    }
+
+    private static bool HasOwnedAutoexecTarget(JsonElement state, string autoexecRoot)
+    {
+        if (!state.TryGetProperty("scripts", out var scripts) || scripts.ValueKind != JsonValueKind.Array) return false;
+        var expected = Path.GetFullPath(Path.Combine(autoexecRoot, AutoexecScript));
+        return scripts.EnumerateArray().Any(script =>
+            TryFullPath(script, "target", out var target) && string.Equals(target, expected, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryFullPath(JsonElement value, string property, out string path)
+    {
+        path = "";
+        if (!value.TryGetProperty(property, out var element) || element.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(element.GetString()))
+            return false;
+        try
+        {
+            path = Path.GetFullPath(element.GetString()!);
+            return Path.IsPathFullyQualified(path);
+        }
+        catch (ArgumentException) { return false; }
+        catch (NotSupportedException) { return false; }
+    }
+
+    private static bool HasAutoexec(string root) => Directory.Exists(root) && File.Exists(Path.Combine(root, AutoexecScript));
 }
 
 public static class UserFacingText

@@ -130,6 +130,8 @@ npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 install --host manual
 
 Then configure your MCP-capable desktop or CLI host to start the installed Potassium MCP Bridge proxy over stdio. Use the exact launcher and arguments returned by the installer or Setup's details screen. Do not copy an unpinned package command into a host configuration. The host must support local process-backed MCP; browser-only clients are not sufficient.
 
+Fresh CLI installs default to `%LOCALAPPDATA%\Potassium\workspace` and `%LOCALAPPDATA%\Potassium\autoexec`. Use both `--workspace <path>` and `--autoexec <path>` when Potassium uses another layout. Repair, verification, token rotation, Doctor, and uninstall automatically reuse roots from proven ownership metadata when these options are omitted; explicit roots that disagree with ownership are rejected.
+
 ## Repair and uninstall
 
 Repair refreshes only the runtime and registered entries that Potassium MCP Bridge can prove it owns:

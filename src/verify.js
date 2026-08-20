@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { installationPaths } from "./install.js";
+import { ownedInstallationPaths } from "./install.js";
 
 const exists = (target) => access(target, constants.F_OK).then(() => true).catch(() => false);
 
@@ -57,10 +57,10 @@ function toolValue(result) {
 
 /** Verify the installed, owned stdio proxy without reading or reporting credentials. */
 export async function verify(options = {}) {
-  const value = installationPaths(options);
+  const { value, state: ownedState } = await ownedInstallationPaths(options);
   let state;
   try {
-    state = JSON.parse(await readFile(value.statePath, "utf8"));
+    state = ownedState ?? JSON.parse(await readFile(value.statePath, "utf8"));
   } catch (error) {
     return { ok: false, static: { ok: false, reason: error.message }, live: { ok: false, state: "not-started" } };
   }

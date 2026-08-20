@@ -22,6 +22,7 @@ Broker usage:
 
 Options:
   --workspace <path>
+  --autoexec <path>
   --install-root <path>
   --host <omp|codex|claude-code|claude-desktop|vscode|cursor|gemini|manual> (repeatable)
   --scope <user|project|local>
@@ -105,6 +106,7 @@ function parse(argv) {
     const key = {
       "--workspace": "workspaceRoot",
       "--install-root": "installRoot",
+      "--autoexec": "autoexecRoot",
       "--mcp-config": "mcpConfigPath",
       "--package-source": "packageSource",
       "--scope": "scope",

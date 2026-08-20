@@ -3,11 +3,9 @@ import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { inspectHost } from "./hosts.js";
 import { loadConfig } from "./server.js";
-
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+import { ownedInstallationPaths } from "./install.js";
 const MCP_LAUNCHER_TIMEOUT_MS = 40000;
 const exists = (target) => access(target, constants.F_OK).then(() => true).catch(() => false);
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -53,16 +51,8 @@ function validLauncher(launcher, proxyPath, configPath, runtime, hostId = "omp")
 }
 
 export async function doctor(options = {}) {
-  const installRoot = path.resolve(options.installRoot ?? (
-    process.env.LOCALAPPDATA
-      ? path.join(process.env.LOCALAPPDATA, "Potassium", "MCP")
-      : path.join(packageRoot, "..", "MCP")
-  ));
-  const workspaceRoot = path.resolve(options.workspaceRoot ?? (
-    process.env.LOCALAPPDATA
-      ? path.join(process.env.LOCALAPPDATA, "Potassium", "workspace")
-      : path.join(installRoot, "workspace")
-  ));
+  const { value, state: ownedState } = await ownedInstallationPaths(options);
+  const { installRoot, workspaceRoot, autoexecRoot, configPath } = value;
   const installedPackageRoot = path.join(
     installRoot,
     "app",
@@ -73,8 +63,7 @@ export async function doctor(options = {}) {
   const sourceRoot = options.scriptSourceRoot
     ? path.resolve(options.scriptSourceRoot)
     : path.resolve(options.packageRoot ?? installedPackageRoot, "assets");
-  const configPath = path.resolve(options.configPath ?? path.join(installRoot, "config.json"));
-  const state = await readJson(path.join(installRoot, "ownership.json"), null);
+  const state = ownedState ?? await readJson(value.statePath, null);
   const checks = [];
 
   record(checks, "workspace", await exists(workspaceRoot), "workspace exists");
@@ -87,10 +76,7 @@ export async function doctor(options = {}) {
   );
   try {
     const parity = await Promise.all(assets.map(async ([name, source, target]) => {
-      const deployed = path.join(
-        name === "bootstrap" ? workspaceRoot : path.join(workspaceRoot, "..", "autoexec"),
-        target,
-      );
+      const deployed = path.join(name === "bootstrap" ? workspaceRoot : autoexecRoot, target);
       return await exists(deployed)
         && sha256(await readFile(path.join(sourceRoot, source))) === sha256(await readFile(deployed));
     }));

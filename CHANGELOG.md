@@ -11,6 +11,7 @@ All notable public changes are documented here.
 - Added a diagnostic-only optional built-in fallback fixed to `127.0.0.1:8225`; it never forwards native execution.
 - Made install and repair transactional and policy-preserving, with explicit revocations; added ownership-gated `rotate-token` recovery that requires Potassium reattach.
 - Preserved the Windows Setup app, Doctor, live verification, supported host adapters, and ownership-aware installer behavior.
+- Fixed Windows Setup path discovery to use the standard Potassium workspace/autoexec layout, added explicit folder selection for ambiguous layouts, and made Setup uninstall all proven-owned registrations without relying on fresh-install defaults.
 - Documented the bridge's independent relationship to Potassium's built-in MCP and live compatibility with Potassium 2.4.3 build `version-ce0bcd0fbd484804`.
 
 ## 0.9.0-beta.2 — 2026-08-18

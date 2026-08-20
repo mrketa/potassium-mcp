@@ -52,12 +52,13 @@ Supported host adapters: **OMP**, **Codex**, **Claude Code**, **Claude Desktop**
 Download `potassium-mcp-0.10.0-beta.1-Setup.exe` from the [current GitHub prerelease](https://github.com/mrketa/potassium-mcp/releases/tag/v0.10.0-beta.1). The executable includes its required runtime.
 
 1. Open Setup.
-2. Select the AI application you use.
-3. Keep **Standard setup (recommended)** selected.
-4. Choose **Install**.
-5. Restart the selected AI application.
+2. Confirm the detected Potassium workspace and autoexec folders, or select them if detection is ambiguous.
+3. Select the AI application you use.
+4. Keep **Standard setup (recommended)** selected.
+5. Choose **Install**.
+6. Restart the selected AI application.
 
-Setup changes only the Potassium MCP Bridge entry it owns and preserves unrelated settings.
+Setup detects the standard per-user `%LOCALAPPDATA%\Potassium\workspace` and sibling `autoexec` folders, supports an existing legacy `data` workspace, and reuses recorded ownership paths for repair and removal. It changes only the Potassium MCP Bridge entries it owns and preserves unrelated settings.
 
 ### npm
 
@@ -141,7 +142,7 @@ See [Administrative execution](ADVANCED.md#administrative-execution) for the ope
 
 ## Uninstall
 
-Open Setup, select the configured AI application, and choose **Uninstall**. This removes only the owned Potassium MCP Bridge entry and leaves unrelated host settings intact.
+Open Setup and choose **Uninstall**. Setup resolves the installed folders from proven ownership metadata, removes all owned Potassium MCP Bridge entries and the shared runtime, and leaves unrelated host settings, the private token, and bounded artifacts intact.
 
 For selective CLI removal or full removal of all owned hosts, see [Repair and uninstall](ADVANCED.md#repair-and-uninstall).
 

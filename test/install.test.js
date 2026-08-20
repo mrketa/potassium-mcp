@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { access, cp, link, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { EXECUTOR_REQUEST_TIMEOUT_MS, install, launcher, MCP_LAUNCHER_TIMEOUT_MS, repair, rotateToken, uninstall } from "../src/install.js";
+import { EXECUTOR_REQUEST_TIMEOUT_MS, install, installationPaths, launcher, MCP_LAUNCHER_TIMEOUT_MS, repair, rotateToken, uninstall } from "../src/install.js";
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "potassium-install-")); t.after(() => rm(root, { recursive: true, force: true }));
@@ -20,6 +20,11 @@ test("launcher derives a testable absolute executable without the test runner pa
     { type: "stdio", command: nodeExecutable, args: ["C:\\stable\\server.js", "--config", "C:\\stable\\config.json", "--host-id", "omp"], timeout: MCP_LAUNCHER_TIMEOUT_MS },
   );
   assert.throws(() => launcher("server.js", "config.json", "node"), /absolute path/);
+});
+test("fresh path resolution defaults to Potassium workspace and separate autoexec", () => {
+  const value = installationPaths();
+  assert.equal(value.workspaceRoot, path.join(path.dirname(path.dirname(value.workspaceRoot)), "Potassium", "workspace"));
+  assert.equal(value.autoexecRoot, path.join(path.dirname(path.dirname(value.autoexecRoot)), "Potassium", "autoexec"));
 });
 test("install refuses a missing workspace without creating it", async (t) => { const value = await fixture(t); await rm(value.workspaceRoot, { recursive: true }); await assert.rejects(install(value), /workspace does not exist/); });
 test("install rejects overlapping managed paths before mutation", async (t) => {
@@ -355,5 +360,24 @@ test("multi-host collision aborts before mutating shared runtime or other hosts"
   assert.equal(await access(value.installRoot).then(() => true).catch(() => false), false);
   assert.equal(await readFile(value.mcpConfigPath, "utf8"), ompBefore);
   assert.match(await readFile(vscodePath, "utf8"), /foreign/);
+});
+test("owned non-default autoexec paths resolve for repair and uninstall without path flags", async (t) => {
+  const value = await fixture(t);
+  const autoexecRoot = path.join(value.root, "custom-autoexec");
+  await mkdir(autoexecRoot);
+  await install({ ...value, autoexecRoot });
+  const state = JSON.parse(await readFile(path.join(value.installRoot, "ownership.json"), "utf8"));
+  assert.equal(state.autoexecRoot, autoexecRoot);
+  await access(path.join(autoexecRoot, "potassium_mcp_autoexec.lua"));
+  delete state.autoexecRoot;
+  await writeFile(path.join(value.installRoot, "ownership.json"), JSON.stringify(state));
+
+  await repair({ ...value, workspaceRoot: undefined, autoexecRoot: undefined });
+  await assert.rejects(
+    repair({ ...value, autoexecRoot: path.join(value.root, "wrong-autoexec") }),
+    /does not match owned installation/,
+  );
+  await uninstall({ ...value, workspaceRoot: undefined, autoexecRoot: undefined, all: true });
+  await assert.rejects(access(path.join(value.installRoot, "app")), { code: "ENOENT" });
 });
 test("uninstall refuses modified owned scripts and install rolls back a late doctor failure", async (t) => { const value = await fixture(t); await install(value); await writeFile(path.join(value.workspaceRoot, ".potassium-mcp-bootstrap.lua"), "modified"); await assert.rejects(uninstall(value), /ownership is ambiguous/); const failed = await fixture(t); await assert.rejects(install({ ...failed, installPackage: async ({ stage }) => { await failed.installPackage({ stage }); await rm(path.join(stage, "node_modules", "@mrketa", "potassium-mcp", "assets", "potassium_mcp_autoexec.lua")); } }), /missing required/); });

@@ -13,6 +13,11 @@ public sealed class SetupForm : Form
     private readonly Button uninstall = new() { Text = "Uninstall", AutoSize = true };
     private readonly Button doctor = new() { Text = "Check this PC", AutoSize = true };
     private readonly Button verify = new() { Text = "Live verify", AutoSize = true };
+    private readonly TextBox workspaceRoot = new() { Width = 470, AccessibleName = "Potassium workspace folder" };
+    private readonly TextBox autoexecRoot = new() { Width = 470, AccessibleName = "Potassium autoexec folder" };
+    private readonly Button browseWorkspace = new() { Text = "Browse workspace…", AutoSize = true };
+    private readonly Button browseAutoexec = new() { Text = "Browse autoexec…", AutoSize = true };
+    private readonly Label pathStatus = new() { AutoSize = true, MaximumSize = new Size(640, 0), ForeColor = Color.DimGray, AccessibleName = "Potassium path discovery status" };
     private readonly TextBox result = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, MinimumSize = new Size(620, 120), AccessibleName = "Setup results" };
     private readonly Label restart = new() { AutoSize = true, MaximumSize = new Size(640, 0) };
     private readonly SetupRunner runner = new();
@@ -21,7 +26,7 @@ public sealed class SetupForm : Form
     {
         Text = "Potassium MCP Setup";
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(720, 690);
+        MinimumSize = new Size(720, 810);
         Font = new Font("Segoe UI", 10F);
         AccessibleName = "Potassium MCP Setup";
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28), AutoScroll = true, ColumnCount = 1, RowCount = 1 };
@@ -37,7 +42,10 @@ public sealed class SetupForm : Form
             hosts.Add(host, checkbox);
             hostPanel.Controls.Add(checkbox);
         }
-        Add(layout, hostPanel);
+        Add(layout, new Label { Text = "Potassium folders", Font = new Font(Font, FontStyle.Bold), AutoSize = true });
+        Add(layout, FolderRow("Workspace", workspaceRoot, browseWorkspace));
+        Add(layout, FolderRow("Autoexec", autoexecRoot, browseAutoexec));
+        Add(layout, pathStatus);
         Add(layout, new Label { Text = "Access level", Font = new Font(Font, FontStyle.Bold), AutoSize = true });
         Add(layout, standard);
         Add(layout, advanced);
@@ -55,6 +63,12 @@ public sealed class SetupForm : Form
         attribution.Click += (_, _) => ShowText("Node.js attribution", LegalNotices.NodeAttribution);
         footer.Controls.AddRange([license, attribution]);
         Add(layout, footer);
+        browseWorkspace.Click += (_, _) => BrowseForFolder(workspaceRoot, "Choose the Potassium workspace folder");
+        browseAutoexec.Click += (_, _) => BrowseForFolder(autoexecRoot, "Choose the Potassium autoexec folder");
+        var discovery = PotassiumPathDiscoveryService.Discover(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        workspaceRoot.Text = discovery.WorkspaceRoot ?? "";
+        autoexecRoot.Text = discovery.AutoexecRoot ?? "";
+        pathStatus.Text = discovery.Status;
         advanced.CheckedChanged += (_, _) => { consent.Visible = advanced.Checked; consent.Checked = false; };
         install.Click += async (_, _) => await ExecuteAsync("install");
         repair.Click += async (_, _) => await ExecuteAsync("repair");
@@ -73,12 +87,24 @@ public sealed class SetupForm : Form
         if (fill) control.Dock = DockStyle.Fill;
     }
 
+    private static FlowLayoutPanel FolderRow(string label, TextBox textBox, Button browse)
+    {
+        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = true, AccessibleName = label + " folder" };
+        row.Controls.AddRange([new Label { Text = label + ":", AutoSize = true, Margin = new Padding(0, 6, 8, 0) }, textBox, browse]);
+        return row;
+    }
+
     private async Task ExecuteAsync(string command)
     {
         var selected = SelectedHosts();
         if (command is "install" or "repair" && selected.Count == 0)
         {
             result.Text = "Choose at least one AI app before continuing.";
+            return;
+        }
+        if (command is "install" or "repair" && (!Directory.Exists(workspaceRoot.Text) || !Directory.Exists(autoexecRoot.Text)))
+        {
+            result.Text = "Choose existing Potassium workspace and autoexec folders before continuing.";
             return;
         }
         if (advanced.Checked && !AdminConsent.IsAllowed(true, consent.Checked))
@@ -91,7 +117,9 @@ public sealed class SetupForm : Form
         result.Text = command == "verify" ? "Checking your installed connection…" : "Working locally…";
         try
         {
-            var request = new CliRequest(command, selected, "user", "bundled-package.tgz", AdminConsent.IsAllowed(advanced.Checked, consent.Checked));
+            var request = command is "install" or "repair"
+                ? new CliRequest(command, selected, "user", "bundled-package.tgz", AdminConsent.IsAllowed(advanced.Checked, consent.Checked), workspaceRoot.Text, autoexecRoot.Text)
+                : new CliRequest(command, Array.Empty<string>(), "", "");
             var response = await runner.RunAsync(request);
             result.Text = response.Summary + Environment.NewLine + Environment.NewLine + response.Details;
         }
@@ -103,7 +131,20 @@ public sealed class SetupForm : Form
     }
 
     private List<string> SelectedHosts() => hosts.Where(pair => pair.Value.Checked).Select(pair => pair.Key).ToList();
-    private void SetBusy(bool busy) { UseWaitCursor = busy; foreach (var button in new[] { install, repair, uninstall, doctor, verify }) button.Enabled = !busy; }
+    private void SetBusy(bool busy)
+    {
+        UseWaitCursor = busy;
+        foreach (var button in new[] { install, repair, uninstall, doctor, verify, browseWorkspace, browseAutoexec }) button.Enabled = !busy;
+    }
+    private void BrowseForFolder(TextBox target, string title)
+    {
+        using var dialog = new FolderBrowserDialog { Description = title, UseDescriptionForTitle = true, SelectedPath = Directory.Exists(target.Text) ? target.Text : "" };
+        if (dialog.ShowDialog(this) == DialogResult.OK)
+        {
+            target.Text = dialog.SelectedPath;
+            pathStatus.Text = "Using the folders you selected.";
+        }
+    }
     private static void ShowText(string title, string text)
     {
         using var dialog = new Form { Text = title, StartPosition = FormStartPosition.CenterParent, Size = new Size(700, 560), MinimizeBox = false, MaximizeBox = false };
