@@ -87,6 +87,8 @@ test('version, tag, duplicate version, artifact naming, and provenance gates are
   assert.match(workflow, /\$distTag = if \(\$version\.Contains\('-'\)\) \{ 'next' \} else \{ 'latest' \}/);
   assert.match(workflow, /npm publish \$packages\[0\]\.FullName .*--tag \$distTag/);
   assert.match(workflow, /\$publishedTag = \$tags\.\(\$distTag\)/);
+  assert.match(workflow, /for \(\$attempt = 1; \$attempt -le 12; \$attempt\+\+\)/);
+  assert.match(workflow, /Start-Sleep -Seconds 5/);
   assert.match(workflow, /Get-ChildItem -LiteralPath release-out -Filter '\*\.tgz'/);
   assert.match(workflow, /registry-url: https:\/\/registry\.npmjs\.org\//);
   assert.match(workflow, /scope: '@mrketa'/);

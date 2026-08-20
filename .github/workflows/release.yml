@@ -76,8 +76,13 @@ jobs:
           $version = (Get-Content -LiteralPath package.json -Raw | ConvertFrom-Json).version
           $distTag = if ($version.Contains('-')) { 'next' } else { 'latest' }
           npm publish $packages[0].FullName --provenance --access public --tag $distTag
-          $tags = npm view @mrketa/potassium-mcp dist-tags --json | ConvertFrom-Json
-          $publishedTag = $tags.($distTag)
+          $publishedTag = $null
+          for ($attempt = 1; $attempt -le 12; $attempt++) {
+            $tags = npm view @mrketa/potassium-mcp dist-tags --json | ConvertFrom-Json
+            $publishedTag = $tags.($distTag)
+            if ($publishedTag -eq $version) { break }
+            Start-Sleep -Seconds 5
+          }
           if ($publishedTag -ne $version) {
             throw "npm $distTag dist-tag points to $publishedTag, expected $version"
           }
