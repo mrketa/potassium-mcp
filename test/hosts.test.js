@@ -2,13 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { HOST_IDS, createInstallPlan, inspectHost, removeConfig, resolveHost, transformConfig, verifyOwnership } from "../src/hosts.js";
-import { human, selectSetupHosts } from "../bin/potassium-mcp.js";
+import { human } from "../bin/potassium-mcp.js";
 
 const cwd = "C:\\work\\project";
 const env = { USERPROFILE: "C:\\Users\\Ada", APPDATA: "C:\\Users\\Ada\\AppData\\Roaming" };
 const launcher = { type: "stdio", command: "C:\\Program Files\\nodejs\\node.exe", args: ["C:\\Potassium\\MCP\\src\\proxy.js", "--config", "C:\\Potassium\\MCP\\config.json"], timeout: 40000 };
 
 const cases = [
+  ["omp", "project", "C:\\work\\project\\.omp\\mcp.json", "mcpServers", true],
   ["claude-code", "project", "C:\\work\\project\\.mcp.json", "mcpServers", true],
   ["claude-desktop", "user", "C:\\Users\\Ada\\AppData\\Roaming\\Claude\\claude_desktop_config.json", "mcpServers", false],
   ["vscode", "user", "C:\\Users\\Ada\\AppData\\Roaming\\Code\\User\\mcp.json", "servers", true],
@@ -19,7 +20,7 @@ const cases = [
   ["gemini", "project", "C:\\work\\project\\.gemini\\settings.json", "mcpServers", false],
 ];
 
-test("exports stable host IDs", () => assert.deepEqual(HOST_IDS, ["codex", "claude-code", "claude-desktop", "vscode", "cursor", "gemini", "manual"]));
+test("exports stable host IDs", () => assert.deepEqual(HOST_IDS, ["omp", "codex", "claude-code", "claude-desktop", "vscode", "cursor", "gemini", "manual"]));
 test("resolves documented Windows user and project configuration paths", () => {
   for (const [id, scope, expected, key, type] of cases) {
     const target = resolveHost(id, { cwd, env, scope });
@@ -28,8 +29,10 @@ test("resolves documented Windows user and project configuration paths", () => {
     assert.equal(target.type === "stdio", type, id);
   }
   assert.equal(resolveHost("codex", { cwd, env, scope: "user" }).path, "C:\\Users\\Ada\\.codex\\config.toml");
+  assert.throws(() => resolveHost("omp", { cwd, env, scope: "user" }), /does not support/);
   assert.equal(resolveHost("claude-desktop", { cwd, env }).scope, "user");
   assert.equal(resolveHost("claude-code", { cwd, env }).kind, "cli");
+  assert.equal(resolveHost("omp", { cwd, env }).scope, "project");
 });
 
 test("JSON adapters preserve unrelated content and enforce ownership", () => {
@@ -56,12 +59,19 @@ test("JSON adapters preserve unrelated content and enforce ownership", () => {
     args: launcher.args,
   });
 });
+test("host configuration remains the exact token-free stdio launcher", () => {
+  const configured = transformConfig("omp", "{}", launcher, { cwd, env }).content;
+  const entry = JSON.parse(configured).mcpServers.potassium;
+  assert.deepEqual(entry, launcher);
+  assert.doesNotMatch(configured, /streamable|token|32147/i);
+});
+
 
 test("JSON adapters refuse foreign potassium entries and malformed input", () => {
-  assert.throws(() => transformConfig("claude-desktop", '{"mcpServers":{"potassium":{"command":"foreign"}}}', launcher, { cwd, env }), /unmanaged/);
-  assert.throws(() => transformConfig("claude-desktop", "not json", launcher, { cwd, env }), /valid JSON/);
-  assert.throws(() => transformConfig("claude-desktop", "[]", launcher, { cwd, env }), /JSON object/);
-  assert.throws(() => removeConfig("claude-desktop", '{"mcpServers":{"potassium":{"command":"foreign"}}}', launcher, { cwd, env }), /proven ownership/);
+  assert.throws(() => transformConfig("omp", '{"mcpServers":{"potassium":{"command":"foreign"}}}', launcher, { cwd, env }), /unmanaged/);
+  assert.throws(() => transformConfig("omp", "not json", launcher, { cwd, env }), /valid JSON/);
+  assert.throws(() => transformConfig("omp", "[]", launcher, { cwd, env }), /JSON object/);
+  assert.throws(() => removeConfig("omp", '{"mcpServers":{"potassium":{"command":"foreign"}}}', launcher, { cwd, env }), /proven ownership/);
 });
 
 test("VS Code JSONC edits preserve comments, trailing commas, and unrelated text", () => {
@@ -86,13 +96,15 @@ test("JSON ownership ignores object key order but rejects extra fields", () => {
   const entry = {
     command: launcher.command,
     args: launcher.args,
+    type: "stdio",
+    timeout: launcher.timeout,
   };
   const reordered = JSON.stringify({ mcpServers: { potassium: entry } });
-  assert.equal(verifyOwnership("claude-desktop", reordered, launcher, { cwd, env }).owned, true);
-  assert.equal(transformConfig("claude-desktop", reordered, launcher, { cwd, env }).changed, false);
-  assert.doesNotThrow(() => removeConfig("claude-desktop", reordered, launcher, { cwd, env }));
+  assert.equal(verifyOwnership("omp", reordered, launcher, { cwd, env }).owned, true);
+  assert.equal(transformConfig("omp", reordered, launcher, { cwd, env }).changed, false);
+  assert.doesNotThrow(() => removeConfig("omp", reordered, launcher, { cwd, env }));
   const extra = JSON.stringify({ mcpServers: { potassium: { ...entry, env: {} } } });
-  assert.equal(verifyOwnership("claude-desktop", extra, launcher, { cwd, env }).owned, false);
+  assert.equal(verifyOwnership("omp", extra, launcher, { cwd, env }).owned, false);
 });
 
 test("Codex owns only its delimited managed TOML block", () => {
@@ -141,8 +153,6 @@ test("manual output is rendered without a filesystem operation", () => {
   assert.match(plan.toml, /\[mcp_servers\.potassium\]/);
   assert.throws(() => transformConfig("manual", "", launcher, { cwd, env }), /does not support/);
   assert.equal(inspectHost("manual", "", launcher, { cwd, env }).configured, false);
-  assert.match(plan.http, /credential securely/);
-  assert.doesNotMatch(plan.http, /Bearer\s+[A-Za-z0-9]/);
 });
 
 test("human CLI output includes complete manual JSON and TOML snippets", () => {
@@ -159,22 +169,8 @@ test("human CLI output includes complete manual JSON and TOML snippets", () => {
   assert.match(output, /\[mcp_servers\.potassium\]/);
 });
 
-test("interactive setup requires an explicit supported host selection", async () => {
-  assert.deepEqual(
-    await selectSetupHosts({ allowNonInteractive: true, prompt: async () => "codex, manual, codex" }),
-    ["codex", "manual"],
-  );
-  await assert.rejects(
-    () => selectSetupHosts({ allowNonInteractive: true, prompt: async () => "" }),
-    /select at least one host/,
-  );
-  await assert.rejects(
-    () => selectSetupHosts({ allowNonInteractive: true, prompt: async () => "unknown" }),
-    /unsupported MCP host/,
-  );
-});
-
 test("configPath overrides resolved defaults and launcher must be normalized", () => {
   assert.equal(resolveHost("vscode", { cwd, env, scope: "user", configPath: "D:\\shared\\mcp.json" }).path, "D:\\shared\\mcp.json");
-  assert.throws(() => createInstallPlan("claude-code", { ...launcher, command: "node" }, { cwd, env }), /normalized/);
+  assert.throws(() => createInstallPlan("omp", { ...launcher, command: "node" }, { cwd, env }), /normalized/);
+  assert.equal(path.win32.basename(resolveHost("omp", { cwd, env }).path), "mcp.json");
 });

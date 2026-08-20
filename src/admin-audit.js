@@ -39,14 +39,17 @@ export class AdminAuditRecorder {
     }
     this.durableDirectory = path ? mkdir(dirname(path), { recursive: true }).catch(() => {}) : null;
   }
-  begin({ code, bridge, sessionId }) {
+  begin({ code, bridge, sessionId, mode = "sync", executorJobId, hostId, client } = {}) {
     const startedAt = new Date().toISOString();
     return {
       startedAt,
+      mode,
+      ...(executorJobId === undefined ? {} : { executorJobId }),
+      ...(typeof hostId === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(hostId) ? { hostId } : {}),
       codeSha256: createHash("sha256").update(code, "utf8").digest("hex"),
       utf8Bytes: Buffer.byteLength(code, "utf8"),
       sessionId,
-      client: clientMetadata(bridge.status().client),
+      client: clientMetadata(client ?? bridge.status().client),
     };
   }
 
@@ -58,6 +61,9 @@ export class AdminAuditRecorder {
       durationMs: Math.max(0, Date.parse(finishedAt) - Date.parse(operation.startedAt)),
       outcome,
       ...(outcome === "success" ? {} : { errorClass: errorClass(error) }),
+      mode: operation.mode ?? "sync",
+      ...(operation.executorJobId === undefined ? {} : { executorJobId: operation.executorJobId }),
+      ...(operation.hostId === undefined ? {} : { hostId: operation.hostId }),
       codeSha256: operation.codeSha256,
       utf8Bytes: operation.utf8Bytes,
       sessionId: operation.sessionId,

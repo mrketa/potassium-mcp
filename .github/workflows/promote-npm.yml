@@ -30,15 +30,15 @@ jobs:
           if ($env:PACKAGE_VERSION -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
             throw "Invalid package version: $env:PACKAGE_VERSION"
           }
+          if ($env:PACKAGE_VERSION.Contains('-')) {
+            throw "Prerelease versions are published directly to npm's next dist-tag and must not be promoted to latest."
+          }
           $package = "@mrketa/potassium-mcp@$env:PACKAGE_VERSION"
           $published = npm view $package version --json | ConvertFrom-Json
           if ($published -ne $env:PACKAGE_VERSION) {
             throw "npm returned version $published for $package"
           }
           npm dist-tag add $package latest
-          if ($env:PACKAGE_VERSION.Contains('-')) {
-            npm dist-tag add $package next
-          }
           $actual = $null
           for ($attempt = 1; $attempt -le 12; $attempt++) {
             $tags = npm view @mrketa/potassium-mcp dist-tags --json | ConvertFrom-Json

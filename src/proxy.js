@@ -8,6 +8,14 @@ import { commandConfigPath, isMainModule, loadConfig } from "./server.js";
 
 const configArgument = commandConfigPath();
 const configPath = configArgument ?? process.env.POTASSIUM_MCP_CONFIG;
+function commandHostId(argv = process.argv.slice(2)) {
+  const index = argv.indexOf("--host-id");
+  if (index === -1) return "omp";
+  if (index === argv.length - 1 || !/^[a-z][a-z0-9_-]{0,63}$/.test(argv[index + 1])) {
+    throw new Error("--host-id requires a normalized host ID");
+  }
+  return argv[index + 1];
+}
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export function connect(url, maxFrameBytes, timeoutMs) {
@@ -104,12 +112,13 @@ function nextJson(socket, timeoutMs) {
   });
 }
 
-export async function authenticate(socket, config) {
+export async function authenticate(socket, config, hostId = commandHostId()) {
   const clientNonce = randomBytes(32).toString("hex");
-  socket.send(JSON.stringify({ type: "proxy-hello", protocol: 1, clientNonce }));
-  const challenge = await nextJson(socket, config.proxyHandshakeTimeoutMs);
+  const challengePromise = nextJson(socket, config.proxyHandshakeTimeoutMs);
+  socket.send(JSON.stringify({ type: "proxy-hello", protocol: 1, clientNonce, hostId }));
+  const challenge = await challengePromise;
   const expectedServerProof = typeof challenge?.serverNonce === "string"
-    ? proxyProof(config.token, "server", clientNonce, challenge.serverNonce)
+    ? proxyProof(config.token, "server", clientNonce, challenge.serverNonce, hostId)
     : "";
   if (
     challenge?.type !== "proxy-challenge"
@@ -117,11 +126,12 @@ export async function authenticate(socket, config) {
     || !/^[a-f0-9]{64}$/i.test(challenge.serverNonce ?? "")
     || !proofMatches(challenge.proof, expectedServerProof)
   ) throw new Error("Invalid broker challenge");
+  const readyPromise = nextJson(socket, config.proxyHandshakeTimeoutMs);
   socket.send(JSON.stringify({
     type: "proxy-ack",
-    proof: proxyProof(config.token, "client", clientNonce, challenge.serverNonce),
+    proof: proxyProof(config.token, "client", clientNonce, challenge.serverNonce, hostId),
   }));
-  const ready = await nextJson(socket, config.proxyHandshakeTimeoutMs);
+  const ready = await readyPromise;
   if (ready?.type !== "proxy-ready") throw new Error("Broker rejected proxy authentication");
 }
 
@@ -131,6 +141,12 @@ export async function runProxy(options = {}) {
   const stdout = options.stdout ?? process.stdout;
   const logError = options.logError ?? ((message) => console.error("[potassium-proxy]", message));
   const socket = await (options.connectOrStart ?? connectOrStart)(config, options);
+  try {
+    await (options.authenticate ?? authenticate)(socket, config, options.hostId ?? commandHostId());
+  } catch (error) {
+    if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) socket.terminate();
+    throw error;
+  }
   let input;
   let waitingForDrain = false;
 
@@ -168,7 +184,6 @@ export async function runProxy(options = {}) {
   };
 
   try {
-    await authenticate(socket, config);
     input = new ReadBuffer({ maxBufferSize: config.proxyMaxFrameBytes });
     socket.on("message", onSocketMessage);
     socket.on("error", onSocketError);

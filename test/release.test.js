@@ -30,8 +30,9 @@ test('npm artifact has an exact allowlisted inventory and executable entrypoint'
     'ADVANCED.md', 'AI-GUIDE.md', 'LICENSE', 'README.md', 'SECURITY.md',
     'assets/potassium_mcp_autoexec.lua', 'assets/potassium_mcp_bootstrap.lua',
     'bin/potassium-mcp.js', 'config.example.json', 'package.json',
-    'src/admin-audit.js', 'src/bridge.js', 'src/broker.js', 'src/deploy.js', 'src/doctor.js', 'src/hosts.js',
-    'src/install.js', 'src/proxy.js', 'src/safe-read.js', 'src/server.js', 'src/verify.js'
+    'src/admin-audit.js', 'src/async-artifact-store.js', 'src/bridge.js', 'src/broker.js',
+    'src/builtin-fallback.js', 'src/deploy.js', 'src/doctor.js', 'src/host-policy.js', 'src/hosts.js',
+    'src/install.js', 'src/proxy.js', 'src/safe-read.js', 'src/server.js', 'src/stateful-http.js', 'src/verify.js'
   ]);
   assert.equal(manifest.bin['potassium-mcp'], 'bin/potassium-mcp.js');
   assert(files.includes(manifest.bin['potassium-mcp']));
@@ -73,7 +74,8 @@ test('every independently distributed artifact carries required license material
 test('version, tag, duplicate version, artifact naming, and provenance gates are present', () => {
   assert.match(release, /tag \$\{tag\} does not match v\$\{version\}/);
   assert.match(release, /GITHUB_REF_TYPE === 'tag'/);
-  assert.match(release, /releases must publish with the latest dist-tag/);
+  assert.match(release, /prereleases must publish with the next dist-tag/);
+  assert.match(release, /stable releases must publish with the latest dist-tag/);
   assert.match(release, /npm already contains/);
   assert.match(release, /potassium-mcp-\$\{version\}-windows-x64/);
   assert.match(release, /potassium-mcp-\$\{version\}-Setup\.exe/);
@@ -82,8 +84,9 @@ test('version, tag, duplicate version, artifact naming, and provenance gates are
   assert.match(workflow, /npm publish \$packages\[0\]\.FullName .*--provenance/);
   assert.match(workflow, /NPM_PUBLISH_ENABLED == 'true'/);
   assert.match(workflow, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
-  assert.match(workflow, /NPM_CONFIG_TAG: latest/);
-  assert.match(workflow, /npm dist-tag add "@mrketa\/potassium-mcp@\$version" next/);
+  assert.match(workflow, /\$distTag = if \(\$version\.Contains\('-'\)\) \{ 'next' \} else \{ 'latest' \}/);
+  assert.match(workflow, /npm publish \$packages\[0\]\.FullName .*--tag \$distTag/);
+  assert.match(workflow, /\$publishedTag = \$tags\.\(\$distTag\)/);
   assert.match(workflow, /Get-ChildItem -LiteralPath release-out -Filter '\*\.tgz'/);
   assert.match(workflow, /registry-url: https:\/\/registry\.npmjs\.org\//);
   assert.match(workflow, /scope: '@mrketa'/);
@@ -101,4 +104,5 @@ test('npm latest promotion is authenticated, explicit, and verified', () => {
   assert.match(promoteWorkflow, /npm dist-tag add \$package latest/);
   assert.match(promoteWorkflow, /Start-Sleep -Seconds 5/);
   assert.match(promoteWorkflow, /actual -ne \$env:PACKAGE_VERSION/);
+  assert.match(promoteWorkflow, /Prerelease versions .* must not be promoted to latest/);
 });

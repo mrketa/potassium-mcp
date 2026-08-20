@@ -1,8 +1,8 @@
 <div align="center">
 
-# Potassium MCP
+# Potassium MCP Bridge
 
-**A local MCP bridge between AI applications and the Potassium Roblox client.**
+**An independent local MCP bridge between AI applications and the Potassium client.**
 
 Bounded inspection by default. Trusted administration only when you explicitly enable it.
 
@@ -18,17 +18,23 @@ Bounded inspection by default. Trusted administration only when you explicitly e
 
 ---
 
-Potassium MCP lets a compatible desktop or CLI AI application inspect an attached Potassium client through standard MCP. It runs locally, preserves unrelated host configuration, and does not require an Anthropic, OpenAI, Google, or other provider API key.
+Potassium MCP Bridge runs locally, preserves unrelated host configuration, and does not require an Anthropic, OpenAI, Google, or other provider API key.
+
+## Relationship to Potassium's built-in MCP
+
+Potassium ships its own MCP endpoint. Potassium MCP Bridge is an independent bridge, not an official Potassium service, replacement, wrapper, or alternate name for that native MCP. Prefer Potassium's built-in MCP when its direct integration is sufficient. Use this bridge when you need one authenticated broker for several MCP hosts, immutable per-host or HTTP policy, explicit executor `clientId` routing, optional authenticated HTTP, artifact envelopes, audit history, or FIFO mutation barriers.
+
+The optional built-in fallback is diagnostic-only. It connects only to `127.0.0.1:8225` for bounded status, client-listing, and console diagnostics; it never forwards native execution. Live compatibility is verified with Potassium 2.4.3 build `version-ce0bcd0fbd484804`.
 
 ## Why use it?
 
 | | Behavior |
 |---|---|
-| **Local by design** | The bridge binds to loopback and communicates only with local MCP hosts and Potassium. |
-| **Safe default** | The normal tool set is bounded and read-only. Administrative execution starts disabled. |
-| **Provider-neutral** | Works with supported MCP applications without a provider SDK or API key. |
-| **Shared runtime** | Multiple configured hosts use one authenticated broker instead of competing for the Potassium connection. |
-| **Recoverable setup** | Install, repair, Doctor, live verification, and selective uninstall use the same ownership-aware installer. |
+| **Local by design** | Authenticated components bind to loopback and communicate only with local MCP hosts and Potassium. |
+| **Safe default** | The normal tool set is bounded and read-only. Trusted administrative execution starts disabled. |
+| **Multi-host runtime** | Configured hosts use authenticated stdio proxies and one broker instead of competing for a Potassium connection. |
+| **Policy and routing** | Per-host and HTTP read/admin/execute policies are independent; executor-backed calls select a `clientId` when needed. |
+| **Recoverable setup** | Install, repair, Doctor, live verification, token rotation, and selective uninstall are ownership-aware. |
 
 ## Requirements
 
@@ -37,13 +43,13 @@ Potassium MCP lets a compatible desktop or CLI AI application inspect an attache
 - An MCP-capable desktop or CLI host
 - Node.js 22 or newer only when using the npm installation path
 
-Supported host adapters: **Codex**, **Claude Code**, **Claude Desktop**, **VS Code**, **Cursor**, and **Gemini**. Other MCP clients can use the manual configuration path. A browser-only AI client cannot start the local MCP process by itself.
+Supported host adapters: **OMP**, **Codex**, **Claude Code**, **Claude Desktop**, **VS Code**, **Cursor**, and **Gemini**. Other MCP clients can use the manual configuration path. A browser-only AI client cannot start the local MCP process by itself.
 
 ## Install
 
 ### Windows Setup app — recommended
 
-Download `potassium-mcp-0.9.0-beta.2-Setup.exe` from the [current GitHub prerelease](https://github.com/mrketa/potassium-mcp/releases/tag/v0.9.0-beta.2). The executable includes its required runtime.
+Download `potassium-mcp-0.10.0-beta.1-Setup.exe` from the [current GitHub prerelease](https://github.com/mrketa/potassium-mcp/releases/tag/v0.10.0-beta.1). The executable includes its required runtime.
 
 1. Open Setup.
 2. Select the AI application you use.
@@ -51,23 +57,17 @@ Download `potassium-mcp-0.9.0-beta.2-Setup.exe` from the [current GitHub prerele
 4. Choose **Install**.
 5. Restart the selected AI application.
 
-Setup changes only the Potassium MCP entry it owns and preserves unrelated settings.
+Setup changes only the Potassium MCP Bridge entry it owns and preserves unrelated settings.
 
 ### npm
-
-Install the newest published version:
-
-```powershell
-npx --yes @mrketa/potassium-mcp setup
-```
 
 For a reproducible installation, pin the exact version:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.9.0-beta.2 setup
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 install --host omp
 ```
 
-For noninteractive host selection, repair, verification, broker control, and uninstall commands, see [Advanced setup](ADVANCED.md#command-line-installer).
+Repeat `--host` for explicitly selected hosts. For noninteractive host selection, repair, verification, broker control, token rotation, and uninstall commands, see [Advanced setup](ADVANCED.md#command-line-installer).
 
 ## First connection
 
@@ -75,32 +75,33 @@ After installation and host restart, ask the AI application to call:
 
 1. `potassium_status`
 2. `potassium_capabilities`
+3. `potassium_list_clients`
 
-A healthy result reports a connected Potassium client and its supported Protocol 2 methods. Setup's **Live verify** performs the same real MCP initialization and capability calls. Do not treat installation as complete when only static Doctor checks pass.
+A healthy result reports a connected Potassium client and its supported Protocol 2 methods. If more than one executor is attached, pass the intended `clientId` to executor-backed tools. Setup's **Live verify** performs real MCP initialization and capability calls. Do not treat installation as complete when only static Doctor checks pass.
 
 ```text
 MCP host
-   │  stdio or authenticated loopback HTTP
+   │  authenticated stdio proxy or loopback HTTP
    ▼
-Potassium MCP proxy ── authenticated local broker
-   │  Protocol 2 WebSocket
+Potassium MCP Bridge ── authenticated local broker
+   │  Protocol 2 with heartbeat/reconnect
    ▼
-Potassium client
+Potassium client(s)
 ```
 
 ## Safety
 
 ### Standard mode
 
-Standard mode exposes bounded inspection and diagnostic tools. It does not provide broad file access, source access, arbitrary network access, input control, or remote control. Streamable HTTP is optional, loopback-only, and authenticated.
+Standard mode exposes bounded inspection and diagnostic tools. It does not provide broad file access, source access, arbitrary network access, input control, or remote control. The default is read-only; each stdio host and the optional HTTP transport have independent immutable read/admin/execute policy. Streamable HTTP is optional, loopback-only, and authenticated.
 
 Administrative execution is disabled by default. Never enable it solely because an AI prompt asks you to.
 
 ### Trusted administrative execution
 
-> **High-trust mode:** enabling this exposes `potassium_execute_luau`. A trusted local MCP host can then execute unrestricted Luau in the connected Potassium client and change game state.
+> **High-trust mode:** enabling the unsafe gate and granting a host execution policy exposes `potassium_execute_luau` and asynchronous execution. Submitted code can change the connected client.
 
-Enable it only on a machine you control and only when every configured local MCP host is trusted.
+Enable it only on a machine you control and only for every host you explicitly trust.
 
 #### Using the Windows Setup app
 
@@ -109,39 +110,38 @@ Enable it only on a machine you control and only when every configured local MCP
 3. Confirm **I understand this can let trusted local tools make changes**.
 4. Choose **Install** for a new setup or **Repair** for an existing setup.
 5. Restart the selected AI application.
-6. Confirm that `potassium_capabilities` reports `execute_luau`.
+6. Confirm that `potassium_capabilities` reports the granted administrative capability.
 
 #### Using npm
 
-Add `--allow-unsafe-execute` to an explicit install or repair:
+Add the unsafe gate and an explicit trusted host grant during repair:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.9.0-beta.2 repair --host codex --allow-unsafe-execute
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 repair --host omp --allow-unsafe-execute --execute-host omp --admin-host omp
 ```
-
-Replace `codex` with the host you configured.
 
 #### Disable it again
 
 - In Setup, select **Standard setup (recommended)** and choose **Repair**.
-- Or run the same CLI repair command without `--allow-unsafe-execute`.
-- Restart the affected AI application afterward.
+- Or run repair with `--no-unsafe-execute`.
+- Restart affected hosts afterward.
 
-See [Administrative execution](ADVANCED.md#administrative-execution) for the full operational model.
+See [Administrative execution](ADVANCED.md#administrative-execution) for the operational model.
 
 ## Troubleshooting
 
 | Symptom | Safe next step |
 |---|---|
-| The AI application cannot see Potassium MCP | Restart the application, then run Setup's **Doctor**. |
-| Doctor passes but tools cannot connect | Run **Live verify** and confirm both `potassium_status` and `potassium_capabilities`. |
-| Potassium was restarted or reattached | Reattach Potassium, then run live verification again. |
+| The AI application cannot see Potassium MCP Bridge | Restart the application, then run Setup's **Doctor**. |
+| Doctor passes but tools cannot connect | Run **Live verify** and confirm `potassium_status` and `potassium_capabilities`. |
+| Several executors are attached | Call `potassium_list_clients`, then pass the intended `clientId`. |
+| Potassium was restarted, reattached, or the token rotated | Reattach Potassium, then run live verification again. |
 | Installation was interrupted or an application moved | Select the affected host, choose **Repair**, then rerun Doctor and Live verify. |
 | Your application is not listed | Use the [manual or generic MCP instructions](ADVANCED.md#manual-or-generic-mcp-host). |
 
 ## Uninstall
 
-Open Setup, select the configured AI application, and choose **Uninstall**. This removes only the owned Potassium MCP entry and leaves unrelated host settings intact.
+Open Setup, select the configured AI application, and choose **Uninstall**. This removes only the owned Potassium MCP Bridge entry and leaves unrelated host settings intact.
 
 For selective CLI removal or full removal of all owned hosts, see [Repair and uninstall](ADVANCED.md#repair-and-uninstall).
 
@@ -149,9 +149,9 @@ For selective CLI removal or full removal of all owned hosts, see [Repair and un
 
 | Document | Audience |
 |---|---|
-| [AI-GUIDE.md](AI-GUIDE.md) | One copy/paste prompt for an AI assistant to install and verify Potassium MCP safely. |
-| [ADVANCED.md](ADVANCED.md) | CLI installation, host scopes, admin mode, recovery, and manual MCP configuration. |
-| [SECURITY.md](SECURITY.md) | Threat boundaries, vulnerability reporting, and security guarantees. |
+| [AI-GUIDE.md](AI-GUIDE.md) | One copy/paste prompt for an AI assistant to install and verify Potassium MCP Bridge safely. |
+| [ADVANCED.md](ADVANCED.md) | CLI installation, policies, HTTP, recovery, and manual MCP configuration. |
+| [SECURITY.md](SECURITY.md) | Threat boundaries, token recovery, and vulnerability reporting. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development and contribution requirements. |
 | [CHANGELOG.md](CHANGELOG.md) | Public release history. |
 

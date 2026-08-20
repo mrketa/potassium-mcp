@@ -10,13 +10,39 @@ test("server recognizes a symlinked installed entrypoint", () => {
   assert.equal(isMainModule("C:\\installed\\server.js", "file:///C:/source/server.js", canonicalize), true);
 });
 
-test("HTTP transport configuration stays disabled by default and loopback-only when enabled", async () => {
+test("streamable HTTP config defaults to disabled loopback, permits programmatic port zero, and rejects invalid endpoints", async () => {
   const base = {
-    host: "127.0.0.1", port: 32145, token: "test-token-that-is-longer-than-thirty-two-characters",
-    requestTimeoutMs: 1000, maxMessageBytes: 65536, maxPendingRequests: 8, shutdownGraceMs: 1000,
+    host: "127.0.0.1",
+    port: 32145,
+    token: "a".repeat(32),
+    requestTimeoutMs: 30000,
+    maxMessageBytes: 1048576,
+    maxPendingRequests: 64,
+    shutdownGraceMs: 5000,
   };
-  const disabled = await parseConfig(base);
-  assert.equal(disabled.httpEnabled, false);
-  assert.equal(disabled.httpHost, "127.0.0.1");
-  await assert.rejects(parseConfig({ ...base, httpEnabled: true, httpHost: "0.0.0.0" }), /Invalid configuration/);
+  const parsed = await parseConfig(base);
+  assert.deepEqual(
+    [parsed.streamableHttpEnabled, parsed.streamableHttpHost, parsed.streamableHttpPort],
+    [false, "127.0.0.1", 32147],
+  );
+  assert.equal(
+    (await parseConfig({ ...base, streamableHttpEnabled: true, streamableHttpPort: 0 })).streamableHttpPort,
+    0,
+  );
+  await assert.rejects(
+    parseConfig({ ...base, streamableHttpHost: "0.0.0.0" }),
+    /Invalid configuration/,
+  );
+  await assert.rejects(
+    parseConfig({ ...base, streamableHttpEnabled: true, streamableHttpPort: 32145 }),
+    /must not share the executor endpoint/,
+  );
+  await assert.rejects(
+    parseConfig({ ...base, streamableHttpEnabled: true, streamableHttpPort: 32146 }),
+    /must not share the proxy endpoint/,
+  );
+  await assert.rejects(
+    parseConfig({ ...base, unexpected: true }),
+    /Invalid configuration/,
+  );
 });

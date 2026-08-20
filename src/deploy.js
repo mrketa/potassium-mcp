@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const assetsRoot = path.join(packageRoot, "assets");
 const defaultWorkspaceRoot = process.env.LOCALAPPDATA
-  ? path.join(process.env.LOCALAPPDATA, "Potassium", "data")
-  : path.resolve(packageRoot, "../data");
+  ? path.join(process.env.LOCALAPPDATA, "Potassium", "workspace")
+  : path.resolve(packageRoot, "../workspace");
 const files = [["bootstrap", "potassium_mcp_bootstrap.lua", ".potassium-mcp-bootstrap.lua"], ["autoexec", "potassium_mcp_autoexec.lua", "potassium_mcp_autoexec.lua"]];
 const exists = (target) => access(target, constants.F_OK).then(() => true).catch(() => false);
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");

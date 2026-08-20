@@ -29,10 +29,12 @@ function staticResult(options, state, value) {
   const exact = launcher?.type === "stdio"
     && typeof launcher.command === "string"
     && Array.isArray(launcher.args)
-    && launcher.args.length === 3
+    && launcher.args.length === 5
     && launcher.args[0] === expectedProxy
     && launcher.args[1] === "--config"
-    && launcher.args[2] === value.configPath;
+    && launcher.args[2] === value.configPath
+    && launcher.args[3] === "--host-id"
+    && launcher.args[4] === owned.id;
   return {
     ok: exact,
     reason: exact ? undefined : "owned launcher does not reference the installed proxy and configuration",
@@ -68,7 +70,7 @@ export async function verify(options = {}) {
     return { ok: false, static: { ...staticCheck, ok: false, reason: "owned proxy, Node runtime, or configuration is missing", launcher: undefined }, live: { ok: false, state: "not-started" } };
   }
 
-  const makeClient = options.makeClient ?? (() => new Client({ name: "potassium-mcp-verify", version: "0.9.0-beta.2" }));
+  const makeClient = options.makeClient ?? (() => new Client({ name: "potassium-mcp-verify", version: "0.10.0-beta.1" }));
   const makeTransport = options.makeTransport ?? ((launcher) => new StdioClientTransport({
     command: launcher.command,
     args: launcher.args,

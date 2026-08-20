@@ -36,11 +36,13 @@ async function createBridge(timeout = 500, overrides = {}) {
   return { bridge, url: `ws://127.0.0.1:${port}` };
 }
 
-async function connect(url, _token = TOKEN, client = { executor: "Potassium", protocol: PROTOCOL }, options) {
+async function connect(url, _token = TOKEN, client = { executor: "Potassium", protocol: PROTOCOL }, options, identity = {}) {
   const socket = new WebSocket(url, options);
   await once(socket, "open");
   const clientNonce = nonce();
-  const hello = { type: "hello", protocol: PROTOCOL, clientNonce, client };
+  const clientId = identity.clientId ?? randomBytes(16).toString("hex");
+  const generation = identity.generation ?? 1;
+  const hello = { type: "hello", protocol: PROTOCOL, clientId, generation, clientNonce, client };
   assert.equal(Object.hasOwn(hello, "token"), false);
   socket.send(JSON.stringify(hello));
   const [challengePayload] = await once(socket, "message");
@@ -63,7 +65,11 @@ async function connect(url, _token = TOKEN, client = { executor: "Potassium", pr
     protocol: PROTOCOL,
     clientNonce,
     serverNonce: challenge.serverNonce,
+    clientId,
+    generation,
   });
+  socket.clientId = clientId;
+  socket.generation = generation;
   return socket;
 }
 
@@ -84,6 +90,15 @@ async function connectUnresponsiveSocket(port) {
   return socket;
 }
 
+async function rejection(promise) {
+  try {
+    await promise;
+  } catch (error) {
+    return error;
+  }
+  assert.fail("Expected promise to reject");
+}
+
 test("authenticates a Potassium client and correlates responses", async (t) => {
   const { bridge, url } = await createBridge();
   t.after(() => bridge.close());
@@ -92,6 +107,8 @@ test("authenticates a Potassium client and correlates responses", async (t) => {
   assert.equal(bridge.status().connected, true);
   assert.deepEqual(bridge.status().client, { executor: "Potassium", protocol: PROTOCOL });
   assert.ok(bridge.status().connectedSince);
+  const activity = [];
+  bridge.on("activity", (value) => activity.push(value));
 
   socket.once("message", (payload) => {
     const request = JSON.parse(payload.toString());
@@ -100,11 +117,23 @@ test("authenticates a Potassium client and correlates responses", async (t) => {
       type: "response",
       id: request.id,
       ok: true,
-      result: { placeId: 93411036959889 },
+      result: { placeId: 1234567890 },
     }));
   });
 
-  assert.deepEqual(await bridge.request("client_state"), { placeId: 93411036959889 });
+  assert.deepEqual(await bridge.request("client_state"), { placeId: 1234567890 });
+  assert.equal(activity[0].method, "client_state");
+  assert.equal(activity[0].clientId, socket.clientId);
+  assert.equal(activity.at(-1), null);
+});
+
+test("marks initially disconnected requests as definitively unsubmitted", async (t) => {
+  const { bridge } = await createBridge();
+  t.after(() => bridge.close());
+
+  const error = await rejection(bridge.request("client_state"));
+  assert.equal(error.message, "Potassium is not connected");
+  assert.equal(error.submissionIndeterminate, false);
 });
 
 test("reports active method metadata and compare-and-swap transport recovery", async (t) => {
@@ -179,6 +208,8 @@ test("rejects a reusable bearer token in the initial hello", async (t) => {
   socket.send(JSON.stringify({
     type: "hello",
     protocol: PROTOCOL,
+    clientId: randomBytes(16).toString("hex"),
+    generation: 1,
     token: "wrong-token",
     clientNonce: nonce(),
     client: { executor: "Potassium", protocol: PROTOCOL },
@@ -196,6 +227,8 @@ test("rejects a client protocol mismatch", async (t) => {
   socket.send(JSON.stringify({
     type: "hello",
     protocol: 1,
+    clientId: randomBytes(16).toString("hex"),
+    generation: 1,
     clientNonce: nonce(),
     client: { executor: "Potassium", protocol: 1 },
   }));
@@ -213,6 +246,8 @@ test("rejects replayed or mismatched client proof bindings", async (t) => {
   socket.send(JSON.stringify({
     type: "hello",
     protocol: PROTOCOL,
+    clientId: randomBytes(16).toString("hex"),
+    generation: 1,
     clientNonce,
     client: { executor: "Potassium", protocol: PROTOCOL },
   }));
@@ -240,6 +275,8 @@ test("rejects an invalid client proof", async (t) => {
   socket.send(JSON.stringify({
     type: "hello",
     protocol: PROTOCOL,
+    clientId: randomBytes(16).toString("hex"),
+    generation: 1,
     clientNonce,
     client: { executor: "Potassium", protocol: PROTOCOL },
   }));
@@ -272,7 +309,7 @@ test("limits pending requests", async (t) => {
   await first;
 });
 
-test("sends requests one at a time in FIFO order", async (t) => {
+test("serializes mutation requests in FIFO order", async (t) => {
   const { bridge, url } = await createBridge();
   t.after(() => bridge.close());
   const socket = await connect(url);
@@ -305,8 +342,41 @@ test("rejects outbound requests that exceed the UTF-8 byte limit", async (t) => 
   assert.equal(bridge.status().pendingRequests, 0);
 });
 
+test("marks send callback and synchronous send failures as indeterminate", async (t) => {
+  const { bridge, url } = await createBridge();
+  t.after(() => bridge.close());
+  const socket = await connect(url);
+  t.after(() => socket.close());
+
+  bridge.client.send = (_serialized, callback) => callback(new Error("send callback failed"));
+  const callbackError = await rejection(bridge.request("callback"));
+  assert.equal(callbackError.message, "send callback failed");
+  assert.equal(callbackError.submissionIndeterminate, true);
+
+  bridge.client.send = () => {
+    throw new Error("synchronous send failed");
+  };
+  const synchronousError = await rejection(bridge.request("synchronous"));
+  assert.equal(synchronousError.message, "synchronous send failed");
+  assert.equal(synchronousError.submissionIndeterminate, true);
+});
+
+test("marks a timed-out sent request as indeterminate", async (t) => {
+  const { bridge, url } = await createBridge(20);
+  t.after(() => bridge.close());
+  const socket = await connect(url);
+  t.after(() => socket.close());
+
+  const sent = once(socket, "message");
+  const request = bridge.request("timeout");
+  await sent;
+  const error = await rejection(request);
+  assert.equal(error.message, "Potassium request timed out after 20 ms");
+  assert.equal(error.submissionIndeterminate, true);
+});
+
 test("timeout keeps the socket open until its late response clears recovery", async (t) => {
-  const { bridge, url } = await createBridge(250);
+  const { bridge, url } = await createBridge(100);
   t.after(() => bridge.close());
   const socket = await connect(url);
   t.after(() => socket.close());
@@ -316,8 +386,8 @@ test("timeout keeps the socket open until its late response clears recovery", as
   const first = bridge.request("first");
   const second = bridge.request("second");
   await Promise.all([
-    assert.rejects(first, /timed out after 250 ms/),
-    assert.rejects(second, /timed out after 250 ms/),
+    assert.rejects(first, /timed out after 100 ms/),
+    assert.rejects(second, /timed out after 100 ms/),
   ]);
 
   assert.deepEqual(requests.map((request) => request.method), ["first"]);
@@ -363,6 +433,8 @@ test("rejects an authenticated newcomer while an active request owns the session
   newcomer.send(JSON.stringify({
     type: "hello",
     protocol: PROTOCOL,
+    clientId: socket.clientId,
+    generation: socket.generation + 1,
     clientNonce: newcomerNonce,
     client: { executor: "Potassium", protocol: PROTOCOL },
   }));
@@ -393,7 +465,10 @@ test("replaces an idle Potassium session", async (t) => {
   t.after(() => oldSocket.close());
 
   const oldClosed = once(oldSocket, "close");
-  const replacement = await connect(url);
+  const replacement = await connect(url, TOKEN, { executor: "Potassium", protocol: PROTOCOL }, undefined, {
+    clientId: oldSocket.clientId,
+    generation: oldSocket.generation + 1,
+  });
   t.after(() => replacement.close());
   await oldClosed;
 
@@ -405,7 +480,7 @@ test("replaces an idle Potassium session", async (t) => {
   assert.equal(await requestPromise, "new session");
 });
 
-test("disconnect drains active and queued requests", async (t) => {
+test("disconnect marks only the active request as indeterminate", async (t) => {
   const { bridge, url } = await createBridge();
   t.after(() => bridge.close());
   const socket = await connect(url);
@@ -414,11 +489,13 @@ test("disconnect drains active and queued requests", async (t) => {
   const sent = once(socket, "message");
   const first = bridge.request("first");
   const second = bridge.request("second");
-  const firstRejected = assert.rejects(first, /Potassium disconnected/);
-  const secondRejected = assert.rejects(second, /Potassium disconnected/);
   await sent;
   socket.close();
-  await Promise.all([firstRejected, secondRejected]);
+  const [firstError, secondError] = await Promise.all([rejection(first), rejection(second)]);
+  assert.equal(firstError.message, "Potassium disconnected");
+  assert.equal(firstError.submissionIndeterminate, true);
+  assert.equal(secondError.message, "Potassium disconnected");
+  assert.equal(secondError.submissionIndeterminate, false);
   assert.equal(bridge.status().pendingRequests, 0);
 });
 
@@ -486,5 +563,87 @@ test("a cleared graceful-shutdown timer cannot terminate a restarted bridge", as
     globalThis.setTimeout = setTimeoutOriginal;
     globalThis.clearTimeout = clearTimeoutOriginal;
     await bridge.close();
+  }
+});
+
+test("requires explicit client selection when multiple executors are connected", async (t) => {
+  const { bridge, url } = await createBridge();
+  t.after(() => bridge.close());
+  const first = await connect(url);
+  const second = await connect(url);
+  t.after(() => first.close());
+  t.after(() => second.close());
+
+  await assert.rejects(bridge.request("client_state"), /client selection required/);
+  const received = once(second, "message");
+  const request = bridge.request("client_state", {}, 500, second.clientId);
+  const [payload] = await received;
+  const message = JSON.parse(payload.toString());
+  assert.equal(message.method, "client_state");
+  second.send(JSON.stringify({ type: "response", id: message.id, ok: true, result: { selected: second.clientId } }));
+  assert.deepEqual(await request, { selected: second.clientId });
+});
+
+test("runs at most four reads and does not bypass a queued mutation", async (t) => {
+  const { bridge, url } = await createBridge();
+  t.after(() => bridge.close());
+  const socket = await connect(url);
+  t.after(() => socket.close());
+  const messages = [];
+  socket.on("message", (payload) => messages.push(JSON.parse(payload.toString())));
+
+  const reads = Array.from({ length: 5 }, (_, index) => bridge.request("client_state", { index }));
+  const mutation = bridge.request("execute_luau", { code: "return 1" });
+  const trailingRead = bridge.request("client_state", { index: 5 });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(messages.map(({ method }) => method), ["client_state", "client_state", "client_state", "client_state"]);
+  socket.send(JSON.stringify({ type: "response", id: messages[0].id, ok: true, result: 0 }));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(messages.map(({ method }) => method), ["client_state", "client_state", "client_state", "client_state", "client_state"]);
+  for (const message of messages.slice(1, 5)) socket.send(JSON.stringify({ type: "response", id: message.id, ok: true, result: 0 }));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(messages[5].method, "execute_luau");
+  socket.send(JSON.stringify({ type: "response", id: messages[5].id, ok: true, result: "mutated" }));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(messages[6].method, "client_state");
+  socket.send(JSON.stringify({ type: "response", id: messages[6].id, ok: true, result: 5 }));
+  await Promise.all(reads);
+  assert.equal(await mutation, "mutated");
+  assert.equal(await trailingRead, 5);
+});
+
+test("pongs live heartbeats and closes a stale executor session", async (t) => {
+  const setIntervalOriginal = globalThis.setInterval;
+  const clearIntervalOriginal = globalThis.clearInterval;
+  const dateNowOriginal = Date.now;
+  let heartbeat;
+  let now = 0;
+  globalThis.setInterval = (callback) => {
+    heartbeat = { callback, unref() {} };
+    return heartbeat;
+  };
+  globalThis.clearInterval = () => {};
+  Date.now = () => now;
+  try {
+    const { bridge, url } = await createBridge();
+    t.after(() => bridge.close());
+    const socket = await connect(url);
+    t.after(() => socket.close());
+    const pingReceived = once(socket, "message");
+    heartbeat.callback();
+    const [pingPayload] = await pingReceived;
+    const ping = JSON.parse(pingPayload.toString());
+    assert.equal(ping.type, "ping");
+    socket.send(JSON.stringify({ type: "pong", nonce: ping.nonce }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    now = 15_001;
+    const closed = once(socket, "close");
+    heartbeat.callback();
+    const [code] = await closed;
+    assert.equal(code, 1001);
+  } finally {
+    globalThis.setInterval = setIntervalOriginal;
+    globalThis.clearInterval = clearIntervalOriginal;
+    Date.now = dateNowOriginal;
   }
 });
