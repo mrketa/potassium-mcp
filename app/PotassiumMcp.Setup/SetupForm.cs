@@ -17,6 +17,8 @@ public sealed class SetupForm : Form
     private readonly TextBox autoexecRoot = new() { Width = 470, AccessibleName = "Potassium autoexec folder" };
     private readonly Button browseWorkspace = new() { Text = "Browse workspace…", AutoSize = true };
     private readonly Button browseAutoexec = new() { Text = "Browse autoexec…", AutoSize = true };
+    private readonly TextBox projectRoot = new() { Width = 470, AccessibleName = "OMP project folder" };
+    private readonly Button browseProject = new() { Text = "Browse project…", AutoSize = true };
     private readonly Label pathStatus = new() { AutoSize = true, MaximumSize = new Size(640, 0), ForeColor = Color.DimGray, AccessibleName = "Potassium path discovery status" };
     private readonly TextBox result = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, MinimumSize = new Size(620, 120), AccessibleName = "Setup results" };
     private readonly Label restart = new() { AutoSize = true, MaximumSize = new Size(640, 0) };
@@ -42,6 +44,9 @@ public sealed class SetupForm : Form
             hosts.Add(host, checkbox);
             hostPanel.Controls.Add(checkbox);
         }
+        Add(layout, hostPanel);
+        Add(layout, new Label { Text = "OMP project", Font = new Font(Font, FontStyle.Bold), AutoSize = true });
+        Add(layout, FolderRow("Project", projectRoot, browseProject));
         Add(layout, new Label { Text = "Potassium folders", Font = new Font(Font, FontStyle.Bold), AutoSize = true });
         Add(layout, FolderRow("Workspace", workspaceRoot, browseWorkspace));
         Add(layout, FolderRow("Autoexec", autoexecRoot, browseAutoexec));
@@ -65,6 +70,7 @@ public sealed class SetupForm : Form
         Add(layout, footer);
         browseWorkspace.Click += (_, _) => BrowseForFolder(workspaceRoot, "Choose the Potassium workspace folder");
         browseAutoexec.Click += (_, _) => BrowseForFolder(autoexecRoot, "Choose the Potassium autoexec folder");
+        browseProject.Click += (_, _) => BrowseForFolder(projectRoot, "Choose the OMP project folder");
         var discovery = PotassiumPathDiscoveryService.Discover(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
         workspaceRoot.Text = discovery.WorkspaceRoot ?? "";
         autoexecRoot.Text = discovery.AutoexecRoot ?? "";
@@ -107,6 +113,11 @@ public sealed class SetupForm : Form
             result.Text = "Choose existing Potassium workspace and autoexec folders before continuing.";
             return;
         }
+        if (command is "install" or "repair" && selected.Contains("omp", StringComparer.OrdinalIgnoreCase) && !ProjectDirectory.IsValid(projectRoot.Text))
+        {
+            result.Text = "Choose an existing OMP project folder before continuing.";
+            return;
+        }
         if (advanced.Checked && !AdminConsent.IsAllowed(true, consent.Checked))
         {
             result.Text = "To use advanced access, first confirm that you understand the warning.";
@@ -117,10 +128,21 @@ public sealed class SetupForm : Form
         result.Text = command == "verify" ? "Checking your installed connection…" : "Working locally…";
         try
         {
-            var request = command is "install" or "repair"
-                ? new CliRequest(command, selected, "user", "bundled-package.tgz", AdminConsent.IsAllowed(advanced.Checked, consent.Checked), workspaceRoot.Text, autoexecRoot.Text)
-                : new CliRequest(command, Array.Empty<string>(), "", "");
-            var response = await runner.RunAsync(request);
+            var responses = new List<CliResult>();
+            if (command is "install" or "repair")
+            {
+                var allowUnsafeExecute = AdminConsent.IsAllowed(advanced.Checked, consent.Checked);
+                var userHosts = selected.Where(host => !string.Equals(host, "omp", StringComparison.OrdinalIgnoreCase)).ToArray();
+                if (userHosts.Length > 0)
+                    responses.Add(await RunRequestAsync(new CliRequest(command, userHosts, "user", "bundled-package.tgz", allowUnsafeExecute, workspaceRoot.Text, autoexecRoot.Text)));
+                if (selected.Contains("omp", StringComparer.OrdinalIgnoreCase))
+                    responses.Add(await RunRequestAsync(new CliRequest(command, ["omp"], "project", "bundled-package.tgz", allowUnsafeExecute, workspaceRoot.Text, autoexecRoot.Text, projectRoot.Text)));
+            }
+            else
+            {
+                responses.Add(await RunRequestAsync(new CliRequest(command, Array.Empty<string>(), "", "")));
+            }
+            var response = CliResults.Combine(responses);
             result.Text = response.Summary + Environment.NewLine + Environment.NewLine + response.Details;
         }
         catch (Exception exception)
@@ -130,11 +152,23 @@ public sealed class SetupForm : Form
         finally { SetBusy(false); }
     }
 
+    private async Task<CliResult> RunRequestAsync(CliRequest request)
+    {
+        try
+        {
+            return await runner.RunAsync(request);
+        }
+        catch (Exception exception)
+        {
+            return new CliResult(false, "Setup could not finish.", UserFacingText.Redact(exception.Message));
+        }
+    }
+
     private List<string> SelectedHosts() => hosts.Where(pair => pair.Value.Checked).Select(pair => pair.Key).ToList();
     private void SetBusy(bool busy)
     {
         UseWaitCursor = busy;
-        foreach (var button in new[] { install, repair, uninstall, doctor, verify, browseWorkspace, browseAutoexec }) button.Enabled = !busy;
+        foreach (var button in new[] { install, repair, uninstall, doctor, verify, browseWorkspace, browseAutoexec, browseProject }) button.Enabled = !busy;
     }
     private void BrowseForFolder(TextBox target, string title)
     {
@@ -152,7 +186,7 @@ public sealed class SetupForm : Form
         dialog.Controls.Add(contents);
         dialog.ShowDialog();
     }
-    private static string DisplayHost(string host) => host switch { "claude-code" => "Claude Code", "claude-desktop" => "Claude Desktop", "vscode" => "VS Code", _ => char.ToUpperInvariant(host[0]) + host[1..] };
+    private static string DisplayHost(string host) => host switch { "claude-code" => "Claude Code", "claude-desktop" => "Claude Desktop", "vscode" => "VS Code", "omp" => "OMP", _ => char.ToUpperInvariant(host[0]) + host[1..] };
     private static bool IsDetected(string host) => host switch
     {
         "claude-desktop" => File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Claude", "claude_desktop_config.json")),

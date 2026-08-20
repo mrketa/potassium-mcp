@@ -49,10 +49,10 @@ Supported host adapters: **OMP**, **Codex**, **Claude Code**, **Claude Desktop**
 
 ### Windows Setup app — recommended
 
-Download `potassium-mcp-0.10.0-beta.1-Setup.exe` from the [current GitHub prerelease](https://github.com/mrketa/potassium-mcp/releases/tag/v0.10.0-beta.1). The executable includes its required runtime.
+Download `potassium-mcp-0.10.0-beta.2-Setup.exe` from the [current GitHub prerelease](https://github.com/mrketa/potassium-mcp/releases/tag/v0.10.0-beta.2). The executable includes its required runtime.
 
 1. Open Setup.
-2. Confirm the detected Potassium workspace and autoexec folders, or select them if detection is ambiguous.
+2. Confirm the detected Potassium workspace and autoexec folders, or select them if detection is ambiguous. If you select OMP, also select the project containing its `.omp` folder.
 3. Select the AI application you use.
 4. Keep **Standard setup (recommended)** selected.
 5. Choose **Install**.
@@ -65,7 +65,7 @@ Setup detects the standard per-user `%LOCALAPPDATA%\Potassium\workspace` and sib
 For a reproducible installation, pin the exact version:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 install --host omp
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 install --host omp
 ```
 
 Repeat `--host` for explicitly selected hosts. For noninteractive host selection, repair, verification, broker control, token rotation, and uninstall commands, see [Advanced setup](ADVANCED.md#command-line-installer).
@@ -118,7 +118,7 @@ Enable it only on a machine you control and only for every host you explicitly t
 Add the unsafe gate and an explicit trusted host grant during repair:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 repair --host omp --allow-unsafe-execute --execute-host omp --admin-host omp
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 repair --host omp --allow-unsafe-execute --execute-host omp --admin-host omp
 ```
 
 #### Disable it again

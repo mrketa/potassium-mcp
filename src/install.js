@@ -76,6 +76,15 @@ function overlaps(left, right) {
   const relative = path.relative(left, right);
   return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
+export function samePath(left, right) {
+  if (typeof left !== "string" || typeof right !== "string") return false;
+  const windows = process.platform === "win32"
+    || /^[A-Za-z]:[\\/]/.test(left)
+    || /^[A-Za-z]:[\\/]/.test(right);
+  const api = windows ? path.win32 : path;
+  return api.relative(api.resolve(left), api.resolve(right)) === "";
+}
+
 
 export function installationPaths(options = {}) {
   const base = defaults();
@@ -115,32 +124,51 @@ function ownedAutoexecRoot(state) {
 }
 
 /**
- * Resolve omitted roots from schema-2 ownership without trusting a state file for mutation.
- * Callers still prove the returned state before modifying any managed input.
+ * Resolve omitted roots from ownership without trusting a state file for mutation.
+ * Callers still reread and prove ownership after acquiring the operation lock.
  */
 export async function ownedInstallationPaths(options = {}) {
   const requested = installationPaths(options);
   const state = await readJson(requested.statePath, null);
-  if (state?.schema !== 2) return { value: requested, state };
+  if (state?.schema !== 1 && state?.schema !== 2) return { value: requested, state };
   if (typeof state.installRoot !== "string" || !path.isAbsolute(state.installRoot)
     || typeof state.workspaceRoot !== "string" || !path.isAbsolute(state.workspaceRoot)) {
     return { value: requested, state };
   }
   const autoexecRoot = ownedAutoexecRoot(state);
   if (!autoexecRoot) return { value: requested, state };
+  if (state.schema === 1 && (typeof state.mcpConfigPath !== "string" || !path.isAbsolute(state.mcpConfigPath))) {
+    return { value: requested, state };
+  }
   const owned = installationPaths({
     ...options,
     installRoot: state.installRoot,
     workspaceRoot: state.workspaceRoot,
     autoexecRoot,
+    mcpConfigPath: state.schema === 1 ? state.mcpConfigPath : options.mcpConfigPath,
   });
-  for (const key of ["installRoot", "workspaceRoot", "autoexecRoot"]) {
-    if (options[key] !== undefined && requested[key] !== owned[key]) {
+  const ownedKeys = state.schema === 1
+    ? ["installRoot", "workspaceRoot", "autoexecRoot", "mcpConfigPath"]
+    : ["installRoot", "workspaceRoot", "autoexecRoot"];
+  for (const key of ownedKeys) {
+    if (options[key] !== undefined && !samePath(requested[key], owned[key])) {
       throw new Error(`explicit ${key} does not match owned installation`);
     }
   }
   return { value: owned, state };
 }
+
+function assertLockedRoots(state, value) {
+  if (!state || (state.schema !== 1 && state.schema !== 2)) return;
+  const autoexecRoot = ownedAutoexecRoot(state);
+  if (!samePath(state.installRoot, value.installRoot)
+    || !samePath(state.workspaceRoot, value.workspaceRoot)
+    || !samePath(autoexecRoot, value.autoexecRoot)
+    || (state.schema === 1 && !samePath(state.mcpConfigPath, value.mcpConfigPath))) {
+    throw new Error("installation ownership changed while waiting for the operation lock");
+  }
+}
+
 
 export async function restrictTokenAcl(tokenPath, run = spawnSync) {
   if (process.platform !== "win32") return;
@@ -573,7 +601,7 @@ async function stopOwnedBroker(value, options) {
 
 
 export async function install(options = {}) {
-  const { value, state: persistedState } = await ownedInstallationPaths(options);
+  const { value } = await ownedInstallationPaths(options);
   let streamableHttp = streamableHttpOptions(options);
   const source = options.packageSource ?? `@mrketa/potassium-mcp@${packageMetadata.version}`;
   const hostIds = selectedHosts(options);
@@ -643,7 +671,8 @@ export async function install(options = {}) {
     }
     await Promise.all([value.installRoot, value.workspaceRoot, value.autoexecRoot].map(rejectLinkedPath));
 
-    const persisted = persistedState;
+    const persisted = await readJson(value.statePath, null);
+    assertLockedRoots(persisted, value);
     const migratedSchema1 = persisted?.schema === 1;
     let priorState = await migrateSchema1(persisted, value);
     if (priorState?.schema === 2 && !migratedSchema1) {
@@ -899,7 +928,7 @@ function canDeleteCreatedConfig(hostId, source, record) {
 }
 
 export async function uninstall(options = {}) {
-  const { value, state: persistedState } = await ownedInstallationPaths(options);
+  const { value } = await ownedInstallationPaths(options);
   const releaseLock = await acquireInstallLock(value.installRoot);
   const backups = [];
   const removedCli = [];
@@ -912,9 +941,13 @@ export async function uninstall(options = {}) {
   };
   try {
     await Promise.all([value.installRoot, value.workspaceRoot, value.autoexecRoot].map(rejectLinkedPath));
-    let state = await migrateSchema1(persistedState, value);
+    const persistedState = await readJson(value.statePath, null);
+    assertLockedRoots(persistedState, value);
+    const migratedSchema1 = persistedState?.schema === 1;
+    let state;
     try {
-      state = await proveSchema2(state, value, options);
+      state = await migrateSchema1(persistedState, value);
+      if (!migratedSchema1) state = await proveSchema2(state, value, options);
     } catch (error) {
       throw new Error(`refusing uninstall: installation ownership is ambiguous (${error.message})`);
     }

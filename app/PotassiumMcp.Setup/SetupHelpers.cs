@@ -9,17 +9,34 @@ namespace PotassiumMcp.Setup;
 
 public sealed record BundleFile(string Path, string Sha256);
 public sealed record BundleManifest(IReadOnlyList<BundleFile> Files);
-public sealed record CliRequest(string Command, IReadOnlyCollection<string> Hosts, string Scope, string PackageSource, bool AllowUnsafeExecute = false, string? WorkspaceRoot = null, string? AutoexecRoot = null);
+public sealed record CliRequest(string Command, IReadOnlyCollection<string> Hosts, string Scope, string PackageSource, bool AllowUnsafeExecute = false, string? WorkspaceRoot = null, string? AutoexecRoot = null, string? WorkingDirectory = null);
 public sealed record CliResult(bool Ok, string Summary, string Details);
 
 public static class HostCatalog
 {
-    public static readonly string[] CommonHosts = ["codex", "claude-code", "claude-desktop", "vscode", "cursor", "gemini"];
+    public static readonly string[] CommonHosts = ["codex", "claude-code", "claude-desktop", "vscode", "cursor", "gemini", "omp"];
 
     public static string RestartInstructions(IEnumerable<string> hosts) =>
         "When setup finishes, close and reopen " +
         (hosts.Any() ? string.Join(", ", hosts) : "your AI app") +
         ". Then attach Potassium MCP from that app's MCP or tools settings. No account sign-in is needed here.";
+}
+
+public static class ProjectDirectory
+{
+    public static bool IsValid(string? path) => !string.IsNullOrWhiteSpace(path) && Directory.Exists(path);
+}
+
+public static class CliResults
+{
+    public static CliResult Combine(IEnumerable<CliResult> results)
+    {
+        var completed = results.ToList();
+        return new CliResult(
+            completed.All(result => result.Ok),
+            string.Join(Environment.NewLine, completed.Select(result => result.Summary)),
+            string.Join(Environment.NewLine + Environment.NewLine, completed.Select(result => result.Details)));
+    }
 }
 
 public static class AdminConsent
@@ -254,6 +271,7 @@ public sealed class SetupRunner
         var package = Directory.EnumerateFiles(workspace.Root, "*.tgz", SearchOption.AllDirectories).SingleOrDefault() ?? throw new InvalidDataException("The bundled package is incomplete.");
         var cli = Directory.EnumerateFiles(workspace.Root, "potassium-mcp.js", SearchOption.AllDirectories).SingleOrDefault() ?? throw new InvalidDataException("The bundled command is incomplete.");
         var start = new ProcessStartInfo(node) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        if (request.WorkingDirectory is not null) start.WorkingDirectory = request.WorkingDirectory;
         start.ArgumentList.Add(cli);
         foreach (var argument in CliArguments.Build(request with { PackageSource = package })) start.ArgumentList.Add(argument);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start the local setup command.");

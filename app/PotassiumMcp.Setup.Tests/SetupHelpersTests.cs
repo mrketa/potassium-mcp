@@ -36,6 +36,51 @@ public sealed class SetupHelpersTests
     }
 
     [Fact]
+    public void Host_catalog_includes_visible_omp_option()
+    {
+        Assert.Contains("omp", HostCatalog.CommonHosts, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Omp_install_arguments_use_project_scope_without_working_directory_argument()
+    {
+        var arguments = CliArguments.Build(new CliRequest("install", ["omp"], "project", "C:\\bundle.tgz", WorkspaceRoot: "C:\\Potassium\\workspace", AutoexecRoot: "C:\\Potassium\\autoexec", WorkingDirectory: "C:\\project"));
+        Assert.Equal(["install", "--json", "--scope", "project", "--package-source", "C:\\bundle.tgz", "--host", "omp", "--workspace", "C:\\Potassium\\workspace", "--autoexec", "C:\\Potassium\\autoexec"], arguments);
+    }
+
+    [Fact]
+    public void Project_directory_validation_requires_an_existing_directory()
+    {
+        var existing = Path.Combine(Path.GetTempPath(), "PotassiumMcp.Setup.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(existing);
+        try
+        {
+            Assert.True(ProjectDirectory.IsValid(existing));
+            Assert.False(ProjectDirectory.IsValid(Path.Combine(existing, "missing")));
+            Assert.False(ProjectDirectory.IsValid(null));
+        }
+        finally
+        {
+            Directory.Delete(existing, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Combined_cli_results_preserve_each_failure()
+    {
+        var combined = CliResults.Combine([
+            new CliResult(true, "User hosts installed", "codex configured"),
+            new CliResult(false, "OMP failed", "project configuration failed")
+        ]);
+
+        Assert.False(combined.Ok);
+        Assert.Contains("User hosts installed", combined.Summary);
+        Assert.Contains("OMP failed", combined.Summary);
+        Assert.Contains("codex configured", combined.Details);
+        Assert.Contains("project configuration failed", combined.Details);
+    }
+
+    [Fact]
     public void Verify_arguments_exclude_install_only_options()
     {
         var arguments = CliArguments.Build(new CliRequest("verify", ["codex"], "user", "C:\\bundle.tgz", true, "C:\\Potassium\\workspace", "C:\\Potassium\\autoexec"));

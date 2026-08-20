@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { access, cp, link, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import { EXECUTOR_REQUEST_TIMEOUT_MS, install, installationPaths, launcher, MCP_LAUNCHER_TIMEOUT_MS, repair, rotateToken, uninstall } from "../src/install.js";
+import { EXECUTOR_REQUEST_TIMEOUT_MS, install, installationPaths, launcher, MCP_LAUNCHER_TIMEOUT_MS, repair, rotateToken, samePath, uninstall } from "../src/install.js";
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), "potassium-install-")); t.after(() => rm(root, { recursive: true, force: true }));
@@ -20,6 +21,10 @@ test("launcher derives a testable absolute executable without the test runner pa
     { type: "stdio", command: nodeExecutable, args: ["C:\\stable\\server.js", "--config", "C:\\stable\\config.json", "--host-id", "omp"], timeout: MCP_LAUNCHER_TIMEOUT_MS },
   );
   assert.throws(() => launcher("server.js", "config.json", "node"), /absolute path/);
+});
+test("path ownership follows Windows casing without conflating different roots", () => {
+  assert.equal(samePath("C:\\Potassium\\Workspace", "c:\\potassium\\workspace"), true);
+  assert.equal(samePath("C:\\Potassium\\Workspace", "C:\\Potassium\\Other"), false);
 });
 test("fresh path resolution defaults to Potassium workspace and separate autoexec", () => {
   const value = installationPaths();
@@ -194,6 +199,46 @@ test("repair migrates a proven legacy launcher to the absolute Node executable a
   const migrated = JSON.parse(await readFile(value.mcpConfigPath, "utf8")).mcpServers.potassium;
   assert.equal(migrated.command, value.nodeExecutable);
   assert.equal(migrated.timeout, MCP_LAUNCHER_TIMEOUT_MS);
+});
+test("schema-1 data ownership resolves omitted roots for repair and uninstall", async (t) => {
+  const fixtureValue = await fixture(t);
+  const value = {
+    ...fixtureValue,
+    workspaceRoot: path.join(fixtureValue.root, "data"),
+    autoexecRoot: path.join(fixtureValue.root, "autoexec"),
+  };
+  await mkdir(value.workspaceRoot);
+  const installed = await install(value);
+  const statePath = path.join(value.installRoot, "ownership.json");
+  const state = JSON.parse(await readFile(statePath, "utf8"));
+  const config = JSON.parse(await readFile(value.mcpConfigPath, "utf8"));
+  const serverPath = path.join(installed.appPath, "node_modules", "@mrketa", "potassium-mcp", "src", "server.js");
+  const legacy = {
+    schema: 1,
+    installRoot: value.installRoot,
+    workspaceRoot: value.workspaceRoot,
+    appPath: installed.appPath,
+    configPath: installed.configPath,
+    tokenPath: path.join(value.workspaceRoot, ".potassium-mcp-token"),
+    tokenSha256: state.tokenSha256,
+    configSha256: state.configSha256,
+    serverSha256: createHash("sha256").update(await readFile(serverPath)).digest("hex"),
+    mcpConfigPath: value.mcpConfigPath,
+    mcpConfigCreated: false,
+    launcher: config.mcpServers.potassium,
+    scripts: state.scripts,
+  };
+  await writeFile(statePath, JSON.stringify(legacy));
+
+  const repaired = await repair({ ...value, workspaceRoot: undefined, autoexecRoot: undefined, mcpConfigPath: undefined });
+  assert.equal(repaired.doctor.ok, true);
+  const migrated = JSON.parse(await readFile(statePath, "utf8"));
+  assert.equal(migrated.workspaceRoot, value.workspaceRoot);
+  assert.equal(migrated.autoexecRoot, value.autoexecRoot);
+
+  await writeFile(statePath, JSON.stringify(legacy));
+  await uninstall({ ...value, workspaceRoot: undefined, autoexecRoot: undefined, mcpConfigPath: undefined, all: true });
+  await assert.rejects(access(installed.appPath), { code: "ENOENT" });
 });
 test("uninstall validates the persisted absolute launcher instead of the current process executable", async (t) => {
   const value = await fixture(t);

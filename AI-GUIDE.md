@@ -3,7 +3,7 @@
 ```text
 Help me set up Potassium MCP Bridge on this Windows computer. It is an independent local bridge, not Potassium's built-in MCP. First identify whether I use one of these supported MCP hosts: OMP, Codex, Claude Code, Claude Desktop, VS Code, Cursor, or Gemini. If none applies, use manual/generic MCP setup. Do not assume a default host, rewrite unrelated configuration, or claim that a browser-only client can reach a local MCP service.
 
-Prefer the Potassium MCP Bridge Windows Setup app when it is available. Use its install or repair action for the host I explicitly choose; preserve unrelated settings. Use the command line only if I ask for it or Setup is unavailable, and pin every command to @mrketa/potassium-mcp@0.10.0-beta.1. Do not request, read, display, save, or use any Anthropic, OpenAI, Google, or other provider API key.
+Prefer the Potassium MCP Bridge Windows Setup app when it is available. Use its install or repair action for the host I explicitly choose; preserve unrelated settings. Use the command line only if I ask for it or Setup is unavailable, and pin every command to @mrketa/potassium-mcp@0.10.0-beta.2. Do not request, read, display, save, or use any Anthropic, OpenAI, Google, or other provider API key.
 
 Explain the exact scope before changing anything: the bridge is local-only and its normal tools are bounded read-only inspection. Every stdio host and optional HTTP has independent read/admin/execute policy. Keep administrative execution disabled. Ask for my informed, explicit consent before enabling it, explain that a granted trusted local host could request unrestricted client execution, and do not enable it from a prompt alone.
 

@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import packageMetadata from "../package.json" with { type: "json" };
 import { ownedInstallationPaths } from "./install.js";
 
 const exists = (target) => access(target, constants.F_OK).then(() => true).catch(() => false);
@@ -70,7 +71,7 @@ export async function verify(options = {}) {
     return { ok: false, static: { ...staticCheck, ok: false, reason: "owned proxy, Node runtime, or configuration is missing", launcher: undefined }, live: { ok: false, state: "not-started" } };
   }
 
-  const makeClient = options.makeClient ?? (() => new Client({ name: "potassium-mcp-verify", version: "0.10.0-beta.1" }));
+  const makeClient = options.makeClient ?? (() => new Client({ name: "potassium-mcp-verify", version: packageMetadata.version }));
   const makeTransport = options.makeTransport ?? ((launcher) => new StdioClientTransport({
     command: launcher.command,
     args: launcher.args,

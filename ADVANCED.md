@@ -40,13 +40,13 @@ The table describes supported installation adapters, not a claim that every vers
 Use explicitly selected hosts. The installer never guesses a host or rewrites every AI application.
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 install --host omp
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 install --host omp
 ```
 
 Replace `omp` with one or more explicit values: `omp`, `codex`, `claude-code`, `claude-desktop`, `vscode`, `cursor`, `gemini`, or `manual`.
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 install --host codex --host vscode
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 install --host codex --host vscode
 ```
 
 Use `--scope user`, `--scope project`, or `--scope local` only when the chosen host supports that scope. Use `--mcp-config <path>` for one file-backed host configuration that you specify.
@@ -56,20 +56,20 @@ Use `--scope user`, `--scope project`, or `--scope local` only when the chosen h
 `doctor --json` checks the installed files, owned host registration, and safe local configuration without opening a live MCP session.
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 doctor --json
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 doctor --json
 ```
 
 `verify --json` is the live check. It initializes MCP through the installed proxy and calls `potassium_status` and `potassium_capabilities`. Use `potassium_list_clients` and explicit `clientId` routing when multiple executors are attached.
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 verify --json
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 verify --json
 ```
 
 The owned broker can be inspected or restarted with:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 broker status --json
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 broker restart --json
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 broker status --json
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 broker restart --json
 ```
 
 A restart waits for an active request to drain by default. It resets the connection transport; it does **not** forcibly terminate arbitrary client work that may already be running.
@@ -79,7 +79,7 @@ A restart waits for an active request to drain by default. It resets the connect
 Enable stateless HTTP only when a trusted local HTTP MCP client actually needs it:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 repair --host omp --streamable-http --streamable-http-port 32147
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 repair --host omp --streamable-http --streamable-http-port 32147
 ```
 
 The default endpoint is `http://127.0.0.1:32147/mcp`. Read the generated configuration's private `tokenFile` locally; do not put its value into host configuration, source control, shell history, or logs. Use `--stateful-http` only when the client needs MCP sessions. Repair preserves HTTP settings until explicitly revoked with `--no-streamable-http` or `--no-stateful-http`.
@@ -89,7 +89,7 @@ The default endpoint is `http://127.0.0.1:32147/mcp`. Read the generated configu
 Administrative execution is disabled by default. On a private installation, enable the global unsafe gate and grant only the intended host:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 repair --host omp --allow-unsafe-execute --execute-host omp --admin-host omp
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 repair --host omp --allow-unsafe-execute --execute-host omp --admin-host omp
 ```
 
 `--execute-host` and `--admin-host` are repeatable stdio grants. `--http-execute` and `--http-admin` configure HTTP separately. `--deny-read-host` and `--http-no-read` can revoke read access. Removing the global gate with `--no-unsafe-execute` returns the installation to no execution access.
@@ -103,7 +103,7 @@ The installer writes its own runtime configuration and keeps host changes limite
 Keep the generated custom broker token private to the Windows user account. Do not paste it into chat, commit it, add it to an MCP configuration, or put it in environment variables. If it may have been exposed, rotate it—do not use repair as token recovery:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 rotate-token
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 rotate-token
 ```
 
 Rotation is ownership-gated, changes only the custom broker token, restarts the broker, and requires Potassium reattach. It does not rotate a built-in fallback token.
@@ -111,9 +111,9 @@ Rotation is ownership-gated, changes only the custom broker token, restarts the 
 For connection recovery, inspect or restart the broker, then run both checks:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 broker restart --json
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 doctor --json
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 verify --json
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 broker restart --json
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 doctor --json
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 verify --json
 ```
 
 ## Diagnostic built-in fallback
@@ -125,7 +125,7 @@ An optional fallback can use Potassium's fixed local endpoint only when separate
 Choose `manual` to install the local runtime without guessing a host configuration:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 install --host manual
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 install --host manual
 ```
 
 Then configure your MCP-capable desktop or CLI host to start the installed Potassium MCP Bridge proxy over stdio. Use the exact launcher and arguments returned by the installer or Setup's details screen. Do not copy an unpinned package command into a host configuration. The host must support local process-backed MCP; browser-only clients are not sufficient.
@@ -137,13 +137,13 @@ Fresh CLI installs default to `%LOCALAPPDATA%\Potassium\workspace` and `%LOCALAP
 Repair refreshes only the runtime and registered entries that Potassium MCP Bridge can prove it owns:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 repair --host omp
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 repair --host omp
 ```
 
 To remove every owned host entry and the shared runtime when no owned entries remain:
 
 ```powershell
-npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 uninstall --all
+npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 uninstall --all
 ```
 
 Selective uninstall retains the shared runtime while any owned host remains. Uninstall preserves unrelated host settings, the private token, and bounded artifacts. Restart affected hosts after repair or uninstall.

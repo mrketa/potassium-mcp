@@ -18,7 +18,7 @@ The installer creates local authentication material and restricts it to the curr
 
 - Never paste it into chat, an issue, screenshot, log, environment variable, or host configuration.
 - Never commit it or copy private installation data to shared storage.
-- If the custom broker token may be exposed, run `npx --yes @mrketa/potassium-mcp@0.10.0-beta.1 rotate-token`, then restart or reload affected MCP hosts and reattach Potassium. **Repair preserves a valid token and is not credential rotation.**
+- If the custom broker token may be exposed, run `npx --yes @mrketa/potassium-mcp@0.10.0-beta.2 rotate-token`, then restart or reload affected MCP hosts and reattach Potassium. **Repair preserves a valid token and is not credential rotation.**
 - Token rotation is ownership-gated and does not rotate a distinct built-in fallback token; rotate that token through Potassium's supported native procedure.
 - Keep the Windows account and configured MCP hosts protected; local malware or an untrusted host running as that account is outside this package's ability to distinguish safely.
 
