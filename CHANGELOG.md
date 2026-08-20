@@ -2,6 +2,13 @@
 
 All notable public changes are documented here.
 
+## 0.10.0-beta.3 — 2026-08-20
+
+- Fixed Windows Setup runtime verification for `tar` archives whose entries use a leading `./`.
+- Bundled the complete Potassium MCP package, production dependencies, and npm CLI required by the local installer.
+- Added release-time launch checks for the bundled Potassium command and npm CLI.
+- Replaced the setup-only AI prompt with a complete agent guide covering all 42 MCP tools, full-access policy, routing, transports, execution, and recovery.
+
 ## 0.10.0-beta.2 — 2026-08-20
 
 - Fixed Windows Setup discovery for the standard `workspace`/`autoexec` layout, legacy `data` installations, explicit custom roots, and Windows path casing.

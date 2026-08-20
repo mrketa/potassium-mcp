@@ -28,6 +28,21 @@ public sealed class SetupHelpersTests
     }
 
     [Fact]
+    public void Manifest_validation_accepts_tar_style_current_directory_prefix()
+    {
+        const string content = "node";
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(content)));
+        var manifest = BundleValidation.ParseManifest($"{{\"files\":[{{\"path\":\"runtime/node.exe\",\"sha256\":\"{hash}\"}}]}}");
+        using var bytes = new MemoryStream();
+        using (var archive = new ZipArchive(bytes, ZipArchiveMode.Create, true))
+        using (var writer = new StreamWriter(archive.CreateEntry("./runtime/node.exe").Open())) writer.Write(content);
+        bytes.Position = 0;
+        using var input = new ZipArchive(bytes, ZipArchiveMode.Read);
+
+        BundleValidation.Verify(input, manifest);
+    }
+
+    [Fact]
     public void Install_arguments_include_explicit_paths_and_do_not_enable_admin_without_consent()
     {
         var arguments = CliArguments.Build(new CliRequest("install", ["codex", "cursor", "codex"], "user", "C:\\bundle.tgz", WorkspaceRoot: "C:\\Potassium\\workspace", AutoexecRoot: "C:\\Potassium\\autoexec"));

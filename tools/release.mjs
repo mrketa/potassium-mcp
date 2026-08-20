@@ -103,12 +103,16 @@ function packNpm() {
   if (!existsSync(file)) fail('npm pack did not create the expected tarball');
   return { file, pack };
 }
-function unpackEntrypoint(tgz, destination) {
+function unpackPackage(tgz, destination) {
   const temporary = join(out, '.npm-package');
+  const packageRoot = join(destination, 'package');
+  const dependencies = join(root, 'node_modules');
+  if (!existsSync(dependencies)) fail('node_modules is required to stage the local setup runtime');
   rmSync(temporary, { recursive: true, force: true });
   mkdirSync(temporary, { recursive: true });
   run('tar', ['-xzf', tgz, '-C', temporary]);
-  cpSync(join(temporary, 'package', 'bin'), join(destination, 'bin'), { recursive: true });
+  cpSync(join(temporary, 'package'), packageRoot, { recursive: true });
+  cpSync(dependencies, join(packageRoot, 'node_modules'), { recursive: true });
   rmSync(temporary, { recursive: true, force: true });
 }
 function nodePackageDirectories(lock) {
@@ -139,8 +143,15 @@ function writeSbom() {
 }
 function copyNodeRuntime(destination) {
   const runtime = resolve(process.env.NODE_RUNTIME_DIR ?? dirname(process.execPath));
-  if (!existsSync(join(runtime, process.platform === 'win32' ? 'node.exe' : 'node'))) fail(`NODE_RUNTIME_DIR must contain the Node executable: ${runtime}`);
+  const executable = join(runtime, process.platform === 'win32' ? 'node.exe' : 'node');
+  const npmRoot = [
+    join(runtime, 'node_modules', 'npm'),
+    join(dirname(runtime), 'lib', 'node_modules', 'npm'),
+  ].find(existsSync);
+  if (!existsSync(executable)) fail(`NODE_RUNTIME_DIR must contain the Node executable: ${runtime}`);
+  if (!npmRoot) fail(`Node runtime must include the npm CLI: ${runtime}`);
   cpSync(runtime, destination, { recursive: true, filter: (source) => !source.includes(`${sep}node_modules${sep}`) });
+  cpSync(npmRoot, join(destination, 'node_modules', 'npm'), { recursive: true });
   const nodeLicense = [join(runtime, 'LICENSE'), join(dirname(runtime), 'LICENSE'), join(root, 'third-party', 'NODE-LICENSE')].find(existsSync);
   if (!nodeLicense) fail('Node runtime LICENSE was not found');
   copyFileSync(nodeLicense, join(destination, 'NODE-LICENSE'));
@@ -148,17 +159,26 @@ function copyNodeRuntime(destination) {
 function powershellZip(source, destination) {
   run('tar', ['-a', '-c', '-f', destination, '-C', source, '.']);
 }
+function smokeRuntimeBundle(stage) {
+  const node = join(stage, process.platform === 'win32' ? 'node.exe' : 'node');
+  const npmCli = join(stage, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  const cli = join(stage, 'package', packageJson.bin['potassium-mcp']);
+  if (!run(node, [npmCli, '--version']).trim()) fail('bundled npm CLI did not pass its launch check');
+  const output = run(node, [cli, 'help']);
+  if (!output.includes('Usage: potassium-mcp')) fail('bundled setup command did not pass its launch check');
+}
 function stageRuntimeBundle(tgz) {
   const stage = join(out, 'runtime-bundle');
   rmSync(stage, { recursive: true, force: true });
   mkdirSync(stage, { recursive: true });
   copyNodeRuntime(stage);
   copyFileSync(tgz, join(stage, 'potassium-mcp.tgz'));
-  unpackEntrypoint(tgz, stage);
+  unpackPackage(tgz, stage);
   copyFileSync(join(root, 'LICENSE'), join(stage, 'LICENSE'));
   copyFileSync(join(root, 'README.md'), join(stage, 'README.md'));
   copyFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), join(stage, 'THIRD-PARTY-NOTICES.txt'));
-  for (const file of walk(stage)) assertCleanText(file);
+  for (const file of walk(stage)) if (!safeRelative(file, stage).split('/').includes('node_modules')) assertCleanText(file);
+  smokeRuntimeBundle(stage);
   const manifest = { files: walk(stage).map((file) => ({ path: safeRelative(file, stage).split('/').join('\\'), sha256: sha256(file) })).sort((a, b) => a.path.localeCompare(b.path)) };
   mkdirSync(appAssets, { recursive: true });
   json(join(appAssets, 'runtime-bundle.manifest.json'), manifest);

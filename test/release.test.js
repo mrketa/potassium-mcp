@@ -56,7 +56,11 @@ test('package and runtime staging reject private terms, secrets, tests, and tool
   assert.match(release, /autofarm/i);
   assert.match(release, /PRIVATE KEY/);
   assert.match(release, /assertCleanText/);
-  assert.match(release, /unpackEntrypoint/);
+  assert.match(release, /unpackPackage/);
+  assert.match(release, /cpSync\(dependencies, join\(packageRoot, 'node_modules'\)/);
+  assert.match(release, /cpSync\(npmRoot, join\(destination, 'node_modules', 'npm'\)/);
+  assert.match(release, /run\(node, \[npmCli, '--version'\]\)/);
+  assert.match(release, /smokeRuntimeBundle\(stage\)/);
   assert.match(release, /NODE-LICENSE/);
   assert.match(release, /THIRD-PARTY-NOTICES/);
   assert.match(release, /runtime-bundle\.manifest\.json/);

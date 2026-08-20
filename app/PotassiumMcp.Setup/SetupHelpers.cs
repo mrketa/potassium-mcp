@@ -218,7 +218,7 @@ public static class BundleValidation
 
     public static void Verify(ZipArchive archive, BundleManifest manifest)
     {
-        var entries = archive.Entries.Where(entry => !string.IsNullOrEmpty(entry.Name)).ToDictionary(entry => entry.FullName.Replace('/', '\\'), StringComparer.OrdinalIgnoreCase);
+        var entries = archive.Entries.Where(entry => !string.IsNullOrEmpty(entry.Name)).ToDictionary(entry => NormalizeArchivePath(entry.FullName), StringComparer.OrdinalIgnoreCase);
         if (entries.Count != manifest.Files.Count) throw new InvalidDataException("The bundled runtime does not match its manifest.");
         foreach (var file in manifest.Files)
         {
@@ -231,6 +231,12 @@ public static class BundleValidation
     public static bool IsSafeRelativePath(string? path) => !string.IsNullOrWhiteSpace(path) && !Path.IsPathRooted(path) && !path.Contains("..", StringComparison.Ordinal) && !path.Contains(':');
     private static bool IsSha256(string? hash) => hash is { Length: 64 } && hash.All(Uri.IsHexDigit);
     private static string Hash(ZipArchiveEntry entry) { using var stream = entry.Open(); return Convert.ToHexString(SHA256.HashData(stream)); }
+    private static string NormalizeArchivePath(string path)
+    {
+        path = path.Replace('/', '\\');
+        while (path.StartsWith(".\\", StringComparison.Ordinal)) path = path[2..];
+        return path;
+    }
 }
 
 public sealed class RuntimeWorkspace : IDisposable
