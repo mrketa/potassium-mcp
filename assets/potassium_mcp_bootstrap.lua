@@ -1,5 +1,6 @@
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
+local LogService = game:GetService("LogService")
 
 local ENDPOINT = "ws://127.0.0.1:32145"
 local PROTOCOL = 2
@@ -8,14 +9,23 @@ local MAX_TABLE_ITEMS = 200
 local MAX_MESSAGE_BYTES = 1048576
 local MAX_ERROR_MESSAGE_BYTES = 1024
 local MAX_TOKEN_BYTES = 4096
-local MAX_IN_FLIGHT_REQUESTS = 1
+local MAX_IN_FLIGHT_REQUESTS = 5
 local MAX_REQUEST_ID_BYTES = 256
 local RECONNECT_BASE_DELAY_SECONDS = 1
 local RECONNECT_MAX_DELAY_SECONDS = 30
 local HANDSHAKE_TIMEOUT_SECONDS = 5
 local CONNECTION_TIMEOUT_SECONDS = 10
+local HEARTBEAT_STALE_SECONDS = 15
 local WORK_SLICE_SECONDS = 0.002
 local WORK_SLICE_ITEMS = 128
+local MAX_ASYNC_RESULT_BYTES = 262144
+local MAX_ACTIVE_ASYNC_JOBS = 8
+local MAX_RETAINED_ASYNC_JOBS = 32
+local ASYNC_JOB_RETENTION_SECONDS = 300
+local MAX_ASYNC_SERIALIZED_ITEMS = 4096
+local MAX_ASYNC_SERIALIZED_BYTES = 245760
+local MAX_ASYNC_CONSOLE_ENTRIES = 200
+local MAX_ASYNC_CONSOLE_BYTES = 65536
 
 local MAX_SNAPSHOT_PROPERTIES = 16
 local MAX_SNAPSHOT_ATTRIBUTES = 32
@@ -146,8 +156,17 @@ then
 end
 
 local previous = sharedEnvironment.PotassiumMcp
-if type(previous) == "table" and (previous.socket ~= nil or (tonumber(previous.inFlightRequests) or 0) > 0) then
-	warn("[Potassium MCP] Bootstrap reload refused while the prior session owns a socket or request")
+if
+	type(previous) == "table"
+	and (
+		previous.socket ~= nil
+		or (tonumber(previous.inFlightRequests) or 0) > 0
+		or previous.rawExecutionActive
+		or (tonumber(previous.asyncActiveJobs) or 0) > 0
+		or previous.asyncWorkerScheduled
+	)
+then
+	warn("[Potassium MCP] Bootstrap reload refused while the prior session owns active work")
 	return
 end
 
@@ -170,13 +189,17 @@ local generation = math.max(
 ) + 1
 sharedEnvironment.PotassiumMcpGeneration = generation
 _G.PotassiumMcpGeneration = generation
+local clientId = string.sub(secureRandomNonce() or "", 1, 32)
 local state = {
 	active = token ~= nil and cryptoAvailable and webSocketConnect ~= nil,
+	clientId = clientId,
+	generation = generation,
 	acknowledged = false,
 	connected = false,
 	socket = nil,
 	handshake = nil,
 	handshakeGeneration = 0,
+	lastPongAt = 0,
 	startupStatus = startupStatus,
 	startupReason = startupReason,
 	reconnectScheduled = false,
@@ -184,6 +207,16 @@ local state = {
 	connectionTimeoutGeneration = 0,
 	inFlightRequests = 0,
 	activeRequestIds = {},
+	rawExecutionActive = false,
+	rawExecutionOwner = nil,
+	asyncJobs = {},
+	asyncQueue = {},
+	asyncQueueHead = 1,
+	asyncActiveJobs = 0,
+	asyncTerminalOrder = {},
+	asyncTerminalHead = 1,
+	asyncTerminalCount = 0,
+	asyncWorkerScheduled = false,
 }
 
 if type(previous) == "table" then
@@ -214,15 +247,12 @@ local function startConnectionTimeout()
 		end
 
 		local socket = state.socket
-		state.active = false
-		state.socket = nil
 		state.connected = false
 		state.acknowledged = false
 		state.handshake = nil
 		state.handshakeGeneration = state.handshakeGeneration + 1
-		state.startupStatus = "disabled"
+		state.startupStatus = "connection_unavailable"
 		state.startupReason = "connection timed out"
-		warn("[Potassium MCP] Disabled: connection timed out")
 		if socket then
 			pcall(function()
 				socket:Close()
@@ -294,16 +324,36 @@ local function checkpointWork(budget, items)
 	budget.startedAt = os.clock()
 end
 
-local function serialize(value, seen, depth)
+local function consumeSerializeBudget(budget, items, bytes)
+	if not budget then
+		return true
+	end
+	budget.items = budget.items + (items or 0)
+	budget.bytes = budget.bytes + (bytes or 0)
+	return budget.items <= budget.maxItems and budget.bytes <= budget.maxBytes
+end
+
+local function serialize(value, seen, depth, budget)
+	if not consumeSerializeBudget(budget, 1, 16) then
+		return nil, "Async result serialization budget exceeded"
+	end
+
 	local valueType = typeof(value)
 	if value == nil then
+		if not consumeSerializeBudget(budget, 0, 14) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return { type = "nil" }
 	end
 	if valueType == "boolean" then
 		return value
 	end
 	if valueType == "string" then
-		return redactString(value)
+		local redacted = redactString(value)
+		if not consumeSerializeBudget(budget, 0, #redacted + 2) then
+			return nil, "Async result serialization budget exceeded"
+		end
+		return redacted
 	end
 	if valueType == "number" then
 		if value ~= value then
@@ -316,21 +366,39 @@ local function serialize(value, seen, depth)
 		return value
 	end
 	if valueType == "Vector3" then
+		if not consumeSerializeBudget(budget, 3, 64) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return { type = "Vector3", x = value.X, y = value.Y, z = value.Z }
 	end
 	if valueType == "Vector2" then
+		if not consumeSerializeBudget(budget, 2, 48) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return { type = "Vector2", x = value.X, y = value.Y }
 	end
 	if valueType == "Color3" then
+		if not consumeSerializeBudget(budget, 3, 64) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return { type = "Color3", r = value.R, g = value.G, b = value.B }
 	end
 	if valueType == "CFrame" then
+		if not consumeSerializeBudget(budget, 13, 256) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return { type = "CFrame", components = { value:GetComponents() } }
 	end
 	if valueType == "UDim" then
+		if not consumeSerializeBudget(budget, 2, 48) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return { type = "UDim", scale = value.Scale, offset = value.Offset }
 	end
 	if valueType == "UDim2" then
+		if not consumeSerializeBudget(budget, 6, 112) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return {
 			type = "UDim2",
 			x = { scale = value.X.Scale, offset = value.X.Offset },
@@ -338,27 +406,50 @@ local function serialize(value, seen, depth)
 		}
 	end
 	if valueType == "Rect" then
+		if not consumeSerializeBudget(budget, 6, 112) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return { type = "Rect", min = { x = value.Min.X, y = value.Min.Y }, max = { x = value.Max.X, y = value.Max.Y } }
 	end
 	if valueType == "BrickColor" then
-		return { type = "BrickColor", number = value.Number, name = redactString(value.Name) }
+		local name = redactString(value.Name)
+		if not consumeSerializeBudget(budget, 2, #name + 48) then
+			return nil, "Async result serialization budget exceeded"
+		end
+		return { type = "BrickColor", number = value.Number, name = name }
 	end
 	if valueType == "NumberRange" then
+		if not consumeSerializeBudget(budget, 2, 48) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return { type = "NumberRange", min = value.Min, max = value.Max }
 	end
 	if valueType == "Instance" then
+		local name = redactString(value.Name)
+		local path = safePath(value)
+		if not consumeSerializeBudget(budget, 3, #name + #path + 80) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		return {
 			type = "Instance",
 			className = value.ClassName,
-			name = redactString(value.Name),
-			path = safePath(value),
+			name = name,
+			path = path,
 		}
 	end
 	if valueType == "EnumItem" then
-		return { type = "EnumItem", value = redactString(tostring(value)) }
+		local itemValue = redactString(tostring(value))
+		if not consumeSerializeBudget(budget, 1, #itemValue + 32) then
+			return nil, "Async result serialization budget exceeded"
+		end
+		return { type = "EnumItem", value = itemValue }
 	end
 	if valueType ~= "table" then
-		return { type = valueType, value = redactString(tostring(value)) }
+		local text = redactString(tostring(value))
+		if not consumeSerializeBudget(budget, 1, #valueType + #text + 32) then
+			return nil, "Async result serialization budget exceeded"
+		end
+		return { type = valueType, value = text }
 	end
 
 	seen = seen or {}
@@ -368,6 +459,9 @@ local function serialize(value, seen, depth)
 	end
 	if depth >= MAX_SERIALIZE_DEPTH then
 		return { type = "truncated", reason = "depth" }
+	end
+	if not consumeSerializeBudget(budget, 0, 2) then
+		return nil, "Async result serialization budget exceeded"
 	end
 
 	seen[value] = true
@@ -380,10 +474,23 @@ local function serialize(value, seen, depth)
 			truncated = true
 			break
 		end
-		output[redactString(tostring(key))] = serialize(child, seen, depth + 1)
+		local serializedKey = redactString(tostring(key))
+		if not consumeSerializeBudget(budget, 0, #serializedKey + 4) then
+			seen[value] = nil
+			return nil, "Async result serialization budget exceeded"
+		end
+		local serializedChild, serializationError = serialize(child, seen, depth + 1, budget)
+		if serializedChild == nil then
+			seen[value] = nil
+			return nil, serializationError
+		end
+		output[serializedKey] = serializedChild
 	end
 	seen[value] = nil
 	if truncated then
+		if not consumeSerializeBudget(budget, 0, #"__truncated" + 6) then
+			return nil, "Async result serialization budget exceeded"
+		end
 		output.__truncated = true
 	end
 	return output
@@ -598,6 +705,229 @@ local function inspectInstance(instance, depth, childLimit)
 end
 
 local handlers = {}
+local function asyncErrorMessage(errorMessage)
+	local message = redactString(tostring(errorMessage or "Async execution failed"))
+	message = string.match(message, "^[^\r\n]*") or "Async execution failed"
+	message = string.gsub(message, "[%c]", " ")
+	message = string.gsub(message, "%s+", " ")
+	message = string.gsub(message, "^%s+", "")
+	message = string.gsub(message, "%s+$", "")
+	if message == "" then
+		message = "Async execution failed"
+	end
+	if #message > MAX_ERROR_MESSAGE_BYTES then
+		message = string.sub(message, 1, MAX_ERROR_MESSAGE_BYTES - 3) .. "..."
+	end
+	return message
+end
+
+local function isAsyncJobId(jobId)
+	return type(jobId) == "string" and #jobId == 32 and string.match(jobId, "^[a-f0-9]+$") ~= nil
+end
+
+local function appendAsyncConsole(job, message, messageType)
+	local text = redactString(tostring(message or ""))
+	if #text > MAX_ASYNC_CONSOLE_BYTES then
+		text = string.sub(text, 1, MAX_ASYNC_CONSOLE_BYTES)
+	end
+	local bytes = #text
+	while
+		#job.console > 0
+		and (#job.console >= MAX_ASYNC_CONSOLE_ENTRIES or job.consoleBytes + bytes > MAX_ASYNC_CONSOLE_BYTES)
+	do
+		local removed = table.remove(job.console, 1)
+		job.consoleBytes = math.max(0, job.consoleBytes - #(removed.text or ""))
+	end
+	if bytes > MAX_ASYNC_CONSOLE_BYTES then
+		return
+	end
+	job.consoleCursor = job.consoleCursor + 1
+	table.insert(job.console, {
+		cursor = job.consoleCursor,
+		text = text,
+		messageType = tostring(messageType),
+		timestamp = os.time(),
+	})
+	job.consoleBytes = job.consoleBytes + bytes
+end
+
+local function asyncOutputWrapper(job, original, messageType)
+	return function(...)
+		local count = select("#", ...)
+		local parts = {}
+		for index = 1, math.min(count, 64) do
+			parts[index] = tostring(select(index, ...))
+		end
+		if count > 64 then
+			parts[65] = "..."
+		end
+		pcall(appendAsyncConsole, job, table.concat(parts, "\t"), messageType)
+		return original(...)
+	end
+end
+
+local function installAsyncOutputCapture(job)
+	if type(getfenv) ~= "function" or type(setfenv) ~= "function" then
+		return false
+	end
+	local ok, base = pcall(getfenv, job.chunk)
+	if not ok or type(base) ~= "table" then
+		return false
+	end
+	local environment = setmetatable({}, { __index = base })
+	if type(base.print) == "function" then
+		environment.print = asyncOutputWrapper(job, base.print, "MessageOutput")
+	end
+	if type(base.warn) == "function" then
+		environment.warn = asyncOutputWrapper(job, base.warn, "MessageWarning")
+	end
+	local installed = pcall(setfenv, job.chunk, environment)
+	return installed
+end
+
+local function pruneAsyncJobs()
+	local now = os.time()
+	while state.asyncTerminalHead <= #state.asyncTerminalOrder do
+		local jobId = state.asyncTerminalOrder[state.asyncTerminalHead]
+		local job = state.asyncJobs[jobId]
+		if
+			job
+			and now - job.finishedAt < ASYNC_JOB_RETENTION_SECONDS
+			and state.asyncTerminalCount <= MAX_RETAINED_ASYNC_JOBS
+		then
+			break
+		end
+		state.asyncJobs[jobId] = nil
+		state.asyncTerminalHead = state.asyncTerminalHead + 1
+		state.asyncTerminalCount = math.max(0, state.asyncTerminalCount - 1)
+	end
+	if state.asyncTerminalHead > 64 then
+		local retained = {}
+		for index = state.asyncTerminalHead, #state.asyncTerminalOrder do
+			table.insert(retained, state.asyncTerminalOrder[index])
+		end
+		state.asyncTerminalOrder = retained
+		state.asyncTerminalHead = 1
+	end
+end
+
+local function completeAsyncJob(job, terminalState, result, errorMessage)
+	job.state = terminalState
+	job.finishedAt = os.time()
+	job.result = result
+	job.error = errorMessage
+	job.chunk = nil
+	job.code = nil
+	job.packed = nil
+	state.asyncActiveJobs = math.max(0, state.asyncActiveJobs - 1)
+	table.insert(state.asyncTerminalOrder, job.jobId)
+	state.asyncTerminalCount = state.asyncTerminalCount + 1
+	pruneAsyncJobs()
+end
+
+local function newAsyncJobId()
+	for _ = 1, 4 do
+		local ok, guid = pcall(HttpService.GenerateGUID, HttpService, false)
+		local jobId = ok and string.lower(string.gsub(tostring(guid), "%-", "")) or nil
+		if isAsyncJobId(jobId) and not state.asyncJobs[jobId] then
+			return jobId
+		end
+	end
+	local nonce = secureRandomNonce()
+	local jobId = nonce and string.sub(nonce, 1, 32) or nil
+	if isAsyncJobId(jobId) and not state.asyncJobs[jobId] then
+		return jobId
+	end
+	return nil
+end
+
+local function asyncResultFromPacked(packed)
+	local budget = {
+		items = 0,
+		bytes = 0,
+		maxItems = MAX_ASYNC_SERIALIZED_ITEMS,
+		maxBytes = MAX_ASYNC_SERIALIZED_BYTES,
+	}
+	if not consumeSerializeBudget(budget, 1, 32) then
+		return nil, "Async result serialization budget exceeded"
+	end
+	local values = {}
+	for index = 1, packed.n do
+		local serialized, serializationError = serialize(packed[index], nil, nil, budget)
+		if serialized == nil then
+			return nil, serializationError
+		end
+		values[index] = serialized
+	end
+	local result = { count = packed.n, values = values }
+	local encodedOk, encoded = pcall(HttpService.JSONEncode, HttpService, result)
+	if not encodedOk or type(encoded) ~= "string" or #encoded > MAX_ASYNC_RESULT_BYTES then
+		return nil, "Async result exceeds " .. MAX_ASYNC_RESULT_BYTES .. " bytes"
+	end
+	return result
+end
+
+local function runAsyncWorker()
+	while state.asyncQueueHead <= #state.asyncQueue do
+		local jobId = state.asyncQueue[state.asyncQueueHead]
+		state.asyncQueueHead = state.asyncQueueHead + 1
+		local job = state.asyncJobs[jobId]
+		if job and job.state == "queued" then
+			while state.rawExecutionActive do
+				task.wait()
+			end
+			state.rawExecutionActive = true
+			state.rawExecutionOwner = "async"
+			job.state = "running"
+			job.startedAt = os.time()
+			local packed, consoleConnection
+			local outputWrapped = installAsyncOutputCapture(job)
+			local connected = outputWrapped
+				or pcall(function()
+					consoleConnection = LogService.MessageOut:Connect(function(message, messageType)
+						appendAsyncConsole(job, message, messageType)
+					end)
+				end)
+			local ran, runtimeError = xpcall(function()
+				packed = table.pack(job.chunk())
+			end, function(err)
+				return debug.traceback(tostring(err), 2)
+			end)
+			if connected and consoleConnection then
+				pcall(function()
+					consoleConnection:Disconnect()
+				end)
+			end
+			state.rawExecutionActive = false
+			state.rawExecutionOwner = nil
+			if not ran then
+				completeAsyncJob(job, "failed", nil, asyncErrorMessage("Luau execution failed: " .. runtimeError))
+			else
+				local converted, result, resultError = pcall(asyncResultFromPacked, packed)
+				if not converted then
+					completeAsyncJob(job, "failed", nil, asyncErrorMessage(result))
+				elseif not result then
+					completeAsyncJob(job, "failed", nil, asyncErrorMessage(resultError))
+				else
+					completeAsyncJob(job, "succeeded", result)
+				end
+			end
+		end
+	end
+	if state.asyncQueueHead > 64 then
+		state.asyncQueue = {}
+		state.asyncQueueHead = 1
+	end
+	state.asyncWorkerScheduled = false
+end
+
+local function scheduleAsyncWorker()
+	if state.asyncWorkerScheduled then
+		return
+	end
+	state.asyncWorkerScheduled = true
+	task.defer(runAsyncWorker)
+end
 
 function handlers.capabilities()
 	local executorName, executorVersion = "Potassium", nil
@@ -614,6 +944,10 @@ function handlers.capabilities()
 		version = executorVersion,
 		methods = {
 			"capabilities",
+			"execute_luau_async",
+			"async_job_status",
+			"async_job_result",
+			"async_job_console",
 			"execute_luau",
 			"client_state",
 			"list_children",
@@ -639,6 +973,13 @@ function handlers.capabilities()
 			"overlap_query",
 			"subtree_summary",
 		},
+		asyncJobs = {
+			version = 1,
+			maxActive = MAX_ACTIVE_ASYNC_JOBS,
+			maxRetained = MAX_RETAINED_ASYNC_JOBS,
+			resultBytes = MAX_ASYNC_RESULT_BYTES,
+			retentionSeconds = ASYNC_JOB_RETENTION_SECONDS,
+		},
 	}
 end
 
@@ -653,18 +994,24 @@ function handlers.execute_luau(params)
 	if type(loadstring) ~= "function" then
 		error("loadstring is unavailable", 0)
 	end
-
 	local chunk, compileError = loadstring(code, "@potassium-mcp")
 	if not chunk then
 		error("Luau compilation failed: " .. tostring(compileError), 0)
 	end
+	if state.rawExecutionActive then
+		error("Raw execution is busy", 0)
+	end
 
+	state.rawExecutionActive = true
+	state.rawExecutionOwner = "sync"
 	local packed
 	local ok, runtimeError = xpcall(function()
 		packed = table.pack(chunk())
 	end, function(err)
 		return debug.traceback(tostring(err), 2)
 	end)
+	state.rawExecutionActive = false
+	state.rawExecutionOwner = nil
 	if not ok then
 		error("Luau execution failed: " .. tostring(runtimeError), 0)
 	end
@@ -674,6 +1021,112 @@ function handlers.execute_luau(params)
 		values[index] = serialize(packed[index])
 	end
 	return { count = packed.n, values = values }
+end
+
+function handlers.execute_luau_async(params)
+	local code = params and params.code
+	if type(code) ~= "string" or code == "" then
+		error("code must be a non-empty string", 0)
+	end
+	if #code > 32768 then
+		error("code exceeds 32768 bytes", 0)
+	end
+	if type(loadstring) ~= "function" then
+		error("loadstring is unavailable", 0)
+	end
+	local chunk, compileError = loadstring(code, "@potassium-mcp-async")
+	if not chunk then
+		error("Luau compilation failed: " .. tostring(compileError), 0)
+	end
+	pruneAsyncJobs()
+	if state.asyncActiveJobs >= MAX_ACTIVE_ASYNC_JOBS then
+		error("Async job capacity exceeded", 0)
+	end
+	local jobId = newAsyncJobId()
+	if not jobId then
+		error("Unable to allocate async job id", 0)
+	end
+	state.asyncJobs[jobId] = {
+		jobId = jobId,
+		state = "queued",
+		submittedAt = os.time(),
+		chunk = chunk,
+		console = {},
+		consoleBytes = 0,
+		consoleCursor = 0,
+	}
+	state.asyncActiveJobs = state.asyncActiveJobs + 1
+	table.insert(state.asyncQueue, jobId)
+	scheduleAsyncWorker()
+	return { jobId = jobId, state = "queued" }
+end
+
+function handlers.async_job_status(params)
+	local jobId = params and params.jobId
+	if not isAsyncJobId(jobId) then
+		error("Invalid async job id", 0)
+	end
+	pruneAsyncJobs()
+	local job = state.asyncJobs[jobId]
+	if not job then
+		error("Unknown or expired async job", 0)
+	end
+	return {
+		jobId = job.jobId,
+		state = job.state,
+		submittedAt = job.submittedAt,
+		startedAt = job.startedAt,
+		finishedAt = job.finishedAt,
+	}
+end
+
+function handlers.async_job_console(params)
+	local jobId = params and params.jobId
+	if not isAsyncJobId(jobId) then
+		error("Invalid async job id", 0)
+	end
+	pruneAsyncJobs()
+	local job = state.asyncJobs[jobId]
+	if not job then
+		error("Unknown or expired async job", 0)
+	end
+	local afterCursor = tonumber(params.afterCursor) or 0
+	if afterCursor < 0 or afterCursor % 1 ~= 0 then
+		error("afterCursor must be a non-negative integer", 0)
+	end
+	local limit = tonumber(params.limit) or MAX_ASYNC_CONSOLE_ENTRIES
+	if limit < 1 or limit > MAX_ASYNC_CONSOLE_ENTRIES or limit % 1 ~= 0 then
+		error("limit must be an integer from 1 to " .. MAX_ASYNC_CONSOLE_ENTRIES, 0)
+	end
+	local entries = {}
+	for _, entry in ipairs(job.console) do
+		if entry.cursor > afterCursor then
+			table.insert(entries, entry)
+			if #entries >= limit then
+				break
+			end
+		end
+	end
+	return { jobId = job.jobId, entries = entries, nextCursor = job.consoleCursor }
+end
+
+function handlers.async_job_result(params)
+	local jobId = params and params.jobId
+	if not isAsyncJobId(jobId) then
+		error("Invalid async job id", 0)
+	end
+	pruneAsyncJobs()
+	local job = state.asyncJobs[jobId]
+	if not job then
+		error("Unknown or expired async job", 0)
+	end
+	if job.state == "queued" or job.state == "running" then
+		return { jobId = job.jobId, state = job.state, ready = false }
+	end
+	if job.state == "succeeded" then
+		return { jobId = job.jobId, state = "succeeded", ready = true, result = job.result }
+	end
+	return { jobId = job.jobId, state = "failed", ready = true, error = job.error }
 end
 
 function handlers.client_state()
@@ -2223,19 +2676,49 @@ local function handleMessage(socket, rawMessage)
 			message.type == "ready"
 			and handshake.serverNonce ~= nil
 			and message.serverNonce == handshake.serverNonce
+			and message.clientId == state.clientId
+			and message.generation == state.generation
 		then
 			state.handshake = nil
 			state.acknowledged = true
 			state.connected = true
+			state.lastPongAt = os.clock()
 			state.reconnectAttempt = 0
 			cancelConnectionTimeout()
 			state.startupStatus = "active"
 			state.startupReason = nil
+			local heartbeatSocket = socket
+			task.spawn(function()
+				while isCurrent() and state.socket == heartbeatSocket and state.acknowledged do
+					task.wait(HEARTBEAT_STALE_SECONDS / 3)
+					if
+						isCurrent()
+						and state.socket == heartbeatSocket
+						and state.acknowledged
+						and os.clock() - state.lastPongAt > HEARTBEAT_STALE_SECONDS
+					then
+						state.startupStatus = "connection_unavailable"
+						state.startupReason = "heartbeat timed out"
+						pcall(function()
+							heartbeatSocket:Close()
+						end)
+						break
+					end
+				end
+			end)
 		end
 		return
 	end
 
-	if not state.acknowledged or message.type ~= "request" or type(message.id) ~= "string" then
+	if not state.acknowledged then
+		return
+	end
+	if message.type == "ping" and type(message.nonce) == "string" and #message.nonce <= 64 then
+		send(socket, { type = "pong", nonce = message.nonce })
+		state.lastPongAt = os.clock()
+		return
+	end
+	if message.type ~= "request" or type(message.id) ~= "string" then
 		return
 	end
 	if #message.id > MAX_REQUEST_ID_BYTES then
@@ -2349,7 +2832,6 @@ connect = function()
 		end
 	end)
 	socket.OnClose:Connect(function()
-		local wasAcknowledged = state.acknowledged
 		if isCurrent() and state.socket == socket then
 			state.socket = nil
 			state.connected = false
@@ -2358,9 +2840,7 @@ connect = function()
 			state.handshakeGeneration = state.handshakeGeneration + 1
 			state.startupStatus = "connection_unavailable"
 			state.startupReason = "connection closed"
-			if wasAcknowledged then
-				startConnectionTimeout()
-			end
+			cancelConnectionTimeout()
 			scheduleReconnect()
 		end
 	end)
@@ -2393,6 +2873,8 @@ connect = function()
 		not send(socket, {
 			type = "hello",
 			protocol = PROTOCOL,
+			clientId = state.clientId,
+			generation = state.generation,
 			clientNonce = clientNonce,
 			client = {
 				protocol = PROTOCOL,

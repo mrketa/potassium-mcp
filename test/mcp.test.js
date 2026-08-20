@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import WebSocket from "ws";
-import { actionableToolError, formatToolResult, loadConfig } from "../src/server.js";
+import { actionableToolError, asyncSubmissionToolError, formatToolResult, loadConfig } from "../src/server.js";
 import { AdminAuditRecorder } from "../src/admin-audit.js";
 
 const testToken = "test-token-that-is-longer-than-thirty-two-characters";
@@ -21,11 +21,15 @@ function testProof(role, clientNonce, serverNonce) {
   return createHmac("sha256", testToken).update(transcriptHash, "utf8").digest("base64");
 }
 
-async function authenticate(socket) {
+async function authenticate(socket, identity = {}) {
   const clientNonce = randomBytes(32).toString("hex");
+  const clientId = identity.clientId ?? randomBytes(16).toString("hex");
+  const generation = identity.generation ?? 1;
   socket.send(JSON.stringify({
     type: "hello",
     protocol: testProtocol,
+    clientId,
+    generation,
     clientNonce,
     client: { executor: "Potassium", protocol: testProtocol },
   }));
@@ -40,7 +44,15 @@ async function authenticate(socket) {
     proof: testProof("client", clientNonce, challenge.serverNonce),
   }));
   const [readyPayload] = await once(socket, "message");
-  assert.equal(JSON.parse(readyPayload.toString()).type, "ready");
+  assert.deepEqual(JSON.parse(readyPayload.toString()), {
+    type: "ready",
+    protocol: testProtocol,
+    clientNonce,
+    serverNonce: challenge.serverNonce,
+    clientId,
+    generation,
+  });
+  return { clientId, generation };
 }
 
 function baseConfig(overrides = {}) {
@@ -136,6 +148,7 @@ test("keeps redacted admin execution history bounded", async () => {
   await audit.finish(timeout, "timeout", new Error("Potassium request timed out after 1 ms"));
   assert.equal(audit.history(1)[0].outcome, "timeout");
   assert.equal(audit.history(1)[0].errorClass, "timeout");
+  assert.equal(audit.history(1)[0].mode, "sync");
   const failed = audit.begin({ code: "bad source", bridge, sessionId: "session" });
   await audit.finish(failed, "error", new Error("executor rejected request"));
   assert.equal(audit.history(1)[0].outcome, "error");
@@ -148,6 +161,22 @@ test("keeps redacted admin execution history bounded", async () => {
   assert.equal(entries[0].outcome, "success");
   assert.equal(entries.some((entry) => entry.code === "secret source" || Object.hasOwn(entry, "result")), false);
   assert.equal(entries.some((entry) => entry.errorClass === "timeout"), false);
+  const asyncOperation = audit.begin({
+    code: "async secret source",
+    bridge,
+    sessionId: "session",
+    mode: "async",
+    executorJobId: "a".repeat(32),
+    hostId: "omp",
+    client: { executor: "Potassium", protocol: 2, placeId: 123 },
+  });
+  await audit.finish(asyncOperation, "success");
+  const asyncEntry = audit.history(1)[0];
+  assert.equal(asyncEntry.mode, "async");
+  assert.equal(asyncEntry.hostId, "omp");
+  assert.equal(asyncEntry.client.placeId, 123);
+  assert.equal(asyncEntry.executorJobId, "a".repeat(32));
+  assert.equal(JSON.stringify(asyncEntry).includes("async secret source"), false);
 });
 
 const serverPath = process.env.POTASSIUM_MCP_TEST_SERVER ?? resolve("src/server.js");
@@ -182,6 +211,7 @@ test("completes MCP initialization with the bounded public tool set", async (t) 
     "potassium_inspect_instance",
     "potassium_instance_ancestry",
     "potassium_list_children",
+    "potassium_list_clients",
     "potassium_list_tags",
     "potassium_multi_read_properties",
     "potassium_observe_changes",
@@ -247,6 +277,27 @@ test("exposes and forwards unrestricted Luau only when explicitly enabled", asyn
 
   const tools = await client.listTools();
   const execute = tools.tools.find((tool) => tool.name === "potassium_execute_luau");
+  const executeAsync = tools.tools.find((tool) => tool.name === "potassium_execute_luau_async");
+  const asyncStatus = tools.tools.find((tool) => tool.name === "potassium_async_job_status");
+  const asyncResult = tools.tools.find((tool) => tool.name === "potassium_async_job_result");
+  assert.ok(executeAsync);
+  assert.ok(asyncStatus);
+  assert.ok(asyncResult);
+  assert.deepEqual(executeAsync.inputSchema.properties.code, {
+    type: "string",
+    minLength: 1,
+    maxLength: 32768,
+  });
+  assert.equal(executeAsync.inputSchema.additionalProperties, false);
+  assert.equal(asyncStatus.inputSchema.additionalProperties, false);
+  assert.equal(asyncStatus.inputSchema.properties.jobId.pattern, "^[a-f0-9]{32}$");
+  assert.equal(asyncResult.inputSchema.properties.jobId.pattern, "^[a-f0-9]{32}$");
+  const asyncConsole = tools.tools.find((tool) => tool.name === "potassium_async_job_console");
+  assert.ok(asyncConsole);
+  assert.equal(asyncConsole.inputSchema.additionalProperties, false);
+  assert.equal(asyncConsole.inputSchema.properties.jobId.pattern, "^[a-f0-9]{32}$");
+  assert.deepEqual(asyncConsole.inputSchema.properties.afterCursor, { type: "integer", minimum: 0, maximum: Number.MAX_SAFE_INTEGER });
+  assert.deepEqual(asyncConsole.inputSchema.properties.limit, { type: "integer", minimum: 1, maximum: 200 });
   assert.ok(execute);
   assert.deepEqual(execute.annotations, {
     readOnlyHint: false,
@@ -306,10 +357,103 @@ test("exposes and forwards unrestricted Luau only when explicitly enabled", asyn
   })).content[0].text);
   assert.equal(history.entries.length, 1);
   assert.equal(history.entries[0].outcome, "success");
+  assert.equal(history.entries[0].mode, "sync");
   assert.equal(history.entries[0].utf8Bytes, Buffer.byteLength("return 6 * 7"));
   assert.match(history.entries[0].codeSha256, /^[a-f0-9]{64}$/);
   assert.equal(JSON.stringify(history).includes("return 6 * 7"), false);
   assert.equal(Object.hasOwn(history.entries[0], "result"), false);
+  const jobId = "a".repeat(32);
+  const submitPromise = client.callTool({
+    name: "potassium_execute_luau_async",
+    arguments: { code: "return task.wait()" },
+  });
+  const [submitPayload] = await once(socket, "message");
+  const submitRequest = JSON.parse(submitPayload.toString());
+  assert.equal(submitRequest.method, "execute_luau_async");
+  assert.deepEqual(submitRequest.params, { code: "return task.wait()" });
+  socket.send(JSON.stringify({
+    type: "response",
+    id: submitRequest.id,
+    ok: true,
+    result: { jobId, state: "queued" },
+  }));
+  const submitResult = await submitPromise;
+  assert.deepEqual(submitResult.structuredContent, { jobId, state: "queued" });
+  const statusPromise = client.callTool({
+    name: "potassium_async_job_status",
+    arguments: { jobId },
+  });
+  const [statusPayload] = await once(socket, "message");
+  const statusRequest = JSON.parse(statusPayload.toString());
+  assert.equal(statusRequest.method, "async_job_status");
+  assert.deepEqual(statusRequest.params, { jobId });
+  socket.send(JSON.stringify({
+    type: "response",
+    id: statusRequest.id,
+    ok: true,
+    result: { jobId, state: "running", submittedAt: "2026-01-01T00:00:00.000Z" },
+  }));
+  assert.equal((await statusPromise).structuredContent.state, "running");
+  const asyncResultPromise = client.callTool({
+    name: "potassium_async_job_result",
+    arguments: { jobId },
+  });
+  const [asyncResultPayload] = await once(socket, "message");
+  const asyncResultRequest = JSON.parse(asyncResultPayload.toString());
+  assert.equal(asyncResultRequest.method, "async_job_result");
+  assert.deepEqual(asyncResultRequest.params, { jobId });
+  socket.send(JSON.stringify({
+    type: "response",
+    id: asyncResultRequest.id,
+    ok: true,
+    result: { jobId, state: "succeeded", ready: true, result: { count: 1, values: [42] } },
+  }));
+  assert.deepEqual((await asyncResultPromise).structuredContent, {
+    jobId,
+    state: "succeeded",
+    ready: true,
+    result: { count: 1, values: [42] },
+  });
+  const asyncHistory = JSON.parse((await client.callTool({
+    name: "potassium_admin_history",
+    arguments: { limit: 1 },
+  })).content[0].text);
+  assert.equal(asyncHistory.entries[0].mode, "async");
+  assert.equal(asyncHistory.entries[0].executorJobId, jobId);
+  assert.equal(JSON.stringify(asyncHistory).includes("return task.wait()"), false);
+  const invalidJobId = await client.callTool({
+    name: "potassium_async_job_status",
+    arguments: { jobId: "A".repeat(32) },
+  });
+  assert.equal(invalidJobId.isError, true);
+  const consolePromise = client.callTool({
+    name: "potassium_async_job_console",
+    arguments: { jobId, afterCursor: 3, limit: 2 },
+  });
+  const [consolePayload] = await once(socket, "message");
+  const consoleRequest = JSON.parse(consolePayload.toString());
+  assert.equal(consoleRequest.method, "async_job_console");
+  assert.deepEqual(consoleRequest.params, { jobId, afterCursor: 3, limit: 2 });
+  socket.send(JSON.stringify({
+    type: "response",
+    id: consoleRequest.id,
+    ok: true,
+    result: {
+      jobId,
+      entries: [{ cursor: 4, text: "[redacted]", messageType: "MessageOutput", timestamp: 1 }],
+      nextCursor: 4,
+    },
+  }));
+  assert.deepEqual((await consolePromise).structuredContent, {
+    jobId,
+    entries: [{ cursor: 4, text: "[redacted]", messageType: "MessageOutput", timestamp: 1 }],
+    nextCursor: 4,
+  });
+  const extraAsyncArgument = await client.callTool({
+    name: "potassium_async_job_result",
+    arguments: { jobId, extra: true },
+  });
+  assert.equal(extraAsyncArgument.isError, true);
 
   const oversized = await client.callTool({
     name: "potassium_execute_luau",
@@ -322,15 +466,29 @@ test("exposes and forwards unrestricted Luau only when explicitly enabled", asyn
   });
   assert.equal(multibyte.isError, true);
 });
-test("timeout recovery guidance waits for the late response before narrowing retries", () => {
+test("async submission guidance trusts only the bridge indeterminacy signal", () => {
   assert.equal(
     actionableToolError(new Error("Potassium executor is recovering from a timed-out request")),
     "Potassium executor is recovering from a timed-out request. Await the late response, call potassium_status, restart Potassium if recovery is stuck, then retry with narrower bounds.",
   );
+  const indeterminateError = new Error("Potassium request timed out after 30000 ms");
+  indeterminateError.submissionIndeterminate = true;
+  const indeterminate = asyncSubmissionToolError(indeterminateError);
+  assert.equal(indeterminate.isError, true);
   assert.equal(
-    actionableToolError(new Error("Potassium request timed out after 30000 ms")),
-    "Potassium request timed out after 30000 ms. Await the late response, call potassium_status, restart Potassium if recovery is stuck, then retry with a narrower path or lower limit, maxVisited, maxResults, or maxClasses.",
+    indeterminate.content[0].text,
+    "Potassium request timed out after 30000 ms. Async submission acceptance is indeterminate; do not retry automatically. Call potassium_async_job_status only if you have a job ID.",
   );
+  assert.doesNotMatch(indeterminate.content[0].text, /retry with a narrower path|restart Potassium|Await the late response/);
+
+  const unsubmittedError = new Error("Potassium is not connected");
+  unsubmittedError.submissionIndeterminate = false;
+  const unsubmitted = asyncSubmissionToolError(unsubmittedError);
+  assert.equal(
+    unsubmitted.content[0].text,
+    "Potassium is not connected. Start or re-attach Potassium, then call potassium_status.",
+  );
+  assert.doesNotMatch(unsubmitted.content[0].text, /acceptance is indeterminate/);
 });
 
 

@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { findNodeAtLocation, parse as parseJsonc, parseTree } from "jsonc-parser";
 
 export const HOST_IDS = Object.freeze([
+  "omp",
   "codex",
   "claude-code",
   "claude-desktop",
@@ -15,6 +16,7 @@ export const HOST_IDS = Object.freeze([
 const MANAGED_CODEX_HEADER = "# potassium-mcp managed; do not edit";
 const INSERTED_SEPARATOR = "# potassium-mcp inserted separator";
 const DEFAULT_SCOPES = Object.freeze({
+  omp: "project",
   codex: "user",
   "claude-code": "user",
   "claude-desktop": "user",
@@ -48,6 +50,9 @@ function requireScope(scope, supported, hostId) {
 
 function jsonTarget(id, api, cwd, env, scope) {
   switch (id) {
+    case "omp":
+      requireScope(scope, ["project"], id);
+      return { path: api.join(cwd, ".omp", "mcp.json"), key: "mcpServers", type: "stdio" };
     case "claude-code":
       requireScope(scope, ["project"], id);
       return { path: api.join(cwd, ".mcp.json"), key: "mcpServers", type: "stdio" };
@@ -128,6 +133,7 @@ function assertLauncher(launcher) {
 
 function entryFor(target, launcher) {
   const base = { command: launcher.command, args: launcher.args };
+  if (target.id === "omp") return { type: "stdio", ...base, timeout: launcher.timeout };
   if (target.type) return { type: target.type, ...base };
   return base;
 }
@@ -233,11 +239,6 @@ export function createInstallPlan(hostId, launcher, options = {}) {
       ...target,
       json: renderJsonSnippet(launcher),
       toml: codexBlock(launcher).trimEnd(),
-      http: [
-        "Optional Streamable HTTP is disabled by default.",
-        "Enable it only in the protected runtime configuration, keep it on loopback, and use its configured endpoint with Authorization: Bearer <credential supplied by a secure credential provider>.",
-        "Do not put credentials in copied configuration, command lines, logs, or chat. If the client cannot inject an Authorization bearer credential securely, use the stdio configuration above instead.",
-      ].join(" "),
     };
   }
   if (target.kind === "cli") {

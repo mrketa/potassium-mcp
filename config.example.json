@@ -5,23 +5,27 @@
   "proxyPort": 32146,
   "proxyMaxFrameBytes": 1048576,
   "proxyHandshakeTimeoutMs": 5000,
-  "httpEnabled": false,
-  "httpHost": "127.0.0.1",
-  "httpPort": 32147,
-  "httpMaxBodyBytes": 1048576,
-  "httpMaxSessions": 32,
-  "httpAllowedOrigins": [],
-  "tokenFile": "../data/.potassium-mcp-token",
+  "streamableHttpEnabled": false,
+  "streamableHttpHost": "127.0.0.1",
+  "streamableHttpPort": 32147,
+  "statefulHttpEnabled": false,
+  "tokenFile": "../workspace/.potassium-mcp-token",
   "requestTimeoutMs": 30000,
   "maxMessageBytes": 1048576,
   "maxPendingRequests": 64,
   "shutdownGraceMs": 5000,
   "allowUnsafeExecute": false,
-  "adminAuditPath": "../data/potassium-mcp-admin-audit.ndjson",
+  "hostPolicies": {
+    "omp": { "read": true, "admin": true, "execute": false }
+  },
+  "httpPolicy": { "read": true, "admin": false, "execute": false },
+  "builtinFallbackEnabled": false,
+  "builtinFallbackTokenFile": "../workspace/.potassium-builtin-token",
+  "adminAuditPath": "../workspace/potassium-mcp-admin-audit.ndjson",
   "artifactRoots": [
     {
       "name": "artifacts",
-      "path": "../data/potassium-mcp-artifacts",
+      "path": "../workspace/potassium-mcp-artifacts",
       "recursive": true,
       "extensions": [".json", ".ndjson", ".txt", ".log"]
     }

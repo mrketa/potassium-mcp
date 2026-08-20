@@ -42,12 +42,12 @@ async function verifyCli(recordValue, options) {
     && recordValue.launcher.args.every((argument) => output.includes(argument));
 }
 
-function validLauncher(launcher, proxyPath, configPath, runtime) {
+function validLauncher(launcher, proxyPath, configPath, runtime, hostId = "omp") {
   return launcher?.type === "stdio"
     && typeof launcher.command === "string"
     && path.isAbsolute(launcher.command)
     && Array.isArray(launcher.args)
-    && JSON.stringify(launcher.args) === JSON.stringify([proxyPath, "--config", configPath])
+    && JSON.stringify(launcher.args) === JSON.stringify([proxyPath, "--config", configPath, "--host-id", hostId])
     && launcher.timeout === MCP_LAUNCHER_TIMEOUT_MS
     && launcher.timeout > runtime.requestTimeoutMs;
 }
@@ -60,8 +60,8 @@ export async function doctor(options = {}) {
   ));
   const workspaceRoot = path.resolve(options.workspaceRoot ?? (
     process.env.LOCALAPPDATA
-      ? path.join(process.env.LOCALAPPDATA, "Potassium", "data")
-      : path.join(installRoot, "data")
+      ? path.join(process.env.LOCALAPPDATA, "Potassium", "workspace")
+      : path.join(installRoot, "workspace")
   ));
   const installedPackageRoot = path.join(
     installRoot,
@@ -98,6 +98,26 @@ export async function doctor(options = {}) {
   } catch (error) {
     record(checks, "script-parity", false, error.message);
   }
+  try {
+    const deployState = await readJson(path.join(installRoot, "deploy-state.json"), null);
+    if (deployState?.schema !== 3 || !Array.isArray(deployState.files) || deployState.files.length !== assets.length) {
+      throw new Error("deploy state is missing or invalid");
+    }
+    for (const entry of deployState.files) {
+      if (!entry || typeof entry.target !== "string" || !path.isAbsolute(entry.target)
+        || typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256)
+        || !Number.isSafeInteger(entry.bytes) || entry.bytes < 0) {
+        throw new Error("deploy state contains an invalid file record");
+      }
+      const content = await readFile(entry.target);
+      if (content.byteLength !== entry.bytes || sha256(content) !== entry.sha256) {
+        throw new Error(`deploy state differs from deployed file: ${entry.name ?? "unknown"}`);
+      }
+    }
+    record(checks, "deploy-state", true, "schema-3 deployment state matches deployed script bytes");
+  } catch (error) {
+    record(checks, "deploy-state", false, error.message);
+  }
 
   let runtime;
   const defaultProxyPath = path.join(installedPackageRoot, "src", "proxy.js");
@@ -115,14 +135,58 @@ export async function doctor(options = {}) {
     record(checks, "runtime-config", ok, ok
       ? "proxy accepts the loopback runtime config"
       : "runtime must keep executor and proxy transports on bounded loopback endpoints");
+    const streamableHttpOk = !runtime.streamableHttpEnabled || runtime.streamableHttpPort > 0;
+    record(
+      checks,
+      "streamable-http",
+      streamableHttpOk,
+      runtime.streamableHttpEnabled
+        ? `enabled at ${runtime.streamableHttpHost}:${runtime.streamableHttpPort}`
+        : "disabled",
+    );
+    record(
+      checks,
+      "stateful-http",
+      !runtime.statefulHttpEnabled || runtime.streamableHttpPort > 0,
+      runtime.statefulHttpEnabled ? "enabled at /mcp/session with bounded SSE sessions" : "disabled",
+    );
+    const builtinFallbackOk = !runtime.builtinFallbackEnabled
+      || (runtime.builtinFallbackTokenFile !== undefined && await exists(runtime.builtinFallbackTokenFile));
+    record(
+      checks,
+      "builtin-fallback",
+      builtinFallbackOk,
+      runtime.builtinFallbackEnabled ? "diagnostic-only fallback enabled with a separate token file" : "disabled",
+    );
   } catch (error) {
     record(checks, "runtime-config", false, error.message);
   }
 
   const schema2 = state?.schema === 2 && state.hosts && typeof state.hosts === "object";
   if (!schema2) {
-    record(checks, "ownership-state", false, "installation ownership state is missing or invalid");
-    return { ok: false, checks, hosts: [] };
+    const mcpConfigPath = path.resolve(
+      options.mcpConfigPath ?? path.join(process.cwd(), ".omp", "mcp.json"),
+    );
+    try {
+      const source = await readFile(mcpConfigPath, "utf8");
+      const launcher = JSON.parse(source)?.mcpServers?.potassium;
+      const view = inspectHost("omp", source, launcher, {
+        cwd: options.cwd,
+        env: options.env,
+        scope: "project",
+        configPath: mcpConfigPath,
+      });
+      const ok = runtime !== undefined
+        && view.configured
+        && validLauncher(launcher, proxyPath, configPath, runtime, "omp")
+        && await exists(launcher.command);
+      record(checks, "mcp-launcher", ok, ok
+        ? "launcher uses an absolute Node executable, targets the stable server and config, and outlives the executor deadline"
+        : "launcher must use an existing absolute Node executable, target the stable server with --config, and outlive the effective executor deadline");
+    } catch (error) {
+      record(checks, "mcp-launcher", false, error.message);
+    }
+    return { ok: checks.every(({ ok }) => ok), checks, hosts: ["omp"] };
   }
 
   for (const hostId of selectedHosts(options, state.hosts)) {
@@ -137,7 +201,7 @@ export async function doctor(options = {}) {
     }
     if (owned.kind === "cli") {
       const ok = runtime !== undefined
-        && validLauncher(owned.launcher, defaultProxyPath, configPath, runtime)
+        && validLauncher(owned.launcher, defaultProxyPath, configPath, runtime, hostId)
         && await exists(owned.launcher.command)
         && await verifyCli(owned, options);
       record(checks, "host-launcher", ok, ok
@@ -155,7 +219,7 @@ export async function doctor(options = {}) {
       });
       const ok = runtime !== undefined
         && view.configured
-        && validLauncher(owned.launcher, defaultProxyPath, configPath, runtime)
+        && validLauncher(owned.launcher, defaultProxyPath, configPath, runtime, hostId)
         && await exists(owned.launcher.command);
       record(checks, "host-launcher", ok, ok
         ? "host contains the exact owned proxy launcher"

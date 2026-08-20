@@ -15,7 +15,7 @@ async function fixture(t) {
   await writeFile(configPath, "{}\n");
   await writeFile(path.join(installRoot, "ownership.json"), JSON.stringify({
     schema: 2,
-    hosts: { manual: { launcher: { type: "stdio", command: process.execPath, args: [proxyPath, "--config", configPath] } } },
+    hosts: { manual: { launcher: { type: "stdio", command: process.execPath, args: [proxyPath, "--config", configPath, "--host-id", "manual"] } } },
   }));
   t.after(() => Promise.all([rm(installRoot, { recursive: true, force: true }), rm(workspaceRoot, { recursive: true, force: true })]));
   return { installRoot, workspaceRoot };

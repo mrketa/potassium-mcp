@@ -67,8 +67,9 @@ function assertVersion() {
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) fail(`invalid package version: ${version}`);
   const tag = process.env.GITHUB_REF_TYPE === 'tag' ? process.env.GITHUB_REF_NAME : undefined;
   if (tag && tag !== `v${version}`) fail(`tag ${tag} does not match v${version}`);
-  const distTag = process.env.NPM_DIST_TAG ?? 'latest';
-  if (distTag !== 'latest') fail('releases must publish with the latest dist-tag');
+  const prerelease = version.includes('-');
+  const distTag = process.env.NPM_DIST_TAG ?? (prerelease ? 'next' : 'latest');
+  if (distTag !== (prerelease ? 'next' : 'latest')) fail(`${prerelease ? 'prereleases must publish with the next dist-tag' : 'stable releases must publish with the latest dist-tag'}`);
   return distTag;
 }
 function assertNpmPath(path) {

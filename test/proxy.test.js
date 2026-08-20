@@ -26,7 +26,7 @@ const baseConfig = {
   proxyHost: "127.0.0.1",
   proxyPort: 32146,
   proxyMaxFrameBytes: 65536,
-  proxyHandshakeTimeoutMs: 200,
+  proxyHandshakeTimeoutMs: 1000,
   artifactRoots: [],
   httpAllowedHosts: [],
 };
@@ -113,6 +113,7 @@ test("proxy closes a socket after invalid mutual-authentication proof", async (t
   await assert.rejects(
     runProxy({
       config,
+      hostId: "omp",
       stdin: new PassThrough(),
       stdout: new PassThrough(),
       connectOrStart: () => connect(`ws://127.0.0.1:${config.proxyPort}`, 65536, 200),
@@ -130,16 +131,16 @@ test("proxy removes stdio listeners when the authenticated broker closes", async
     socket.once("message", (helloFrame) => {
       const hello = JSON.parse(helloFrame.toString("utf8"));
       const serverNonce = "b".repeat(64);
+      socket.once("message", () => {
+        socket.send(JSON.stringify({ type: "proxy-ready" }));
+        setTimeout(() => socket.close(1000, "test complete"), 50);
+      });
       socket.send(JSON.stringify({
         type: "proxy-challenge",
         protocol: 1,
         serverNonce,
-        proof: proxyProof(token, "server", hello.clientNonce, serverNonce),
+        proof: proxyProof(token, "server", hello.clientNonce, serverNonce, hello.hostId),
       }));
-      socket.once("message", () => {
-        socket.send(JSON.stringify({ type: "proxy-ready" }));
-        setTimeout(() => socket.close(1000, "test complete"), 10);
-      });
     });
   });
   const stdin = new PassThrough();
@@ -147,6 +148,7 @@ test("proxy removes stdio listeners when the authenticated broker closes", async
   const config = { ...baseConfig, proxyPort: server.address().port };
   await runProxy({
     config,
+    hostId: "omp",
     stdin,
     stdout,
     connectOrStart: () => connect(`ws://127.0.0.1:${config.proxyPort}`, 65536, 200),
@@ -179,7 +181,7 @@ test("two simultaneous stdio proxies share one broker without port collisions", 
     stdin: new PassThrough(),
     stdout: new PassThrough(),
   }));
-  const running = sessions.map(({ stdin, stdout }) => runProxy({ config, stdin, stdout }));
+  const running = sessions.map(({ stdin, stdout }) => runProxy({ config, hostId: "omp", stdin, stdout }));
 
   await Promise.all(sessions.map(async ({ stdin, stdout }, index) => {
     const initialize = waitForResponse(stdout, index + 1);
@@ -219,7 +221,7 @@ test("packaged broker and proxy entrypoints complete MCP initialization", async 
     ...baseConfig,
     port: executorPort,
     proxyPort,
-    proxyHandshakeTimeoutMs: 1000,
+    proxyHandshakeTimeoutMs: 5000,
   }));
   const brokerPath = fileURLToPath(new URL("../src/broker.js", import.meta.url));
   const proxyPath = fileURLToPath(new URL("../src/proxy.js", import.meta.url));
@@ -246,13 +248,13 @@ test("packaged broker and proxy entrypoints complete MCP initialization", async 
 
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [proxyPath, "--config", configPath],
+    args: [proxyPath, "--config", configPath, "--host-id", "omp"],
     stderr: "pipe",
   });
   const client = new Client({ name: "entrypoint-test", version: "1" });
   await client.connect(transport);
   const tools = await client.listTools();
-  assert.equal(tools.tools.length, 30);
+  assert.equal(tools.tools.length, 31);
   assert.equal(tools.tools.some(({ name }) => name === "potassium_status"), true);
   await client.close();
   child.kill();

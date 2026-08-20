@@ -16,6 +16,9 @@ import {
   readArtifact,
   summarizeTrace,
 } from "./safe-read.js";
+import { allowsTool, parsePolicyConfig } from "./host-policy.js";
+import { AsyncLocalStorage } from "node:async_hooks";
+
 
 const here = dirname(fileURLToPath(import.meta.url));
 export function isMainModule(argvPath = process.argv[1], moduleUrl = import.meta.url, canonicalize = realpathSync) {
@@ -51,15 +54,10 @@ export const configSchema = z.object({
   proxyPort: z.number().int().min(0).max(65535).default(32146),
   proxyMaxFrameBytes: z.number().int().min(16 * 1024).max(16 * 1024 * 1024).default(1024 * 1024),
   proxyHandshakeTimeoutMs: z.number().int().min(100).max(30000).default(5000),
-  httpEnabled: z.boolean().default(false),
-  httpHost: z.enum(loopbackHosts).optional(),
-  httpPort: z.number().int().min(0).max(65535).default(32147),
-  httpMaxBodyBytes: z.number().int().min(16 * 1024).max(16 * 1024 * 1024).default(1024 * 1024),
-  httpMaxSessions: z.number().int().min(1).max(1024).default(32),
-  httpAllowedOrigins: z.array(z.string().url().refine((value) => {
-    const url = new URL(value);
-    return (url.protocol === "http:" || url.protocol === "https:") && url.origin === value;
-  }, "HTTP allowed origins must be absolute HTTP(S) origins without a path")).max(32).default([]),
+  streamableHttpEnabled: z.boolean().default(false),
+  statefulHttpEnabled: z.boolean().default(false),
+  streamableHttpHost: z.enum(loopbackHosts).default("127.0.0.1"),
+  streamableHttpPort: z.number().int().min(0).max(65535).default(32147),
   artifactRoots: z.array(z.object({
     name: z.string().regex(/^[a-z][a-z0-9_]{0,63}$/),
     path: z.string().min(1).max(4096),
@@ -69,6 +67,18 @@ export const configSchema = z.object({
   httpAllowedHosts: z.array(z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i)).max(32).default([]),
   adminAuditPath: z.string().min(1).max(4096).optional(),
   allowUnsafeExecute: z.boolean().default(false),
+  hostPolicies: z.record(z.string(), z.object({
+    read: z.boolean().optional(),
+    admin: z.boolean().optional(),
+    execute: z.boolean().optional(),
+  }).strict()).optional(),
+  httpPolicy: z.object({
+    read: z.boolean().optional(),
+    admin: z.boolean().optional(),
+    execute: z.boolean().optional(),
+  }).strict().optional(),
+  builtinFallbackEnabled: z.boolean().default(false),
+  builtinFallbackTokenFile: z.string().min(1).max(4096).optional(),
 }).strict().superRefine((config, context) => {
   if ((config.token === undefined) === (config.tokenFile === undefined)) {
     context.addIssue({
@@ -90,6 +100,29 @@ export const configSchema = z.object({
       message: "HTTP allowed hosts must be unique",
       path: ["httpAllowedHosts"],
     });
+  }
+  try {
+    parsePolicyConfig(config);
+  } catch (error) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: error.message, path: ["hostPolicies"] });
+  }
+  if (config.builtinFallbackEnabled && !config.builtinFallbackTokenFile) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "builtinFallbackTokenFile is required when builtinFallbackEnabled", path: ["builtinFallbackTokenFile"] });
+  }
+  if (config.streamableHttpEnabled || config.statefulHttpEnabled) {
+    const endpoints = [
+      ["executor", config.host, config.port],
+      ["proxy", config.proxyHost ?? config.host, config.proxyPort],
+    ];
+    for (const [name, host, port] of endpoints) {
+      if (host === config.streamableHttpHost && port === config.streamableHttpPort && port !== 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Streamable HTTP endpoint must not share the ${name} endpoint`,
+          path: ["streamableHttpPort"],
+        });
+      }
+    }
   }
 });
 
@@ -139,6 +172,21 @@ export function actionableToolError(error) {
   return message;
 }
 
+export function asyncSubmissionToolError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (error?.submissionIndeterminate === true) {
+    return {
+      isError: true,
+      content: [{
+        type: "text",
+        text: `${message}. Async submission acceptance is indeterminate; do not retry automatically. `
+          + "Call potassium_async_job_status only if you have a job ID.",
+      }],
+    };
+  }
+  return toolError(error);
+}
+
 function toolError(error) {
   return {
     isError: true,
@@ -156,11 +204,23 @@ function potassiumToolTitle(name) {
     titleWords.get(word) ?? `${word[0].toUpperCase()}${word.slice(1)}`).join(" ")}`;
 }
 
+const fullAccessPolicy = Object.freeze({ read: true, admin: true, execute: true });
+
 class PotassiumMcpServer extends McpServer {
   registerTool(name, config, handler) {
+    if (this.policy && !allowsTool(this.policy, name, { allowUnsafeExecute: this.allowUnsafeExecute })) return undefined;
+    const clientId = z.string().regex(/^[a-f0-9]{32}$/, "clientId must be a lowercase 32-hex identifier").optional();
+    const inputSchema = typeof config.inputSchema?.safeExtend === "function"
+      ? config.inputSchema.safeExtend({ clientId })
+      : typeof config.inputSchema?.extend === "function"
+        ? config.inputSchema.extend({ clientId })
+        : config.inputSchema && typeof config.inputSchema === "object"
+          ? { ...config.inputSchema, clientId }
+          : z.object({ clientId }).strict();
     return super.registerTool(name, {
       title: potassiumToolTitle(name),
       ...config,
+      inputSchema,
       outputSchema: config.outputSchema ?? objectOutputSchema,
       annotations: {
         readOnlyHint: true,
@@ -169,7 +229,7 @@ class PotassiumMcpServer extends McpServer {
         openWorldHint: openWorldTools.has(name),
         ...config.annotations,
       },
-    }, handler);
+    }, async (args, ...rest) => this.clientContext.run(args?.clientId, () => handler(args, ...rest)));
   }
 }
 
@@ -179,7 +239,7 @@ export async function parseConfig(config, directory = here) {
     throw new Error(`Invalid configuration: ${z.prettifyError(parsed.error)}`);
   }
 
-  const { tokenFile, artifactRoots, httpAllowedHosts, httpAllowedOrigins, adminAuditPath, ...resolved } = parsed.data;
+  const { tokenFile, artifactRoots, httpAllowedHosts, adminAuditPath, builtinFallbackTokenFile, ...resolved } = parsed.data;
   const token = tokenFile === undefined
     ? resolved.token
     : (await readFile(resolve(directory, tokenFile), "utf8")).trim();
@@ -191,15 +251,15 @@ export async function parseConfig(config, directory = here) {
     ...resolved,
     token,
     proxyHost: resolved.proxyHost ?? resolved.host,
-    httpHost: resolved.httpHost ?? resolved.host,
+    policies: parsePolicyConfig(resolved),
     artifactRoots: artifactRoots.map((root) => ({
       ...root,
       path: resolve(directory, root.path),
       extensions: root.extensions.map((extension) => extension.toLowerCase()),
     })),
     httpAllowedHosts: httpAllowedHosts.map((host) => host.toLowerCase()),
-    httpAllowedOrigins: httpAllowedOrigins.map((origin) => new URL(origin).origin),
     ...(adminAuditPath === undefined ? {} : { adminAuditPath: resolve(directory, adminAuditPath) }),
+    ...(builtinFallbackTokenFile === undefined ? {} : { builtinFallbackTokenFile: resolve(directory, builtinFallbackTokenFile) }),
   };
 }
 
@@ -213,10 +273,32 @@ export async function loadConfig(path = configPath) {
   return parseConfig(config, dirname(path));
 }
 
-export function createToolServer(config, bridge, { audit = new AdminAuditRecorder({ path: config.adminAuditPath }), sessionId = randomBytes(16).toString("hex") } = {}) {
-  // Reserve space for the JSON-RPC envelope, request ID, and UTF-8 escaping.
+export function createToolServer(config, bridge, { audit = new AdminAuditRecorder({ path: config.adminAuditPath }), sessionId = randomBytes(16).toString("hex"), hostId = "standalone", policy = fullAccessPolicy, artifactStore, builtinFallback } = {}) {
+  const clientContext = new AsyncLocalStorage();
+  const rawBridge = bridge;
+  const selectedClientId = (clientId) => clientId ?? clientContext.getStore();
+  const selectedClient = (clientId) => {
+    try { return rawBridge.getClientInfo(selectedClientId(clientId)); } catch { return undefined; }
+  };
+  bridge = {
+    request(method, params, timeoutMs, clientId) {
+      const target = selectedClientId(clientId);
+      if (params && typeof params === "object" && "clientId" in params) {
+        const { clientId: parameterClientId, ...requestParams } = params;
+        return rawBridge.request(method, requestParams, timeoutMs, target ?? parameterClientId);
+      }
+      return rawBridge.request(method, params, timeoutMs, target);
+    },
+    status: rawBridge.status.bind(rawBridge),
+    listClients: rawBridge.listClients.bind(rawBridge),
+    recover: rawBridge.recover.bind(rawBridge),
+    getClientInfo: rawBridge.getClientInfo.bind(rawBridge),
+  };
   const maxResultBytes = Math.min(config.maxMessageBytes, config.proxyMaxFrameBytes - 8192);
   const server = new PotassiumMcpServer({ name: "potassium-mcp", version: packageMetadata.version });
+  server.policy = policy;
+  server.allowUnsafeExecute = config.allowUnsafeExecute;
+  server.clientContext = clientContext;
   const boundedPath = z.string().min(1).max(1024);
   const propertyName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/).max(64);
   const trustedCode = z.string().min(1).max(32768).refine(
@@ -228,11 +310,43 @@ export function createToolServer(config, bridge, { audit = new AdminAuditRecorde
     y: z.number().finite(),
     z: z.number().finite(),
   }).strict();
+  if (builtinFallback) {
+    server.registerTool(
+      "potassium_builtin_status",
+      { description: "Report optional loopback built-in diagnostic fallback availability." },
+      async () => {
+        try { return formatToolResult(await builtinFallback.status(), maxResultBytes); } catch (error) { return toolError(error); }
+      },
+    );
+    server.registerTool(
+      "potassium_builtin_list_clients",
+      { description: "List clients through the optional read-only built-in diagnostic fallback." },
+      async () => {
+        try { return formatToolResult(await builtinFallback.listClients(), maxResultBytes); } catch (error) { return toolError(error); }
+      },
+    );
+    server.registerTool(
+      "potassium_builtin_read_console",
+      {
+        description: "Read bounded console diagnostics through the optional built-in fallback.",
+        inputSchema: z.object({ pid: z.string().regex(/^[1-9]\d{0,10}$/), afterCursor: z.number().int().min(0).optional(), limit: z.number().int().min(1).max(200).optional(), waitMs: z.number().int().min(0).max(3000).optional() }).strict(),
+      },
+      async ({ pid, afterCursor, limit, waitMs }) => {
+        try { return formatToolResult(await builtinFallback.readConsole(pid, { afterCursor, limit, waitMs }), maxResultBytes); } catch (error) { return toolError(error); }
+      },
+    );
+  }
 
   server.registerTool(
     "potassium_status",
     { description: "Report whether the local Potassium bootstrap is connected." },
     async () => formatToolResult(bridge.status(), maxResultBytes),
+  );
+
+  server.registerTool(
+    "potassium_list_clients",
+    { description: "List authenticated Potassium bootstrap clients. Select a clientId explicitly when more than one is connected." },
+    async () => formatToolResult(bridge.listClients(), maxResultBytes),
   );
 
   server.registerTool(
@@ -252,9 +366,10 @@ export function createToolServer(config, bridge, { audit = new AdminAuditRecorde
       "potassium_execute_luau",
       {
         description: "Execute trusted Luau in the connected Potassium client. This unrestricted admin tool is disabled unless allowUnsafeExecute is explicitly enabled in the local authenticated configuration.",
-        inputSchema: {
+        inputSchema: z.object({
           code: trustedCode,
-        },
+          clientId: z.string().regex(/^[a-f0-9]{32}$/, "clientId must be a lowercase 32-hex identifier").optional(),
+        }).strict(),
         annotations: {
           readOnlyHint: false,
           destructiveHint: true,
@@ -262,10 +377,10 @@ export function createToolServer(config, bridge, { audit = new AdminAuditRecorde
           openWorldHint: true,
         },
       },
-      async ({ code }) => {
-        const operation = audit.begin({ code, bridge, sessionId });
+      async ({ code, clientId }) => {
+        const operation = audit.begin({ code, bridge, sessionId, hostId, client: selectedClient(clientId) });
         try {
-          const result = await bridge.request("execute_luau", { code });
+          const result = await bridge.request("execute_luau", { code }, config.requestTimeoutMs, clientId);
           await audit.finish(operation, "success");
           return formatToolResult(result, maxResultBytes);
         } catch (error) {
@@ -277,6 +392,94 @@ export function createToolServer(config, bridge, { audit = new AdminAuditRecorde
         }
       },
     );
+
+    server.registerTool(
+      "potassium_execute_luau_async",
+      {
+        description: "Submit trusted Luau for serialized asynchronous execution. A transport failure or timeout leaves acceptance indeterminate; do not retry automatically.",
+        inputSchema: z.object({
+          code: trustedCode,
+          clientId: z.string().regex(/^[a-f0-9]{32}$/, "clientId must be a lowercase 32-hex identifier").optional(),
+        }).strict(),
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          idempotentHint: false,
+          openWorldHint: true,
+        },
+      },
+      async ({ code, clientId }) => {
+        try {
+          const result = await bridge.request("execute_luau_async", { code }, config.requestTimeoutMs, clientId);
+          const operation = audit.begin({
+            code,
+            bridge,
+            sessionId,
+            hostId,
+            client: selectedClient(clientId),
+            mode: "async",
+            executorJobId: result.jobId,
+          });
+          await audit.finish(operation, "success");
+          return formatToolResult(result, maxResultBytes);
+        } catch (error) {
+          return asyncSubmissionToolError(error);
+        }
+      },
+    );
+    const asyncJobId = z.string().regex(/^[a-f0-9]{32}$/, "jobId must be a lowercase 32-hex identifier");
+    const bridgeClientId = z.string().regex(/^[a-f0-9]{32}$/, "clientId must be a lowercase 32-hex identifier").optional();
+    server.registerTool(
+      "potassium_async_job_status",
+      {
+        description: "Read the state and timestamps of an accepted asynchronous Luau job. Jobs survive reconnects within one bootstrap generation only.",
+        inputSchema: z.object({ jobId: asyncJobId, clientId: bridgeClientId }).strict(),
+      },
+      async ({ jobId, clientId }) => {
+        try {
+          return formatToolResult(await bridge.request("async_job_status", { jobId }, config.requestTimeoutMs, clientId), maxResultBytes);
+        } catch (error) {
+          return toolError(error);
+        }
+      },
+    );
+    server.registerTool(
+      "potassium_async_job_result",
+      {
+        description: "Read an asynchronous Luau job result. Pending jobs return ready=false; terminal results are retained only briefly.",
+        inputSchema: z.object({ jobId: asyncJobId, clientId: bridgeClientId }).strict(),
+      },
+      async ({ jobId, clientId }) => {
+        try {
+          const result = await bridge.request("async_job_result", { jobId }, config.requestTimeoutMs, clientId);
+          if (!artifactStore || !result?.ready || result?.state !== "succeeded") return formatToolResult(result, maxResultBytes);
+          const stored = await artifactStore.store(result);
+          return formatToolResult(stored.kind === "inline" ? stored.value : { ...result, result: stored }, maxResultBytes);
+        } catch (error) {
+          return toolError(error);
+        }
+      },
+    );
+    server.registerTool(
+      "potassium_async_job_console",
+      {
+        description: "Read bounded console messages captured while an asynchronous Luau job ran. Messages may include unrelated engine output during that execution window.",
+        inputSchema: z.object({
+          jobId: asyncJobId,
+          afterCursor: z.number().int().min(0).optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+          clientId: bridgeClientId,
+        }).strict(),
+      },
+      async ({ jobId, afterCursor, limit, clientId }) => {
+        try {
+          return formatToolResult(await bridge.request("async_job_console", { jobId, afterCursor, limit }, config.requestTimeoutMs, clientId), maxResultBytes);
+        } catch (error) {
+          return toolError(error);
+        }
+      },
+    );
+
 
     server.registerTool(
       "potassium_admin_status",
@@ -917,7 +1120,8 @@ export async function createServer(config) {
   };
   const bridge = new PotassiumBridge(config, logger);
   const audit = new AdminAuditRecorder({ path: config.adminAuditPath });
-  const server = createToolServer(config, bridge, { audit });
+  const policy = config.hostPolicies === undefined ? fullAccessPolicy : config.policies.hosts.omp;
+  const server = createToolServer(config, bridge, { audit, hostId: "omp", policy });
   let closePromise;
   const close = () => {
     closePromise ??= Promise.allSettled([server.close(), bridge.close()]).then((results) => {
