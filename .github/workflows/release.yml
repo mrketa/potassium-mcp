@@ -235,20 +235,30 @@ jobs:
                   try { if (JSON.parse(String(output))?.error?.code === 'E404') return null; } catch {}
                 }
               }
-              throw new Error('Selected npm registry query failed');
+              throw new Error('Selected npm registry query failed', { cause: error });
             }
           }
           function npmReadiness() {
+            stage('npm-authentication');
+            receipt.npmReadiness = { authenticationSucceeded: false, publicationExercised: false };
             assert(process.env.NPM_TOKEN, 'NPM_TOKEN is required for read-only publication readiness');
             const actor = String(runNpm(['whoami', '--registry=https://registry.npmjs.org/'], npmOptions())).trim();
             assert(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(actor), 'npm token identity could not be verified');
+            receipt.npmReadiness.authenticationSucceeded = true;
+            receipt.checks.npmAuthentication = true;
+            stage('npm-package-permission');
             // npm returns the actor's permission map. Keep it in memory only:
             // neither unrelated names nor raw provider responses leave this
             // function. Only the selected package's reported access is used.
             const packages = npmJson(['access', 'list', 'packages', actor]);
             assert(packages && typeof packages === 'object' && !Array.isArray(packages), 'Invalid npm permission response');
-            assert(Object.hasOwn(packages, identity.name) && packages[identity.name] === 'read-write', 'Selected npm package does not report write permission');
-            return { registry: 'https://registry.npmjs.org/', actor, package: identity.name, reportedPermission: 'read-write', publicationExercised: false };
+            const listed = Object.hasOwn(packages, identity.name);
+            const access = listed ? packages[identity.name] : undefined;
+            receipt.npmReadiness.selectedPackageListed = listed;
+            receipt.npmReadiness.selectedPackageAccess = !listed ? 'absent' : access === 'read-write' || access === 'read-only' ? access : 'unrecognized';
+            assert(listed && access === 'read-write', 'Selected npm package does not report write permission');
+            receipt.checks.npmPackageWritePermission = true;
+            return Object.assign(receipt.npmReadiness, { registry: 'https://registry.npmjs.org/', actor, package: identity.name, reportedPermission: 'read-write' });
           }
           function compareVersions(left, right) {
             // Reuse the publisher's semver validation. The selected target is
@@ -388,15 +398,13 @@ jobs:
             const verifiedTag = await tagCommit(Boolean(initialTag));
             receipt.checks = { selectedRelease: true, externalSetPin: true, exactAssets: true, sourceAndQualification: true, tag: verifiedTag ? 'verified' : 'absent-no-mutation' };
             receipt.files = report.files;
-            stage('npm-readiness');
             receipt.npmReadiness = npmReadiness();
-            receipt.checks.npmAuthentication = true;
-            receipt.checks.npmPackageWritePermission = true;
             receipt.limitations = [
               'Read-only readiness observes npm identity and reported selected-package permission; it does not exercise a publication write. Token expiry, granular scope, 2FA requirements and provider policies can change before promotion.',
             ];
 
             if (publishing) {
+              stage('npm-registry-state');
               const latestBefore = latestVersion();
               stage('prepublication-assets');
               await completeRemote(records);
@@ -431,6 +439,7 @@ jobs:
               await tagCommit(true);
               // Re-read npm after the final asset pass. Recovery never retags
               // npm and never asks GitHub to replace a newer latest release.
+              stage('npm-final-identity');
               receipt.npm = { status: outcome.status, ...registryIdentity(report, latestBefore) };
               stage('github-publication');
               if (finalRelease.draft) {
@@ -444,10 +453,52 @@ jobs:
             }
             receipt.status = publishing ? 'published-or-identically-resumed' : release.draft ? 'verified-draft-no-publication' : 'verified-published-recovery-no-publication';
             receipt.stage = 'complete';
-          } catch {
-            // Never upload an exception, provider body, token, local path, raw
-            // qualification log or executable output. The gate identifies the
-            // failing boundary; a retry gets a separate receipt, not new inputs.
+          } catch (error) {
+            // Raw errors and provider output stay in memory. Only allowlisted
+            // codes and fixed classifications may enter the failure receipt.
+            const failure = { category: 'unknown', code: 'UNKNOWN' };
+            const npmStage = receipt.stage === 'npm-authentication' || receipt.stage === 'npm-package-permission' || receipt.stage === 'npm-registry-state' || receipt.stage === 'npm-publication' || receipt.stage === 'npm-propagation' || receipt.stage === 'npm-final-identity';
+            if (npmStage) {
+              const categories = {
+                E401: 'authentication', ENEEDAUTH: 'authentication', EAUTH: 'authentication', EOTP: 'authentication',
+                E403: 'authorization',
+                E400: 'registry-query', E404: 'registry-query', E405: 'registry-query', E408: 'registry-query',
+                E409: 'registry-query', E410: 'registry-query', E429: 'registry-query',
+                E500: 'registry-query', E502: 'registry-query', E503: 'registry-query', E504: 'registry-query',
+                ECONNRESET: 'network', ECONNREFUSED: 'network', ECONNABORTED: 'network',
+                ENOTFOUND: 'network', EAI_AGAIN: 'network', ETIMEDOUT: 'network', ESOCKETTIMEDOUT: 'network',
+                ENETUNREACH: 'network', EHOSTUNREACH: 'network', EPIPE: 'network',
+                CERT_HAS_EXPIRED: 'network', DEPTH_ZERO_SELF_SIGNED_CERT: 'network',
+                SELF_SIGNED_CERT_IN_CHAIN: 'network', UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'network',
+                UNABLE_TO_GET_ISSUER_CERT_LOCALLY: 'network', ERR_TLS_CERT_ALTNAME_INVALID: 'network',
+              };
+              for (let current = error, depth = 0; current && depth < 3 && failure.code === 'UNKNOWN'; current = current.cause, depth += 1) {
+                const candidates = [current.code];
+                for (const output of [current.stdout, current.stderr]) {
+                  if (typeof output !== 'string' && !Buffer.isBuffer(output)) continue;
+                  const bytes = typeof output === 'string' ? Buffer.from(output.slice(0, 16384), 'utf8') : output;
+                  const truncated = bytes.length > 16384 || typeof output === 'string' && output.length > 16384;
+                  let text = bytes.subarray(0, 16384).toString('utf8');
+                  // A cut-off code suffix must not become an allowlisted code.
+                  if (truncated) text = text.slice(0, text.lastIndexOf('\n') + 1);
+                  try { candidates.push(JSON.parse(text)?.error?.code); } catch {}
+                  const plain = text.replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '');
+                  for (const match of plain.matchAll(/^npm (?:ERR!|error) code ([A-Z][A-Z0-9_]{0,63})\r?$/gm)) candidates.push(match[1]);
+                }
+                const code = candidates.find((value) => typeof value === 'string' && Object.hasOwn(categories, value));
+                if (code) Object.assign(failure, { category: categories[code], code });
+              }
+              if (failure.code === 'UNKNOWN' && error instanceof assert.AssertionError) {
+                if (receipt.stage === 'npm-authentication') {
+                  Object.assign(failure, { category: 'authentication', code: 'AUTHENTICATION_NOT_VERIFIED' });
+                } else if (receipt.stage === 'npm-package-permission' && !receipt.checks.npmPackageWritePermission) {
+                  Object.assign(failure, receipt.npmReadiness.selectedPackageListed === undefined
+                    ? { category: 'registry-query', code: 'INVALID_PERMISSION_RESPONSE' }
+                    : { category: 'package-permission', code: 'SELECTED_PACKAGE_NOT_WRITABLE' });
+                }
+              }
+            }
+            receipt.failure = failure;
             receipt.status = 'failed';
             console.error(`Release gate failed at ${receipt.stage}; original inputs were not rebuilt.`);
             process.exitCode = 1;
