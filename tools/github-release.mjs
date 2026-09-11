@@ -8,6 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
 import { validateNpmArtifact } from "../potassium-mcp/release-publish.js";
+import { windowsPowerShellEnvironment } from "../potassium-mcp/src/windows-powershell.js";
 import { checkRelease, projectRoot } from "./release.mjs";
 import { checkWindows, safeBundlePath, validateBundleManifest, NODE_SHA256, NODE_VERSION, DOTNET_VERSION } from "./windows-release.mjs";
 
@@ -316,7 +317,7 @@ async function unsignedWindowsVerifier(directory) {
   const script = "$ErrorActionPreference = 'Stop'; (Get-AuthenticodeSignature -LiteralPath $env:POTASSIUM_RELEASE_SETUP).Status.ToString()";
   const status = execFileSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], {
     encoding: "utf8", timeout: 120000, maxBuffer: 1024 * 1024, windowsHide: true,
-    env: { ...process.env, POTASSIUM_RELEASE_SETUP: path.join(directory, "Setup.exe") },
+    env: windowsPowerShellEnvironment({ POTASSIUM_RELEASE_SETUP: path.join(directory, "Setup.exe") }),
   }).trim();
   assert.equal(status, "NotSigned", "Actual Setup Authenticode status violates the approved unsigned policy");
   return checkWindows(directory);

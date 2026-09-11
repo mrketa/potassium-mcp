@@ -450,12 +450,12 @@ export async function runPackageSmoke(options = {}) {
       }
     }
   }
-  const failureDiagnostic = failure === undefined ? undefined : inspect(failure, { depth: 8, maxArrayLength: 32, maxStringLength: 4096 });
+  const failureDiagnostic = failure === undefined ? undefined : Buffer.from(inspect(failure, { depth: 8, maxArrayLength: 32, maxStringLength: 4096 }), "utf8");
   const report = failure === undefined ? evidence : {
     ...(evidence ?? { mode, node: process.version, platform: process.platform, artifact }),
     status: "failed",
     cleanup: { directory, status: preserveDirectory ? "preserved" : "removed" },
-    failure: failureDiagnostic.slice(0, 65536),
+    failure: new TextDecoder().decode(failureDiagnostic.subarray(0, 65536), { stream: true }),
     failureTruncated: failureDiagnostic.length > 65536,
   };
   try {
