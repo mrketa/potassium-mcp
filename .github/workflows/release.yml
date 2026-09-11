@@ -414,7 +414,7 @@ jobs:
               receipt.npm = { status: outcome.status, ...registryIdentity(report, latestBefore) };
               stage('github-publication');
               if (finalRelease.draft) {
-                const published = await api(`${prefix}/releases/${releaseId}`, { method: 'PATCH', body: { draft: false, prerelease: false, make_latest: 'false' } });
+                const published = await api(`${prefix}/releases/${releaseId}`, { method: 'PATCH', body: { tag_name: identity.ref, target_commitish: sourceSha, draft: false, prerelease: false, make_latest: 'false' } });
                 assert.equal(published.draft, false);
               }
               const confirmed = await completeRemote(records);
