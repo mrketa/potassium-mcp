@@ -1,13 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import { mkdtemp, mkdir, writeFile, symlink, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
 import { commandConfigPath, isMainModule, parseConfig } from "../src/server.js";
 
 test("server accepts an explicit stable --config path", () => { assert.equal(commandConfigPath(["--config", "stable/config.json"]), path.resolve("stable/config.json")); });
 test("server rejects a missing --config value", () => { assert.throws(() => commandConfigPath(["--config"]), /requires a path/); });
-test("server recognizes a symlinked installed entrypoint", () => {
-  const canonicalize = (value) => value.includes("installed") ? "C:\\source\\server.js" : value;
-  assert.equal(isMainModule("C:\\installed\\server.js", "file:///C:/source/server.js", canonicalize), true);
+test("server recognizes a symlinked installed entrypoint", async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), "mcp-entrypoint-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const source = path.join(directory, "source 雪");
+  const installed = path.join(directory, "installed");
+  await mkdir(source);
+  const entrypoint = path.join(source, "server.js");
+  const other = path.join(source, "other.js");
+  await writeFile(entrypoint, "");
+  await writeFile(other, "");
+  await symlink(source, installed, process.platform === "win32" ? "junction" : "dir");
+  assert.equal(isMainModule(path.join(installed, "server.js"), pathToFileURL(entrypoint).href), true);
+  assert.equal(isMainModule(path.join(installed, "other.js"), pathToFileURL(entrypoint).href), false);
 });
 
 test("streamable HTTP config permits programmatic port zero and rejects invalid endpoints", async () => {

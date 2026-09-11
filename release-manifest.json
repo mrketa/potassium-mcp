@@ -3,6 +3,7 @@
   "schemaVersion": 1,
   "packageName": "@mrketa/potassium-mcp",
   "files": [
+    "global.json",
     "app/PotassiumMcp.Setup/Program.cs",
     "app/PotassiumMcp.Setup/SetupForm.cs",
     "app/PotassiumMcp.Setup/SetupHelpers.cs",
