@@ -92,6 +92,7 @@
     "version.txt",
     "release-manifest.json",
     "tools/release.mjs",
+    "tools/prepare-ci-npm.mjs",
     "tools/bootstrap-runner.mjs",
     "tools/bootstrap-runner.luau",
     "tools/package-smoke.mjs",

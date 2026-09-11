@@ -57,6 +57,11 @@ jobs:
         name: Select canonical Windows temporary directories
         shell: pwsh
         run: node -e "const fs = require('node:fs'); const root = fs.realpathSync(process.env.RUNNER_TEMP); fs.appendFileSync(process.env.GITHUB_ENV, 'TEMP=' + root + '\nTMP=' + root + '\n');"
+      - &qualified-npm
+        name: Select qualified npm toolchain
+        timeout-minutes: 5
+        shell: bash
+        run: node tools/prepare-ci-npm.mjs
       - &windows-powershell-ready
         name: Observe Windows PowerShell dependency readiness
         timeout-minutes: 2
@@ -478,6 +483,7 @@ jobs:
           node-version: "22.23.2"
           registry-url: https://registry.npmjs.org/
       - *canonical-windows-temp
+      - *qualified-npm
       - *windows-powershell-ready
       - name: Reverify selected bytes, then publish only after approval
         id: selected

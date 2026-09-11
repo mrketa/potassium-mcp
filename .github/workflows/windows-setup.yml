@@ -55,6 +55,10 @@ jobs:
       - name: Select canonical Windows temporary directories
         shell: pwsh
         run: node -e "const fs = require('node:fs'); const root = fs.realpathSync(process.env.RUNNER_TEMP); fs.appendFileSync(process.env.GITHUB_ENV, 'TEMP=' + root + '\nTMP=' + root + '\n');"
+      - name: Select qualified npm toolchain
+        timeout-minutes: 5
+        shell: bash
+        run: node tools/prepare-ci-npm.mjs
       - name: Observe Windows PowerShell dependency readiness
         timeout-minutes: 2
         shell: bash

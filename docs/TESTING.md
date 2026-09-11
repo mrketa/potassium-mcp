@@ -12,6 +12,8 @@ Hosted Windows jobs use the explicit `windows-2022` image and SDK 8.0.424 rather
 
 The user-approved CI boundary explicitly readies Windows PowerShell/CIM and the built-in security commands before functional qualification. This dependency-readiness step is separately bounded and timed; it changes no runtime/RPC deadline, skips no test, and does not certify cold OS-start latency. Hosted cold shell startup was observed to exceed the runtime's five-second process-inspection cap even when the query itself was fast. Without timely identity evidence, the runtime continues to fail closed rather than trust a PID.
 
+The qualified toolchain is Node 22.23.2 and 24.15.0 with npm 11.12.1. CI selects these exact versions and passes the selected npm CLI explicitly to isolated child environments. Floating-major trials that selected newer Node/npm releases remain separate evidence; a newer release is not silently treated as the tested toolchain.
+
 ### Proxy startup source fix — September 11, 2026
 
 [Source acceptance](../release-out/proxy-startup-fix-L08a5O/ACCEPTANCE.json) records a real pre-fix crash: a valid HMAC challenge followed by an invalid WebSocket opcode in the same network write emitted an unhandled socket error. Continuous startup ownership now preserves and rejects that error instead. Real-wire regressions also cover the upgrade and ready handoffs; already-closed authentication rejects promptly rather than waiting for another phase timeout. A stalled `CLOSING` peer terminates through the existing shutdown grace without reading queued MCP input. Invalid proof/protocol data remains terminal; no retry, replay or larger timeout was added.
