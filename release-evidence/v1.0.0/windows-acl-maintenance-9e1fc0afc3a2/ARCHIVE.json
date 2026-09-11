@@ -3,7 +3,7 @@
   "sourceCommit": "9b20e52fab1a5f624574d43723d710f66fa92b1d",
   "originalTagCommit": "09e44385251f7eac48627b58dd0a3e675fe75afa",
   "windowsVersionId": "9e1fc0afc3a2d0b8a13080a0dae105eb9445fe472b41c725c612063854f4a10b",
-  "scope": "Windows maintenance build manifests and pre-publication qualification; no npm publication or tag move",
+  "scope": "Windows-only maintenance build and publication evidence; original npm package and tag unchanged",
   "files": [
     {
       "path": "WINDOWS-SETUP.json",
@@ -44,6 +44,16 @@
       "path": "QUALIFICATION.json",
       "bytes": 2613,
       "sha256": "8ad57857b368362dfa6b031f028d6061f601616191f1526ab8d3bc5ffbd9b9f3"
+    },
+    {
+      "path": "PUBLICATION.json",
+      "bytes": 4514,
+      "sha256": "0a3a01e558fb70a2bf270fbbb7e37ae326fbcfa4cd72b458e44ec31f2fa38887"
+    },
+    {
+      "path": ".gitattributes",
+      "bytes": 8,
+      "sha256": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da"
     }
   ]
 }

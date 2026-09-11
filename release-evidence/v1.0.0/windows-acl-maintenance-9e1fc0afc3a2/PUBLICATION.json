@@ -1,0 +1,127 @@
+{
+  "schema": 1,
+  "publishedAt": "2026-09-11T15:58:31.769Z",
+  "repository": "mrketa/potassium-mcp",
+  "releaseId": 386877246,
+  "tag": "v1.0.0",
+  "kind": "Authorized Windows-only maintenance replacement",
+  "sourceCommit": "9b20e52fab1a5f624574d43723d710f66fa92b1d",
+  "windowsVersionId": "9e1fc0afc3a2d0b8a13080a0dae105eb9445fe472b41c725c612063854f4a10b",
+  "assets": [
+    {
+      "id": 557538232,
+      "name": "potassium-mcp-v1.0.0-windows-setup.zip",
+      "bytes": 162539707,
+      "digest": "sha256:fe93cc4720bec40b7a203315ad4e9d3e45e6e55790231cb420f1f19d3eb16692",
+      "url": "https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/potassium-mcp-v1.0.0-windows-setup.zip"
+    },
+    {
+      "id": 557538234,
+      "name": "Setup.exe",
+      "bytes": 260001329,
+      "digest": "sha256:682ebdd4e70b5ab252424bffcb76f05a176d1ad54f5ebc1c3976aa17e4eb2f35",
+      "url": "https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/Setup.exe"
+    },
+    {
+      "id": 557538233,
+      "name": "SHA256SUMS.txt",
+      "bytes": 181,
+      "digest": "sha256:f3ad8a9894f77d2491952860841641eec10361cf33b099ddf5f02670c6f7b830",
+      "url": "https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/SHA256SUMS.txt"
+    }
+  ],
+  "publicDownloads": [
+    {
+      "url": "https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/Setup.exe",
+      "bytes": 260001329,
+      "sha256": "682ebdd4e70b5ab252424bffcb76f05a176d1ad54f5ebc1c3976aa17e4eb2f35",
+      "verified": true
+    },
+    {
+      "url": "https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/potassium-mcp-v1.0.0-windows-setup.zip",
+      "bytes": 162539707,
+      "sha256": "fe93cc4720bec40b7a203315ad4e9d3e45e6e55790231cb420f1f19d3eb16692",
+      "verified": true
+    },
+    {
+      "url": "https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/SHA256SUMS.txt",
+      "bytes": 181,
+      "sha256": "f3ad8a9894f77d2491952860841641eec10361cf33b099ddf5f02670c6f7b830",
+      "verified": true
+    }
+  ],
+  "sourceBinding": [
+    {
+      "path": "potassium-mcp/src/install.js",
+      "sha256": "b2dc3a18247c31c91af8f5c442b19ab04ab0143ae7e71e012b34838ee0bb243f"
+    },
+    {
+      "path": "potassium-mcp/bin/potassium-mcp.js",
+      "sha256": "5b76c51683ea0a12ae04f76e3a3776c3aea56f191818ea4560a14646d76bd103"
+    },
+    {
+      "path": "potassium-mcp/test/install.test.js",
+      "sha256": "aa8e9b6f21ab71368ebdd1eb8a117f7e632ff59846d4c1b25e406b77ad7f677d"
+    },
+    {
+      "path": "potassium-mcp/test/cli.test.js",
+      "sha256": "ed3fde281b5825501dfc05d245c5a2b498450738c803968f5c8004c4aad19008"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup/SetupHelpers.cs",
+      "sha256": "f0be340023befd3cc531bebcc0e97829fc340dc4722b8c1b7fbef89e8069d3fa"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup/SetupForm.cs",
+      "sha256": "a6f4802eaf55be39760470f7ed52157bb45d914ecae3ad64abbf7ac9079148a4"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup.Tests/SetupHelpersTests.cs",
+      "sha256": "6fc4c7e56241fb048535f7054aefd758142b538471e9f3708e6f2edfdc2a1eae"
+    },
+    {
+      "path": "docs/DEPLOYMENT.md",
+      "sha256": "077db7df17462406d107be21978c73192d6c96fff6790509fbd83e2e8c9c4666"
+    },
+    {
+      "path": "potassium-mcp/README.md",
+      "sha256": "885973852f15e88a05f801a7594a52c6b7c3fa9fa78be112e879f73ca6162525"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "153bc8a8fd79a39087539cd690e737e5ce0527e37560f190e6f3e570104a5bd9"
+    }
+  ],
+  "originalTag": {
+    "sha": "09e44385251f7eac48627b58dd0a3e675fe75afa",
+    "unchanged": true
+  },
+  "npmRegistry": {
+    "version": "1.0.0",
+    "integrity": "sha512-WeuK/IAlMZRqlS5yKeyZ/idQdHkvvb34VZF8zgoB1e31QTtz7WpFue1CdNx6BbauaO3lJhq1t2WBsooYD+kmug==",
+    "unchanged": true,
+    "republished": false
+  },
+  "previousAssetHashes": {
+    "Setup.exe": {
+      "sha256": "7423038a9521292342dc44409c066a7ec21acd0f5a861c64039c71e4e8778b21",
+      "bytes": 259993137
+    },
+    "potassium-mcp-v1.0.0-windows-setup.zip": {
+      "sha256": "d1dc43997c2c180b3f57e78df3e0f956239884ee432314831dacd266f078cd30",
+      "bytes": 162531558
+    },
+    "SHA256SUMS.txt": {
+      "sha256": "be0cdaef3fd95c86610589c7bb020668eed320c641c18d0dadfee6f41480cb0e",
+      "bytes": 181
+    }
+  },
+  "qualification": "QUALIFICATION.json",
+  "cleanup": {
+    "uploadedAssetCount": 3,
+    "temporaryReleaseNamesRemoved": true,
+    "oldAssetsBackedUpAndVerifiedBeforeReplacement": true,
+    "isolatedGuiFixtureRemoved": true
+  },
+  "signing": "unsigned"
+}
