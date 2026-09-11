@@ -1,18 +1,18 @@
-# Potassium MCP Bridge
+# Advanced Potassium MCP — package reference
 
-Local, loopback-only MCP bridge for bounded Potassium inspection, offline supplied-Luau analysis, and explicitly permitted execution. Ordinary npm CLI defaults expose read-policy observation and bounded bookkeeping, including remote metadata inventory, not invocation. `potassium_remote_call` separately queues one typed call under execute/global gates. Offline source intake is explicit, not arbitrary filesystem/live source/bytecode access or server-source reconstruction. Fresh Windows Setup separately grants full read/admin/execute access; retained configurations preserve their permissions.
+Technical reference for **Advanced Potassium MCP**, an independent, extended MCP integration for Potassium. For the short overview, Windows download and first-time setup, start with the [main README](https://github.com/mrketa/potassium-mcp#readme). The npm package remains `@mrketa/potassium-mcp` and the command remains `potassium-mcp`.
 
 For agent use, start with [Agent documentation](#agent-documentation); installation and ordinary tool use are separate workflows.
 
 ## Relationship to Potassium's built-in MCP
 
-Potassium includes its own MCP endpoint. This package is an independent multi-host bridge, not a replacement, wrapper, or alternate name for Potassium's native server. Prefer the native MCP for direct integrations that already meet your needs. Use this package when you need a shared broker, policy for trusted launchers, explicit executor selection, token-free stdio entries, bounded HTTP sessions, artifacts, audit history, or FIFO mutation barriers.
+Potassium includes its own built-in MCP. Advanced Potassium MCP is an independent project for deeper inspection, reusable snapshots/maps/recordings, supplied-Luau analysis and multi-assistant workflows. It is not the official native server, a wrapper around it, or a rename of it. The sections below describe this project's features and limits, not an audited feature-by-feature comparison with Potassium's built-in MCP.
 
 With `--builtin-fallback-token-file`, the broker can use Potassium's fixed local endpoint for bounded status, client listing, and console diagnostics only; native script execution is never forwarded. The historical fallback check used Potassium `2.4.3` (`version-ce0bcd0fbd484804`). That is not a blanket compatibility claim for later builds.
 
 ## Support freeze and release status
 
-This checkout targets first Stable `1.0.0`. A source version is not publication or qualification evidence: only the exact released npm/Windows hashes and their release-set receipt identify an approved distributable. Windows Setup is intentionally unsigned; no Authenticode publisher identity is claimed, and Windows may show SmartScreen warnings. Source checkouts, archived prereleases and independently rebuilt binaries must not be silently treated as the same release. Publishing remains a separate explicitly authorized step after final qualification.
+Stable **1.0.0 is published**. Use the [release page](https://github.com/mrketa/potassium-mcp/releases/tag/v1.0.0) for Setup, the Windows ZIP and their checksums. Original qualification manifests are preserved in the [separate technical archive](https://github.com/mrketa/potassium-mcp/tree/5677385f169c24c87f8879e72bb8f5beee86f0d6/release-evidence/v1.0.0). Windows Setup is unsigned; no verified Authenticode publisher identity is claimed. The detailed notes below include historical qualification snapshots: source edits, archived prereleases and independently rebuilt binaries are not automatically the released bytes.
 
 Schema-3 runtime compatibility is declared by package metadata `potassiumMcpRuntime: { ownershipSchema: 3, launcherProtocol: 1 }`. An archived same-version package without this marker is not a compatible explicit runtime migration target. The marker is necessary compatibility metadata, not proof of artifact integrity, qualification, or permission to publish.
 
@@ -31,7 +31,7 @@ The legacy MCP contract uses `initialize`, `notifications/initialized`, and nego
 
 Stable requires all mandatory package, migration/rollback, platform/host/protocol, lifecycle, and approved engine gates; no open critical/high findings or reproduced data loss, secret leak, privilege expansion, unsafe retry, or resource leak. Lower-severity exceptions need documented impact and explicit acceptance. A green local suite alone does not authorize a version bump or publication.
 
-Distribution targets are the sanitized npm package and Windows Setup EXE/ZIP. A filtered source ZIP is supplemental, not an installed Windows runtime. The current release workflow builds npm and that source ZIP; Setup has a separate Windows builder and acceptance path. Every advertised download and any signing choice need exact-byte qualification and authorization. See [Deployment](../docs/DEPLOYMENT.md#source-work-and-distribution-scope). Source checks alone do not authorize package/build/reinstall/publication. The separate testworld workflow and retired A5/F6/I3 gates are not prerequisites and are not counted as passed.
+The npm package and Windows Setup EXE/ZIP are the user distributions; GitHub's automatic source archives are not installed runtimes. Release tooling qualifies an exact set before protected publication. The published 1.0.0 download list was subsequently simplified by explicit request; its original metadata is in the linked archive, and its binaries are unchanged. The old full-set workflow fails closed if replayed against that reduced list and must not be used to restore removed attachments automatically. See [Deployment](../docs/DEPLOYMENT.md) for the general release and installation contracts.
 
 The historical ownership candidate's actual npm/Windows packages, clean installation, upgrade/repair/removal/reinstall, native parser and clipboard transfers have scoped local evidence. For that source/artifact set, Node 22 and 24 each passed 564 of 567 source tests with zero failures and three explicit platform skips; modeled bootstrap70/70, managed Setup28/28 and corrected release tooling33/33 passed. Its `0c153057…` tarball completed the corrected thirty-minute stock-SDK staging soak. These remain archival results, not the current source freeze or qualification of the recorder/selective-read delta.
 
