@@ -1,93 +1,477 @@
-name: Release
+name: Verify or promote selected release
 
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Ref to assemble without publishing'
+      release_id:
+        description: "Existing complete draft release ID in mrketa/potassium-mcp"
+        required: true
+        type: string
+      set_sha256:
+        description: "Externally recorded SHA-256 of the exact RELEASE-SET.json bytes"
+        required: true
+        type: string
+      publish:
+        description: "Request protected publication; false only verifies the selected draft"
+        required: true
+        default: false
+        type: boolean
+      confirm_version:
+        description: "For publication only: exact canonical package version, without v"
         required: false
-        default: main
+        default: ""
+        type: string
 
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
+permissions: {}
+concurrency:
+  group: stable-release-${{ github.repository }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_REPOSITORY: ${{ github.repository }}
+  RELEASE_SOURCE_SHA: ${{ github.sha }}
+  RELEASE_ID: ${{ inputs.release_id }}
+  RELEASE_SET_SHA256: ${{ inputs.set_sha256 }}
+  RELEASE_PUBLISH_REQUESTED: ${{ inputs.publish }}
+  RELEASE_CONFIRM_VERSION: ${{ inputs.confirm_version }}
 
 jobs:
-  assemble:
+  verify:
+    name: Verify selected immutable draft (no publication)
     runs-on: windows-latest
-    environment: release
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.selected.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.ref || github.ref }}
-          fetch-depth: 0
-      - uses: actions/setup-node@v4
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
         with:
-          node-version: 22.22.0
-          cache: npm
+          node-version: "22.23.2"
           registry-url: https://registry.npmjs.org/
-          scope: '@mrketa'
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 8.0.x
-      - run: npm ci
-      - run: npm test
-      - name: Validate tag and reserve the npm version
-        if: github.event_name == 'push'
-        shell: pwsh
-        run: |
-          node tools/release.mjs validate
-          node tools/release.mjs unique-version
-      - name: Stage the embedded Node runtime and exact npm artifact
-        shell: pwsh
-        run: node tools/release.mjs runtime
-      - name: Build self-contained Setup.exe
-        shell: pwsh
-        run: >-
-          dotnet publish app/PotassiumMcp.Setup/PotassiumMcp.Setup.csproj
-          -c Release -r win-x64 --self-contained true
-          -p:PublishSingleFile=true -p:Version=$(node -p "require('./package.json').version")
-      - name: Assemble deterministic release artifacts
-        shell: pwsh
+      - name: Download only pinned assets and verify source and qualification
+        id: selected
+        shell: bash
         env:
-          SETUP_EXE: app/PotassiumMcp.Setup/bin/Release/net8.0-windows/win-x64/publish/PotassiumMcp.Setup.exe
-        run: node tools/release.mjs assemble
-      - uses: actions/upload-artifact@v4
-        with:
-          name: potassium-mcp-${{ github.ref_name || 'manual' }}
-          path: release-out/
-          if-no-files-found: error
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: release-out/*
-      - name: Publish npm package with token and provenance
-        if: github.event_name == 'push' && vars.NPM_PUBLISH_ENABLED == 'true'
-        shell: pwsh
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: 'true'
-          NPM_CONFIG_ACCESS: public
-        run: |
-          $packages = @(Get-ChildItem -LiteralPath release-out -Filter '*.tgz' -File)
-          if ($packages.Count -ne 1) { throw "Expected exactly one npm tarball, found $($packages.Count)." }
-          $version = (Get-Content -LiteralPath package.json -Raw | ConvertFrom-Json).version
-          $distTag = if ($version.Contains('-')) { 'next' } else { 'latest' }
-          npm publish $packages[0].FullName --provenance --access public --tag $distTag
-          $publishedTag = $null
-          for ($attempt = 1; $attempt -le 12; $attempt++) {
-            $tags = npm view @mrketa/potassium-mcp dist-tags --json | ConvertFrom-Json
-            $publishedTag = $tags.($distTag)
-            if ($publishedTag -eq $version) { break }
-            Start-Sleep -Seconds 5
-          }
-          if ($publishedTag -ne $version) {
-            throw "npm $distTag dist-tag points to $publishedTag, expected $version"
-          }
-      - name: Publish GitHub release
-        if: github.event_name == 'push'
-        env:
+          RELEASE_MODE: prepare
           GH_TOKEN: ${{ github.token }}
-        run: gh release create ${{ github.ref_name }} release-out/* --verify-tag --title ${{ github.ref_name }} --generate-notes ${{ contains(github.ref_name, '-') && '--prerelease' || '' }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # The protected job runs this same gate from fresh downloads, not a
+        # mutable build directory or an expired Actions artifact. Only public,
+        # sanitized receipts are retained; immutable inputs stay separate.
+        run: &selected-release-gate |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { createHash } from 'node:crypto';
+          import { createWriteStream } from 'node:fs';
+          import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+          import path from 'node:path';
+          import { Readable, Transform, Writable } from 'node:stream';
+          import { pipeline } from 'node:stream/promises';
+          import { verifyReleaseSet, validateDraftSelection, releaseAssetAction } from './tools/github-release.mjs';
+          import { distTagForVersion, main as publishNpm, runNpm } from './potassium-mcp/release-publish.js';
+
+          const mode = process.env.RELEASE_MODE;
+          const publishing = mode === 'publish';
+          const recoveryAllowed = process.env.RELEASE_PUBLISH_REQUESTED === 'true';
+          const repository = 'mrketa/potassium-mcp';
+          const sourceSha = process.env.RELEASE_SOURCE_SHA;
+          const expectedSetSha256 = process.env.RELEASE_SET_SHA256;
+          const receiptDirectory = path.join(process.env.RUNNER_TEMP, `release-receipt-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}-${mode}`);
+          const receiptPath = path.join(receiptDirectory, 'receipt.json');
+          await mkdir(receiptDirectory, { recursive: true });
+          await appendFile(process.env.GITHUB_OUTPUT, `receipt_path=${receiptPath}\n`);
+          const receipt = {
+            schemaVersion: 1, mode, repository, status: 'failed', stage: 'inputs',
+            run: { id: process.env.GITHUB_RUN_ID, attempt: process.env.GITHUB_RUN_ATTEMPT },
+            checks: {},
+          };
+          let temporary;
+          let identity;
+          let releaseId;
+          const prefix = `/repos/${repository}`;
+          const stage = (value) => { receipt.stage = value; };
+          const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
+          const positiveId = (value) => Number.isSafeInteger(value) && value > 0;
+
+          async function request(route, { method = 'GET', body, accept = 'application/vnd.github+json', missing = false } = {}) {
+            assert(route.startsWith(`${prefix}/`), 'Unexpected GitHub API scope');
+            assert(method === 'GET' || publishing, 'Preparation cannot mutate GitHub');
+            const response = await fetch(`https://api.github.com${route}`, {
+              method,
+              headers: {
+                authorization: `Bearer ${process.env.GH_TOKEN}`,
+                accept,
+                'x-github-api-version': '2022-11-28',
+                ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+              },
+              ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+              signal: AbortSignal.timeout(180000),
+            });
+            if (missing && response.status === 404) { await response.body?.cancel(); return null; }
+            if (!response.ok) {
+              await response.body?.cancel();
+              throw new Error(`GitHub request failed (${response.status})`);
+            }
+            return response;
+          }
+          async function boundedBytes(response, limit) {
+            const chunks = [];
+            let size = 0;
+            for await (const chunk of response.body) {
+              size += chunk.length;
+              assert(size <= limit, 'GitHub response exceeds its bound');
+              chunks.push(chunk);
+            }
+            return Buffer.concat(chunks, size);
+          }
+          async function api(route, options) {
+            const response = await request(route, options);
+            return response === null ? null : JSON.parse((await boundedBytes(response, 8 * 1024 * 1024)).toString('utf8'));
+          }
+          async function selectedRelease() {
+            const release = await api(`${prefix}/releases/${releaseId}`);
+            assert.equal(release.id, releaseId);
+            validateDraftSelection({ repository, release, sourceSha, identity, allowPublishedRecovery: recoveryAllowed });
+            return release;
+          }
+          async function assets() {
+            const result = [];
+            for (let page = 1; page <= 10; page += 1) {
+              const batch = await api(`${prefix}/releases/${releaseId}/assets?per_page=100&page=${page}`);
+              assert(Array.isArray(batch), 'Invalid asset response');
+              result.push(...batch);
+              if (batch.length < 100) return result;
+            }
+            throw new Error('Release asset enumeration exceeded its bound');
+          }
+          function assetMap(rows, expectedNames, complete = true) {
+            const map = new Map();
+            const folded = new Set();
+            const ids = new Set();
+            for (const asset of rows) {
+              assert(positiveId(asset.id) && typeof asset.name === 'string', 'Invalid asset identity');
+              assert(!folded.has(asset.name.toLowerCase()) && !ids.has(asset.id), 'Duplicate or aliased release asset');
+              assert(expectedNames.has(asset.name), 'Unexpected release asset');
+              folded.add(asset.name.toLowerCase());
+              ids.add(asset.id);
+              map.set(asset.name, asset);
+            }
+            if (complete) assert.equal(map.size, expectedNames.size, 'Missing release asset; restore the original set explicitly');
+            return map;
+          }
+          function snapshot(rows) {
+            return rows.map(({ id, name, size, state, digest, updated_at }) => ({ id, name, size, state, digest: digest ?? null, updated_at }))
+              .sort((a, b) => a.name.localeCompare(b.name, 'en'));
+          }
+          async function verifyRemote(record, asset, destination) {
+            assert(asset?.name === record.name && asset.state === 'uploaded', 'Missing or unfinished release asset');
+            const action = releaseAssetAction({ draft: true, existing: asset, bytes: record.bytes, digest: `sha256:${record.sha256}` });
+            assert(action === 'keep' || action === 'verify-download', 'Release asset is not complete');
+            const response = await request(`${prefix}/releases/assets/${asset.id}`, { accept: 'application/octet-stream' });
+            let size = 0;
+            const hash = createHash('sha256');
+            const check = new Transform({ transform(chunk, encoding, callback) {
+              size += chunk.length;
+              if (size > record.bytes) { callback(new Error('Release asset exceeds its pinned size')); return; }
+              hash.update(chunk);
+              callback(null, chunk);
+            } });
+            const output = destination ? createWriteStream(destination, { flags: 'wx' }) : new Writable({ write(chunk, encoding, callback) { callback(); } });
+            await pipeline(Readable.fromWeb(response.body), check, output);
+            assert.equal(size, record.bytes, 'Truncated or expired release asset');
+            assert.equal(hash.digest('hex'), record.sha256, 'Release asset content changed');
+          }
+          async function tagCommit(required = false) {
+            const ref = await api(`${prefix}/git/ref/tags/${identity.ref}`, { missing: !required });
+            if (!ref) return null;
+            assert.equal(ref.ref, `refs/tags/${identity.ref}`);
+            let object = ref.object;
+            for (let depth = 0; object?.type === 'tag' && depth < 8; depth += 1) {
+              assert(/^[a-f0-9]{40}$/.test(object.sha), 'Invalid annotated tag identity');
+              object = (await api(`${prefix}/git/tags/${object.sha}`)).object;
+            }
+            assert(object?.type === 'commit' && object.sha === sourceSha, 'Release tag points to another source commit');
+            return object.sha;
+          }
+          const npmOptions = () => ({
+            cwd: path.resolve('potassium-mcp'),
+            env: { ...process.env, NODE_AUTH_TOKEN: process.env.NPM_TOKEN },
+            encoding: 'utf8', stdio: 'pipe', maxBuffer: 8 * 1024 * 1024,
+          });
+          function npmJson(args, allowMissing = false) {
+            try { return JSON.parse(String(runNpm([...args, '--json', '--registry=https://registry.npmjs.org/'], npmOptions()))); }
+            catch (error) {
+              if (allowMissing) {
+                for (const output of [error.stdout, error.stderr]) {
+                  try { if (JSON.parse(String(output))?.error?.code === 'E404') return null; } catch {}
+                }
+              }
+              throw new Error('Selected npm registry query failed');
+            }
+          }
+          function npmReadiness() {
+            assert(process.env.NPM_TOKEN, 'NPM_TOKEN is required for read-only publication readiness');
+            const actor = String(runNpm(['whoami', '--registry=https://registry.npmjs.org/'], npmOptions())).trim();
+            assert(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(actor), 'npm token identity could not be verified');
+            // npm returns the actor's permission map. Keep it in memory only:
+            // neither unrelated names nor raw provider responses leave this
+            // function. Only the selected package's reported access is used.
+            const packages = npmJson(['access', 'list', 'packages', actor]);
+            assert(packages && typeof packages === 'object' && !Array.isArray(packages), 'Invalid npm permission response');
+            assert(Object.hasOwn(packages, identity.name) && packages[identity.name] === 'read-write', 'Selected npm package does not report write permission');
+            return { registry: 'https://registry.npmjs.org/', actor, package: identity.name, reportedPermission: 'read-write', publicationExercised: false };
+          }
+          function compareVersions(left, right) {
+            // Reuse the publisher's semver validation. The selected target is
+            // stable-only, but a historical latest may name a prerelease.
+            distTagForVersion(left);
+            distTagForVersion(right);
+            const pattern = /^(\d+)\.(\d+)\.(\d+)(?:-([^+]+))?(?:\+.+)?$/;
+            const a = pattern.exec(left);
+            const b = pattern.exec(right);
+            for (let index = 1; index <= 3; index += 1) {
+              const first = BigInt(a[index]);
+              const second = BigInt(b[index]);
+              if (first !== second) return first > second ? 1 : -1;
+            }
+            if (a[4] === b[4]) return 0;
+            if (!a[4] || !b[4]) return a[4] ? -1 : 1;
+            const first = a[4].split('.');
+            const second = b[4].split('.');
+            for (let index = 0; index < Math.max(first.length, second.length); index += 1) {
+              if (first[index] === second[index]) continue;
+              if (first[index] === undefined || second[index] === undefined) return first[index] === undefined ? -1 : 1;
+              const numericFirst = /^\d+$/.test(first[index]);
+              const numericSecond = /^\d+$/.test(second[index]);
+              if (numericFirst && numericSecond) return BigInt(first[index]) > BigInt(second[index]) ? 1 : -1;
+              if (numericFirst !== numericSecond) return numericFirst ? -1 : 1;
+              return first[index] > second[index] ? 1 : -1;
+            }
+            return 0;
+          }
+          function latestVersion(allowPending = false) {
+            const tags = npmJson(['view', identity.name, 'dist-tags'], true);
+            if (tags === null) return null;
+            assert(tags && typeof tags === 'object' && !Array.isArray(tags), 'Invalid npm channel response');
+            if (allowPending && !Object.hasOwn(tags, 'latest')) return null;
+            assert(typeof tags.latest === 'string', 'Stable npm channel is missing');
+            compareVersions(tags.latest, identity.version);
+            return tags.latest;
+          }
+          function registryIdentity(report, baseline, allowPending = false) {
+            const result = npmJson(['view', `${identity.name}@${identity.version}`], allowPending);
+            if (result === null && allowPending) return null;
+            assert(result?.name === identity.name && result.version === identity.version && result.dist?.integrity === report.npm.integrity, 'Published npm identity/integrity differs');
+            const latest = latestVersion(allowPending);
+            if (allowPending && (!latest || compareVersions(latest, identity.version) < 0)) return null;
+            assert(latest && compareVersions(latest, identity.version) >= 0, 'Stable channel does not include this or a newer release');
+            if (baseline) assert(compareVersions(latest, baseline) >= 0, 'A newer npm latest channel was moved backwards');
+            return { name: identity.name, version: identity.version, integrity: result.dist.integrity, latest };
+          }
+          async function observePublishedRegistry(report, baseline, newlyPublished) {
+            // Retain the public workflow's bounded 12 x 5-second propagation
+            // observation. Only missing/stale identity or channel reads wait;
+            // conflicting integrity, authentication and transport errors throw.
+            // This never repeats npm publish or performs a dist-tag mutation.
+            for (let attempt = 0; attempt <= 12; attempt += 1) {
+              const observed = registryIdentity(report, baseline, newlyPublished);
+              if (observed) return observed;
+              if (attempt < 12) await new Promise((resolve) => setTimeout(resolve, 5000));
+            }
+            throw new Error('Published npm identity/channel did not propagate within the observation window');
+          }
+          async function completeRemote(records) {
+            const release = await selectedRelease();
+            const before = await assets();
+            const map = assetMap(before, new Set(records.map((record) => record.name)));
+            for (const record of records) await verifyRemote(record, map.get(record.name));
+            assert.deepEqual(snapshot(await assets()), snapshot(before), 'Release assets changed during verification');
+            const current = await selectedRelease();
+            assert.equal(current.draft, release.draft, 'Release publication state changed during verification');
+            return current;
+          }
+
+          try {
+            assert(mode === 'prepare' || publishing, 'Invalid release mode');
+            assert.equal(process.version, 'v22.23.2', 'Release verification requires pinned Node');
+            assert.equal(process.env.RELEASE_REPOSITORY, repository, 'Wrong release repository');
+            assert(/^[a-f0-9]{40}$/.test(sourceSha), 'Source must be an immutable GitHub commit');
+            assert(/^[a-f0-9]{64}$/.test(expectedSetSha256), 'An external release-set SHA-256 pin is required');
+            assert(/^[1-9]\d*$/.test(process.env.RELEASE_ID), 'A selected numeric release ID is required');
+            releaseId = Number(process.env.RELEASE_ID);
+            assert(positiveId(releaseId), 'Release ID is outside its bound');
+            const packageMetadata = JSON.parse(await readFile('potassium-mcp/package.json', 'utf8'));
+            identity = { sha: sourceSha, ref: `v${packageMetadata.version}`, name: packageMetadata.name, version: packageMetadata.version };
+            assert.equal(identity.name, '@mrketa/potassium-mcp');
+            assert(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(identity.version), 'Selected release must be canonical stable semver');
+            if (process.env.RELEASE_PUBLISH_REQUESTED === 'true' || publishing) assert.equal(process.env.RELEASE_CONFIRM_VERSION, identity.version, 'Explicit exact version confirmation is required');
+            if (publishing) assert.equal(process.env.RELEASE_PUBLISH_REQUESTED, 'true');
+            Object.assign(receipt, { releaseId, identity, setSha256: expectedSetSha256 });
+            await appendFile(process.env.GITHUB_OUTPUT, `version=${identity.version}\n`);
+
+            stage('selected-release');
+            const release = await selectedRelease();
+            const initialTag = await tagCommit();
+            if (!release.draft) assert(initialTag, 'Published recovery requires an existing immutable tag');
+            const initialAssets = await assets();
+            const manifests = initialAssets.filter((asset) => asset.name === 'RELEASE-SET.json');
+            assert.equal(manifests.length, 1, 'Pinned release manifest is missing or duplicated');
+            const manifestAsset = manifests[0];
+            assert(positiveId(manifestAsset.id) && manifestAsset.state === 'uploaded' && Number.isSafeInteger(manifestAsset.size) && manifestAsset.size > 0 && manifestAsset.size <= 1024 * 1024, 'Pinned release manifest is incomplete or oversized');
+            stage('external-manifest-pin');
+            const manifestBytes = await boundedBytes(await request(`${prefix}/releases/assets/${manifestAsset.id}`, { accept: 'application/octet-stream' }), 1024 * 1024);
+            assert.equal(manifestBytes.length, manifestAsset.size, 'Truncated release manifest');
+            assert.equal(digest(manifestBytes), expectedSetSha256, 'Release manifest differs from its external SHA-256 pin');
+            const manifest = JSON.parse(manifestBytes.toString('utf8'));
+            assert.equal(manifest.schemaVersion, 2);
+            assert.deepEqual(manifest.identity, identity);
+            assert(Array.isArray(manifest.files) && manifest.files.length > 0 && manifest.files.length <= 32, 'Invalid release asset count');
+            const names = new Set(['RELEASE-SET.json']);
+            const folded = new Set(['release-set.json']);
+            for (const record of manifest.files) {
+              assert(record && typeof record.name === 'string' && /^[A-Za-z0-9][A-Za-z0-9._+-]*$/.test(record.name) && !/[. ]$/.test(record.name), 'Invalid flat asset name');
+              assert(!/^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(record.name), 'Windows device aliases are forbidden');
+              assert(!folded.has(record.name.toLowerCase()), 'Duplicate or aliased manifest asset');
+              assert(Number.isSafeInteger(record.bytes) && record.bytes > 0 && record.bytes <= 1024 * 1024 * 1024 && /^[a-f0-9]{64}$/.test(record.sha256), 'Invalid manifest asset identity');
+              names.add(record.name);
+              folded.add(record.name.toLowerCase());
+            }
+            const map = assetMap(initialAssets, names);
+            const records = [{ name: 'RELEASE-SET.json', bytes: manifestBytes.length, sha256: expectedSetSha256 }, ...manifest.files];
+            const manifestAction = releaseAssetAction({ draft: release.draft, existing: manifestAsset, bytes: manifestBytes.length, digest: `sha256:${expectedSetSha256}` });
+            assert(manifestAction === 'keep' || manifestAction === 'verify-download', 'Manifest upload identity differs');
+            // Reject missing, expired/truncated, starter, renamed and changed
+            // inputs. Recovery is manual from the original local qualified set.
+            temporary = await mkdtemp(path.join(process.env.RUNNER_TEMP, 'selected-release-'));
+            const directory = path.join(temporary, 'inputs');
+            await mkdir(directory);
+            await writeFile(path.join(directory, 'RELEASE-SET.json'), manifestBytes, { flag: 'wx' });
+            stage('download-exact-assets');
+            for (const record of manifest.files) await verifyRemote(record, map.get(record.name), path.join(directory, record.name));
+            assert.deepEqual(snapshot(await assets()), snapshot(initialAssets), 'Selected assets changed during download');
+            assert.equal((await selectedRelease()).draft, release.draft, 'Selected release state changed during download');
+            stage('source-and-qualification');
+            const report = await verifyReleaseSet(directory, identity, { expectedSetSha256 });
+            assert.equal(report.setSha256, expectedSetSha256);
+            assert.deepEqual(report.files, manifest.files);
+            assert.deepEqual(snapshot(await assets()), snapshot(initialAssets), 'Selected assets changed during qualification verification');
+            assert.equal((await selectedRelease()).draft, release.draft, 'Release state changed during qualification verification');
+            const verifiedTag = await tagCommit(Boolean(initialTag));
+            receipt.checks = { selectedRelease: true, externalSetPin: true, exactAssets: true, sourceAndQualification: true, tag: verifiedTag ? 'verified' : 'absent-no-mutation' };
+            receipt.files = report.files;
+            stage('npm-readiness');
+            receipt.npmReadiness = npmReadiness();
+            receipt.checks.npmAuthentication = true;
+            receipt.checks.npmPackageWritePermission = true;
+            receipt.limitations = [
+              'Read-only readiness observes npm identity and reported selected-package permission; it does not exercise a publication write. Token expiry, granular scope, 2FA requirements and provider policies can change before promotion.',
+            ];
+
+            if (publishing) {
+              const latestBefore = latestVersion();
+              stage('prepublication-assets');
+              await completeRemote(records);
+              await verifyReleaseSet(directory, identity, { expectedSetSha256 });
+              stage('immutable-tag');
+              if (!(await tagCommit())) {
+                assert((await selectedRelease()).draft, 'Only a selected draft can receive its release tag');
+                await api(`${prefix}/git/refs`, { method: 'POST', body: { ref: `refs/tags/${identity.ref}`, sha: sourceSha } });
+              }
+              await tagCommit(true);
+              receipt.checks.tag = 'verified';
+              stage('npm-publication');
+              const outcome = await publishNpm([], process.env, {
+                metadataPath: path.join(directory, 'NPM-ARTIFACT.json'),
+                packagePath: path.resolve('potassium-mcp/package.json'),
+                command(args, options) {
+                  if (args[0] === 'publish') {
+                    const currentLatest = latestVersion();
+                    assert(!currentLatest || compareVersions(currentLatest, identity.version) <= 0, 'Refusing to replace a newer latest tag with a previously absent version');
+                  }
+                  // Preserve the publisher's exact-byte/idempotent semantics;
+                  // capture its output instead of leaking paths in receipts.
+                  return runNpm(args, { ...options, stdio: 'pipe', maxBuffer: 8 * 1024 * 1024 });
+                },
+              });
+              assert(outcome.status === 'published' || outcome.status === 'resumed');
+              stage('npm-propagation');
+              receipt.npm = { status: outcome.status, ...await observePublishedRegistry(report, latestBefore, outcome.status === 'published') };
+              stage('final-immutable-set');
+              await verifyReleaseSet(directory, identity, { expectedSetSha256 });
+              const finalRelease = await completeRemote(records);
+              await tagCommit(true);
+              // Re-read npm after the final asset pass. Recovery never retags
+              // npm and never asks GitHub to replace a newer latest release.
+              receipt.npm = { status: outcome.status, ...registryIdentity(report, latestBefore) };
+              stage('github-publication');
+              if (finalRelease.draft) {
+                const published = await api(`${prefix}/releases/${releaseId}`, { method: 'PATCH', body: { draft: false, prerelease: false, make_latest: 'false' } });
+                assert.equal(published.draft, false);
+              }
+              const confirmed = await completeRemote(records);
+              assert.equal(confirmed.draft, false);
+              await tagCommit(true);
+              receipt.checks.githubPublication = true;
+            }
+            receipt.status = publishing ? 'published-or-identically-resumed' : release.draft ? 'verified-draft-no-publication' : 'verified-published-recovery-no-publication';
+            receipt.stage = 'complete';
+          } catch {
+            // Never upload an exception, provider body, token, local path, raw
+            // qualification log or executable output. The gate identifies the
+            // failing boundary; a retry gets a separate receipt, not new inputs.
+            receipt.status = 'failed';
+            console.error(`Release gate failed at ${receipt.stage}; original inputs were not rebuilt.`);
+            process.exitCode = 1;
+          } finally {
+            await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+            if (temporary) await rm(temporary, { recursive: true, force: true });
+          }
+          NODE
+      - name: Retain sanitized preparation receipt only
+        if: ${{ always() && steps.selected.outputs.receipt_path != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.selected.outputs.receipt_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Protected exact-byte stable promotion
+    needs: verify
+    if: ${{ inputs.publish && inputs.confirm_version == needs.verify.outputs.version }}
+    runs-on: windows-latest
+    timeout-minutes: 45
+    environment: stable-publish
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.23.2"
+          registry-url: https://registry.npmjs.org/
+      - name: Reverify selected bytes, then publish only after approval
+        id: selected
+        shell: bash
+        env:
+          RELEASE_MODE: publish
+          GH_TOKEN: ${{ github.token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: *selected-release-gate
+      - name: Retain sanitized promotion or failure receipt only
+        if: ${{ always() && steps.selected.outputs.receipt_path != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-promotion-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.selected.outputs.receipt_path }}
+          if-no-files-found: error
+          retention-days: 30

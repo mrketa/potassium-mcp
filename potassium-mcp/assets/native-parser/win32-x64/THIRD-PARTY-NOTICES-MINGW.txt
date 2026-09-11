@@ -1,0 +1,2063 @@
+Notices from the qualified Zig 0.14.1 MinGW source distribution.
+This inclusive inventory may contain notices for components not linked into this executable.
+
+lib/libc/mingw/cfguard/mingw_cfguard_support.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+// This source file defines the function pointers required to support Control
+// Flow Guard. They shall be included even if CFGuard is disabled when building
+// mingw-w64-crt itself, to allow linking to objects/libraries compiled with
+// CFGuard.
+
+lib/libc/mingw/complex/_cabs.c
+/*
+ This Software is provided under the Zope Public License (ZPL) Version 2.1.
+
+ Copyright (c) 2009, 2010 by the mingw-w64 project
+
+ See the AUTHORS file for the list of contributors to the mingw-w64 project.
+
+ This license has been certified as open source. It has also been designated
+ as GPL compatible by the Free Software Foundation (FSF).
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions in source code must retain the accompanying copyright
+      notice, this list of conditions, and the following disclaimer.
+   2. Redistributions in binary form must reproduce the accompanying
+      copyright notice, this list of conditions, and the following disclaimer
+      in the documentation and/or other materials provided with the
+      distribution.
+   3. Names of the copyright holders must not be used to endorse or promote
+      products derived from this software without prior written permission
+      from the copyright holders.
+   4. The right to distribute this software or to use it for any purpose does
+      not give you the right to use Servicemarks (sm) or Trademarks (tm) of
+      the copyright holders.  Use of them is covered by separate agreement
+      with the copyright holders.
+   5. If any files are modified, you must cause the modified files to carry
+      prominent notices stating that you changed the files and the date of
+      any change.
+
+ Disclaimer
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESSED
+ OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+lib/libc/mingw/complex/cabs.c
+/*
+ This Software is provided under the Zope Public License (ZPL) Version 2.1.
+
+ Copyright (c) 2009, 2010 by the mingw-w64 project
+
+ See the AUTHORS file for the list of contributors to the mingw-w64 project.
+
+ This license has been certified as open source. It has also been designated
+ as GPL compatible by the Free Software Foundation (FSF).
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions in source code must retain the accompanying copyright
+      notice, this list of conditions, and the following disclaimer.
+   2. Redistributions in binary form must reproduce the accompanying
+      copyright notice, this list of conditions, and the following disclaimer
+      in the documentation and/or other materials provided with the
+      distribution.
+   3. Names of the copyright holders must not be used to endorse or promote
+      products derived from this software without prior written permission
+      from the copyright holders.
+   4. The right to distribute this software or to use it for any purpose does
+      not give you the right to use Servicemarks (sm) or Trademarks (tm) of
+      the copyright holders.  Use of them is covered by separate agreement
+      with the copyright holders.
+   5. If any files are modified, you must cause the modified files to carry
+      prominent notices stating that you changed the files and the date of
+      any change.
+
+ Disclaimer
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESSED
+ OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+/* double version of the functions.  */
+
+lib/libc/mingw/complex/cabsf.c
+/*
+ This Software is provided under the Zope Public License (ZPL) Version 2.1.
+
+ Copyright (c) 2009, 2010 by the mingw-w64 project
+
+ See the AUTHORS file for the list of contributors to the mingw-w64 project.
+
+ This license has been certified as open source. It has also been designated
+ as GPL compatible by the Free Software Foundation (FSF).
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions in source code must retain the accompanying copyright
+      notice, this list of conditions, and the following disclaimer.
+   2. Redistributions in binary form must reproduce the accompanying
+      copyright notice, this list of conditions, and the following disclaimer
+      in the documentation and/or other materials provided with the
+      distribution.
+   3. Names of the copyright holders must not be used to endorse or promote
+      products derived from this software without prior written permission
+      from the copyright holders.
+   4. The right to distribute this software or to use it for any purpose does
+      not give you the right to use Servicemarks (sm) or Trademarks (tm) of
+      the copyright holders.  Use of them is covered by separate agreement
+      with the copyright holders.
+   5. If any files are modified, you must cause the modified files to carry
+      prominent notices stating that you changed the files and the date of
+      any change.
+
+ Disclaimer
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESSED
+ OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+/* Float version of the functions.  */
+
+lib/libc/mingw/complex/cabsl.c
+/*
+ This Software is provided under the Zope Public License (ZPL) Version 2.1.
+
+ Copyright (c) 2009, 2010 by the mingw-w64 project
+
+ See the AUTHORS file for the list of contributors to the mingw-w64 project.
+
+ This license has been certified as open source. It has also been designated
+ as GPL compatible by the Free Software Foundation (FSF).
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions in source code must retain the accompanying copyright
+      notice, this list of conditions, and the following disclaimer.
+   2. Redistributions in binary form must reproduce the accompanying
+      copyright notice, this list of conditions, and the following disclaimer
+      in the documentation and/or other materials provided with the
+      distribution.
+   3. Names of the copyright holders must not be used to endorse or promote
+      products derived from this software without prior written permission
+      from the copyright holders.
+   4. The right to distribute this software or to use it for any purpose does
+      not give you the right to use Servicemarks (sm) or Trademarks (tm) of
+      the copyright holders.  Use of them is covered by separate agreement
+      with the copyright holders.
+   5. If any files are modified, you must cause the modified files to carry
+      prominent notices stating that you changed the files and the date of
+      any change.
+
+ Disclaimer
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESSED
+ OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+/* long double version of the functions.  */
+
+lib/libc/mingw/crt/CRT_fp10.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+lib/libc/mingw/crt/mingw_helpers.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+/* 0:console, 1:windows.  */
+
+lib/libc/mingw/crt/pseudo-reloc.c
+/* pseudo-reloc.c
+
+   Contributed by Egor Duda  <deo@logos-m.ru>
+   Modified by addition of runtime_pseudo_reloc version 2
+   by Kai Tietz  <kai.tietz@onevision.com>
+	
+   THIS SOFTWARE IS NOT COPYRIGHTED
+
+   This source code is offered for use in the public domain. You may
+   use, modify or distribute it freely.
+
+   This code is distributed in the hope that it will be useful but
+   WITHOUT ANY WARRANTY. ALL WARRANTIES, EXPRESS OR IMPLIED ARE HEREBY
+   DISCLAMED. This includes but is not limited to warranties of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+*/
+
+lib/libc/mingw/crt/tlsmcrt.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ *
+ * Written by Kai Tietz  <kai.tietz@onevision.com>
+ */
+
+/* We support TLS cleanup code in any case. If shared version of libgcc is used _CRT_MT has value 1,
+ otherwise
+   we do tls cleanup in runtime and _CRT_MT has value 2.  */
+
+lib/libc/mingw/crt/tlsmthread.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ *
+ * Written by Kai Tietz  <kai.tietz@onevision.com>
+ */
+
+lib/libc/mingw/crt/tlsthrd.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ *
+ * Written by Kai Tietz  <kai.tietz@onevision.com>
+ *
+ * This file is used by if gcc is built with --enable-threads=win32.
+ *
+ * Based on version created by Mumit Khan  <khan@nanotech.wisc.edu>
+ *
+ */
+
+lib/libc/mingw/crt/wildcard.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+/* _dowildcard is an int that controls the globbing of the command line.
+ * If _dowildcard is non-zero, the command line will be globbed:  *.*
+ * will be expanded to be all files in the startup directory.
+ *
+ * In the mingw-w64 library the _dowildcard variable is defined as being
+ * 0, therefore command line globbing is DISABLED by default. To turn it
+ * on and to leave wildcard command line processing MS's globbing code,
+ * include a line in one of your source modules defining _dowildcard and
+ * setting it to -1, like so:
+ * int _dowildcard = -1;
+ *
+ * Alternatively, the mingw-w64 library can be configured using the
+ * --enable-wildcard option and compiled thusly upon which the resulting
+ * library will have _dowildcard as -1 and command line globbing will be
+ * enabled by default.
+ */
+
+lib/libc/mingw/gdtoa/arithchk.c
+/****************************************************************
+Copyright (C) 1997, 1998 Lucent Technologies
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+****************************************************************/
+
+/* Try to deduce arith.h from arithmetic properties. */
+
+lib/libc/mingw/gdtoa/dmisc.c
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 1998 by Lucent Technologies
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+****************************************************************/
+
+/* Please send bug reports to David M. Gay (dmg at acm dot org,
+ * with " at " changed at "@" and " dot " changed to ".").	*/
+
+lib/libc/mingw/gdtoa/dtoa.c
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 1998, 1999 by Lucent Technologies
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+****************************************************************/
+
+/* Please send bug reports to David M. Gay (dmg at acm dot org,
+ * with " at " changed at "@" and " dot " changed to ".").	*/
+
+lib/libc/mingw/gdtoa/gdtoa.h
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 1998 by Lucent Technologies
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+****************************************************************/
+
+/* Please send bug reports to David M. Gay (dmg at acm dot org,
+ * with " at " changed at "@" and " dot " changed to ".").	*/
+
+/* Modified by Danny Smith for inclusion in libmingwex.a
+   Aug 2006  */
+
+lib/libc/mingw/gdtoa/gdtoaimp.h
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 1998-2000 by Lucent Technologies
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+****************************************************************/
+
+/* This is a variation on dtoa.c that converts arbitary binary
+   floating-point formats to and from decimal notation.  It uses
+   double-precision arithmetic internally, so there are still
+   various #ifdefs that adapt the calculations to the native
+   double-precision arithmetic (any of IEEE, VAX D_floating,
+   or IBM mainframe arithmetic).
+
+   Please send bug reports to David M. Gay (dmg at acm dot org,
+   with " at " changed at "@" and " dot " changed to ".").
+ */
+
+/* On a machine with IEEE extended-precision registers, it is
+ * necessary to specify double-precision (53-bit) rounding precision
+ * before invoking strtod or dtoa.  If the machine uses (the equivalent
+ * of) Intel 80x87 arithmetic, the call
+ *	_control87(PC_53, MCW_PC);
+ * does this with many compilers.  Whether this or another call is
+ * appropriate depends on the compiler; for this to work, it may be
+ * necessary to #include "float.h" or another system-dependent header
+ * file.
+ */
+
+/* strtod for IEEE-, VAX-, and IBM-arithmetic machines.
+ *
+ * This strtod returns a nearest machine number to the input decimal
+ * string (or sets errno to ERANGE).  With IEEE arithmetic, ties are
+ * broken by the IEEE round-even rule.  Otherwise ties are broken by
+ * biased rounding (add half and chop).
+ *
+ * Inspired loosely by William D. Clinger's paper "How to Read Floating
+ * Point Numbers Accurately" [Proc. ACM SIGPLAN '90, pp. 112-126].
+ *
+ * Modifications:
+ *
+ *	1. We only require IEEE, IBM, or VAX double-precision
+ *		arithmetic (not IEEE double-extended).
+ *	2. We get by with floating-point arithmetic in a case that
+ *		Clinger missed -- when we're computing d * 10^n
+ *		for a small integer d and the integer n is not too
+ *		much larger than 22 (the maximum integer k for which
+ *		we can represent 10^k exactly), we may be able to
+ *		compute (d*10^k) * 10^(e-k) with just one roundoff.
+ *	3. Rather than a bit-at-a-time adjustment of the binary
+ *		result in the hard case, we use floating-point
+ *		arithmetic to determine the adjustment to within
+ *		one bit; only in really hard cases do we need to
+ *		compute a second residual.
+ *	4. Because of 3., we don't need a large table of powers of 10
+ *		for ten-to-e (just some small tables, e.g. of 10^k
+ *		for 0 <= k <= 22).
+ */
+
+/*
+ * #define IEEE_8087 for IEEE-arithmetic machines where the least
+ *	significant byte has the lowest address.
+ * #define IEEE_MC68k for IEEE-arithmetic machines where the most
+ *	significant byte has the lowest address.
+ * #define Long int on machines with 32-bit ints and 64-bit longs.
+ * #define Sudden_Underflow for IEEE-format machines without gradual
+ *	underflow (i.e., that flush to zero on underflow).
+ * #define IBM for IBM mainframe-style floating-point arithmetic.
+ * #define VAX for VAX-style floating-point arithmetic (D_floating).
+ * #define No_leftright to omit left-right logic in fast floating-point
+ *	computation of dtoa and gdtoa.  This will cause modes 4 and 5 to be
+ *	treated the same as modes 2 and 3 for some inputs.
+ * #define Check_FLT_ROUNDS if FLT_ROUNDS can assume the values 2 or 3.
+ * #define RND_PRODQUOT to use rnd_prod and rnd_quot (assembly routines
+ *	that use extended-precision instructions to compute rounded
+ *	products and quotients) with IBM.
+ * #define ROUND_BIASED for IEEE-format with biased rounding and arithmetic
+ *	that rounds toward +Infinity.
+ * #define ROUND_BIASED_without_Round_Up for IEEE-format with biased
+ *	rounding when the underlying floating-point arithmetic uses
+ *	unbiased rounding.  This prevent using ordinary floating-point
+ *	arithmetic when the result could be computed with one rounding error.
+ * #define Inaccurate_Divide for IEEE-format with correctly rounded
+ *	products but inaccurate quotients, e.g., for Intel i860.
+ * #define NO_LONG_LONG on machines that do not have a "long long"
+ *	integer type (of >= 64 bits).  On such machines, you can
+ *	#define Just_16 to store 16 bits per 32-bit Long when doing
+ *	high-precision integer arithmetic.  Whether this speeds things
+ *	up or slows things down depends on the machine and the number
+ *	being converted.  If long long is available and the name is
+ *	something other than "long long", #define Llong to be the name,
+ *	and if "unsigned Llong" does not work as an unsigned version of
+ *	Llong, #define #ULLong to be the corresponding unsigned type.
+ * #define KR_headers for old-style C function headers.
+ * #define Bad_float_h if your system lacks a float.h or if it does not
+ *	define some or all of DBL_DIG, DBL_MAX_10_EXP, DBL_MAX_EXP,
+ *	FLT_RADIX, FLT_ROUNDS, and DBL_MAX.
+ * #define MALLOC your_malloc, where your_malloc(n) acts like malloc(n)
+ *	if memory is available and otherwise does something you deem
+ *	appropriate.  If MALLOC is undefined, malloc will be invoked
+ *	directly -- and assumed always to succeed.
+ * #define Omit_Private_Memory to omit logic (added Jan. 1998) for making
+ *	memory allocations from a private pool of memory when possible.
+ *	When used, the private pool is PRIVATE_MEM bytes long:  2304 bytes,
+ *	unless #defined to be a different length.  This default length
+ *	suffices to get rid of MALLOC calls except for unusual cases,
+ *	such as decimal-to-binary conversion of a very long string of
+ *	digits.  When converting IEEE double precision values, the
+ *	longest string gdtoa can return is about 751 bytes long.  For
+ *	conversions by strtod of strings of 800 digits and all gdtoa
+ *	conversions of IEEE doubles in single-threaded executions with
+ *	8-byte pointers, PRIVATE_MEM >= 7400 appears to suffice; with
+ *	4-byte pointers, PRIVATE_MEM >= 7112 appears adequate.
+ * #define NO_INFNAN_CHECK if you do not wish to have INFNAN_CHECK
+ *	#defined automatically on IEEE systems.  On such systems,
+ *	when INFNAN_CHECK is #defined, strtod checks
+ *	for Infinity and NaN (case insensitively).
+ *	When INFNAN_CHECK is #defined and No_Hex_NaN is not #defined,
+ *	strtodg also accepts (case insensitively) strings of the form
+ *	NaN(x), where x is a string of hexadecimal digits (optionally
+ *	preceded by 0x or 0X) and spaces; if there is only one string
+ *	of hexadecimal digits, it is taken for the fraction bits of the
+ *	resulting NaN; if there are two or more strings of hexadecimal
+ *	digits, each string is assigned to the next available sequence
+ *	of 32-bit words of fractions bits (starting with the most
+ *	significant), right-aligned in each sequence.
+ *	Unless GDTOA_NON_PEDANTIC_NANCHECK is #defined, input "NaN(...)"
+ *	is consumed even when ... has the wrong form (in which case the
+ *	"(...)" is consumed but ignored).
+ * #define MULTIPLE_THREADS if the system offers preemptively scheduled
+ *	multiple threads.  In this case, you must provide (or suitably
+ *	#define) two locks, acquired by ACQUIRE_DTOA_LOCK(n) and freed
+ *	by FREE_DTOA_LOCK(n) for n = 0 or 1.  (The second lock, accessed
+ *	in pow5mult, ensures lazy evaluation of only one copy of high
+ *	powers of 5; omitting this lock would introduce a small
+ *	probability of wasting memory, but would otherwise be harmless.)
+ *	You must also invoke freedtoa(s) to free the value s returned by
+ *	dtoa.  You may do so whether or not MULTIPLE_THREADS is #defined.
+ * #define IMPRECISE_INEXACT if you do not care about the setting of
+ *	the STRTOG_Inexact bits in the special case of doing IEEE double
+ *	precision conversions (which could also be done by the strtog in
+ *	dtoa.c).
+ * #define NO_HEX_FP to disable recognition of C9x's hexadecimal
+ *	floating-point constants.
+ * #define -DNO_ERRNO to suppress setting errno (in strtod.c and
+ *	strtodg.c).
+ * #define NO_STRING_H to use private versions of memcpy.
+ *	On some K&R systems, it may also be necessary to
+ *	#define DECLARE_SIZE_T in this case.
+ * #define USE_LOCALE to use the current locale's decimal_point value.
+ */
+
+lib/libc/mingw/gdtoa/hd_init.c
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 2000 by Lucent Technologies
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+****************************************************************/
+
+/* Please send bug reports to David M. Gay (dmg at acm dot org,
+ * with " at " changed at "@" and " dot " changed to ".").	*/
+
+lib/libc/mingw/gdtoa/qnan.c
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 2005 by David M. Gay
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and its
+documentation for any purpose and without fee is hereby granted,
+provided that the above copyright notice appear in all copies and that
+both that the copyright notice and this permission notice and warranty
+disclaimer appear in supporting documentation, and that the name of
+the author or any of his current or former employers not be used in
+advertising or publicity pertaining to distribution of the software
+without specific, written prior permission.
+
+THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.  IN
+NO EVENT SHALL THE AUTHOR OR ANY OF HIS CURRENT OR FORMER EMPLOYERS BE
+LIABLE FOR ANY SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY
+DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
+SOFTWARE.
+
+****************************************************************/
+
+/* Please send bug reports to David M. Gay (dmg at acm dot org,
+ * with " at " changed at "@" and " dot " changed to ".").	*/
+
+/* Program to compute quiet NaNs of various precisions (float,	*/
+/* double, and perhaps long double) on the current system,	*/
+/* provided the system uses binary IEEE (P754) arithmetic.	*/
+/* Note that one system's quiet NaN may be a signaling NaN on	*/
+/* another system.  The IEEE arithmetic standards (P754, P854)	*/
+/* do not specify how to distinguish signaling NaNs from quiet	*/
+/* ones, and this detail varies across systems.	 The computed	*/
+/* NaN values are encoded in #defines for values for an		*/
+/* unsigned 32-bit integer type, called Ulong below, and	*/
+/* (for long double) perhaps as unsigned short values.  Once	*/
+/* upon a time, there were PC compilers for Intel CPUs that	*/
+/* had sizeof(long double) = 10.  Are such compilers still	*/
+/* distributed?							*/
+
+lib/libc/mingw/gdtoa/strtodg.c
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 1998-2001 by Lucent Technologies
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+****************************************************************/
+
+/* Please send bug reports to David M. Gay (dmg at acm dot org,
+ * with " at " changed at "@" and " dot " changed to ".").	*/
+
+lib/libc/mingw/gdtoa/strtodnrp.c
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 2004 by David M. Gay.
+All Rights Reserved
+Based on material in the rest of /netlib/fp/gdota.tar.gz,
+which is copyright (C) 1998, 2000 by Lucent Technologies.
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+****************************************************************/
+
+/* This is a variant of strtod that works on Intel ia32 systems */
+/* with the default extended-precision arithmetic -- it does not */
+/* require setting the precision control to 53 bits.  */
+
+/* Please send bug reports to David M. Gay (dmg at acm dot org,
+ * with " at " changed at "@" and " dot " changed to ".").	*/
+
+lib/libc/mingw/gdtoa/strtof.c
+/****************************************************************
+
+The author of this software is David M. Gay.
+
+Copyright (C) 1998, 2000 by Lucent Technologies
+All Rights Reserved
+
+Permission to use, copy, modify, and distribute this software and
+its documentation for any purpose and without fee is hereby
+granted, provided that the above copyright notice appear in all
+copies and that both that the copyright notice and this
+permission notice and warranty disclaimer appear in supporting
+documentation, and that the name of Lucent or any of its entities
+not be used in advertising or publicity pertaining to
+distribution of the software without specific, written prior
+permission.
+
+LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+****************************************************************/
+
+/* Please send bug reports to David M. Gay (dmg at acm dot org,
+ * with " at " changed at "@" and " dot " changed to ".").	*/
+
+lib/libc/mingw/libsrc/bits.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+/* crt/libsrc/bits.c */
+/* Generate GUIDs for Background Intelligent Transfer Service (BITS) interfaces */
+
+lib/libc/mingw/libsrc/dxva-uuid.c
+/**
+ * DISCLAIMER
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ *
+ * The mingw-w64 runtime package and its code is distributed in the hope that it
+ * will be useful but WITHOUT ANY WARRANTY.  ALL WARRANTIES, EXPRESSED OR
+ * IMPLIED ARE HEREBY DISCLAIMED.  This includes but is not limited to
+ * warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ */
+
+lib/libc/mingw/libsrc/netcfg-uuid.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+/* crt/libsrc/netcfg-uuid.c */
+/* Generate GUIDs for network configuration interfaces */
+
+lib/libc/mingw/libsrc/scrnsave.c
+/*
+  Screen saver library by Anders Norlander <anorland@hem2.passagen.se>
+
+  This library is (hopefully) compatible with Microsoft's
+  screen saver library.
+
+  This is public domain software.
+
+ */
+
+lib/libc/mingw/libsrc/vss-uuid.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+/* crt/libsrc/vss-uuid.c */
+/* Generate GUIDs for Volume Shadow Copy Service interfaces */
+
+lib/libc/mingw/libsrc/wbemuuid.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+/* crt/libsrc/wbemuuid.c */
+/* Generate GUIDs for Windows Management Instrumentation (WMI) Provider interfaces */
+
+lib/libc/mingw/math/arm/s_rint.c
+/* @(#)s_rint.c 5.1 93/09/24 */
+/*
+ * ====================================================
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ *
+ * Developed at SunPro, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ * ====================================================
+ */
+
+lib/libc/mingw/math/arm/s_rintf.c
+/* s_rintf.c -- float version of s_rint.c.
+ * Conversion to float by Ian Lance Taylor, Cygnus Support, ian@cygnus.com.
+ */
+
+/*
+ * ====================================================
+ * Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+ *
+ * Developed at SunPro, a Sun Microsystems, Inc. business.
+ * Permission to use, copy, modify, and distribute this
+ * software is freely granted, provided that this notice
+ * is preserved.
+ * ====================================================
+ */
+
+lib/libc/mingw/math/bsd_private_base.h
+/*
+* ====================================================
+* Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved.
+*
+* Developed at SunPro, a Sun Microsystems, Inc. business.
+* Permission to use, copy, modify, and distribute this
+* software is freely granted, provided that this notice
+* is preserved.
+* ====================================================
+*/
+
+lib/libc/mingw/math/erfl.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*							erfl.c
+ *
+ *	Error function
+ *
+ *
+ *
+ * SYNOPSIS:
+ *
+ * long double x, y, erfl();
+ *
+ * y = erfl( x );
+ *
+ *
+ *
+ * DESCRIPTION:
+ *
+ * The integral is
+ *
+ *                           x 
+ *                            -
+ *                 2         | |          2
+ *   erf(x)  =  --------     |    exp( - t  ) dt.
+ *              sqrt(pi)   | |
+ *                          -
+ *                           0
+ *
+ * The magnitude of x is limited to about 106.56 for IEEE
+ * arithmetic; 1 or -1 is returned outside this range.
+ *
+ * For 0 <= |x| < 1, erf(x) = x * P6(x^2)/Q6(x^2);
+ * Otherwise: erf(x) = 1 - erfc(x).
+ *
+ *
+ *
+ * ACCURACY:
+ *
+ *                      Relative error:
+ * arithmetic   domain     # trials      peak         rms
+ *    IEEE      0,1         50000       2.0e-19     5.7e-20
+ *
+ */
+
+/*							erfcl.c
+ *
+ *	Complementary error function
+ *
+ *
+ *
+ * SYNOPSIS:
+ *
+ * long double x, y, erfcl();
+ *
+ * y = erfcl( x );
+ *
+ *
+ *
+ * DESCRIPTION:
+ *
+ *
+ *  1 - erf(x) =
+ *
+ *                           inf. 
+ *                             -
+ *                  2         | |          2
+ *   erfc(x)  =  --------     |    exp( - t  ) dt
+ *               sqrt(pi)   | |
+ *                           -
+ *                            x
+ *
+ *
+ * For small x, erfc(x) = 1 - erf(x); otherwise rational
+ * approximations are computed.
+ *
+ * A special function expx2l.c is used to suppress error amplification
+ * in computing exp(-x^2).
+ *
+ *
+ * ACCURACY:
+ *
+ *                      Relative error:
+ * arithmetic   domain     # trials      peak         rms
+ *    IEEE      0,13        50000      8.4e-19      9.7e-20
+ *    IEEE      6,106.56    20000      2.9e-19      7.1e-20
+ *
+ *
+ * ERROR MESSAGES:
+ *
+ *   message          condition              value returned
+ * erfcl underflow    x^2 > MAXLOGL              0.0
+ *
+ *
+ */
+
+
+/*
+Modified from file ndtrl.c
+Cephes Math Library Release 2.3:  January, 1995
+Copyright 1984, 1995 by Stephen L. Moshier
+*/
+
+lib/libc/mingw/math/lgammaf.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/* log gamma(x+2), -.5 < x < .5 */
+
+lib/libc/mingw/math/nextafterl.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+   nextafterl.c
+   Contributed by Danny Smith <dannysmith@users.sourceforge.net>
+   No copyright claimed, absolutely no warranties.
+
+   2005-05-09
+*/
+
+lib/libc/mingw/math/nexttoward.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+   nexttoward.c
+   Contributed by Danny Smith <dannysmith@users.sourceforge.net>
+   No copyright claimed, absolutely no warranties.
+
+   2005-05-10
+*/
+
+lib/libc/mingw/math/nexttowardf.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+   nexttowardf.c
+   Contributed by Danny Smith <dannysmith@users.sourceforge.net>
+   No copyright claimed, absolutely no warranties.
+
+   2005-05-10
+*/
+
+lib/libc/mingw/math/powi.def.h
+/*
+ This Software is provided under the Zope Public License (ZPL) Version 2.1.
+
+ Copyright (c) 2009, 2010 by the mingw-w64 project
+
+ See the AUTHORS file for the list of contributors to the mingw-w64 project.
+
+ This license has been certified as open source. It has also been designated
+ as GPL compatible by the Free Software Foundation (FSF).
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions in source code must retain the accompanying copyright
+      notice, this list of conditions, and the following disclaimer.
+   2. Redistributions in binary form must reproduce the accompanying
+      copyright notice, this list of conditions, and the following disclaimer
+      in the documentation and/or other materials provided with the
+      distribution.
+   3. Names of the copyright holders must not be used to endorse or promote
+      products derived from this software without prior written permission
+      from the copyright holders.
+   4. The right to distribute this software or to use it for any purpose does
+      not give you the right to use Servicemarks (sm) or Trademarks (tm) of
+      the copyright holders.  Use of them is covered by separate agreement
+      with the copyright holders.
+   5. If any files are modified, you must cause the modified files to carry
+      prominent notices stating that you changed the files and the date of
+      any change.
+
+ Disclaimer
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESSED
+ OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+/* IEEE 754 - Elementary Functions - Special Cases
+ * powi (x, +/-0) is 1 for any x (even a zero, quiet NaN, or infinity)
+ * powi (+1, y) is 1 for any y (even a quiet NaN)
+ * powi (+/-0, y) is +/-oo and signals the divideByZero exception for y an odd integer < 0
+ * powi (+/-0, y) is +oo and signals the divideByZero exception for finite y < 0 and not an odd integer
+ * powi (+/-0, y) is +/-0 for finite y > 0 an odd integer
+ * powi (+/-0, y) is +0 for finite y > 0 and not an odd integer
+ powi (-inf, y) = +0 for y<0 and not an odd integer
+ powi (-inf, y) = -inf for y an odd integer > 0
+ powi (-inf, y) = +inf for y>0 and not an odd integer
+ powi (+/-inf, y) is +/-0 with no exception for y an odd integer < 0
+ powi (+/-inf, y) is +0 with no exception for finite y < 0 and not an odd integer
+ powi (+/-inf, y) is +/-inf with no exception for finite y > 0 an odd integer
+ powi (+/-inf, y) is +inf with no exception for finite y > 0 and not an odd integer
+ powi (x, y) signals the invalid operation exception for finite x < 0 and finite non-integer y.
+ 
+ For x /= 0: lim y->oo (1/x)^y results as: for |x| < 1 that sgn(x)*0 and for |x| > 0 that sgn(x)*Infinity
+
+*/
+
+lib/libc/mingw/math/signgam.c
+/*
+ This Software is provided under the Zope Public License (ZPL) Version 2.1.
+
+ Copyright (c) 2012 by the mingw-w64 project
+
+ See the AUTHORS file for the list of contributors to the mingw-w64 project.
+
+ This license has been certified as open source. It has also been designated
+ as GPL compatible by the Free Software Foundation (FSF).
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions in source code must retain the accompanying copyright
+      notice, this list of conditions, and the following disclaimer.
+   2. Redistributions in binary form must reproduce the accompanying
+      copyright notice, this list of conditions, and the following disclaimer
+      in the documentation and/or other materials provided with the
+      distribution.
+   3. Names of the copyright holders must not be used to endorse or promote
+      products derived from this software without prior written permission
+      from the copyright holders.
+   4. The right to distribute this software or to use it for any purpose does
+      not give you the right to use Servicemarks (sm) or Trademarks (tm) of
+      the copyright holders.  Use of them is covered by separate agreement
+      with the copyright holders.
+   5. If any files are modified, you must cause the modified files to carry
+      prominent notices stating that you changed the files and the date of
+      any change.
+
+ Disclaimer
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESSED
+ OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+lib/libc/mingw/math/x86/acosf.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+ * Written by J.T. Conklin <jtc@netbsd.org>.
+ * Public domain.
+ */
+
+lib/libc/mingw/math/x86/asinf.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+ * Written by J.T. Conklin <jtc@netbsd.org>.
+ * Public domain.
+ */
+
+/* asin = atan (x / sqrt(1 - x^2)) */
+
+lib/libc/mingw/math/x86/asinl.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+ * Written by J.T. Conklin <jtc@netbsd.org>.
+ * Public domain.
+ * Adapted for long double type by Danny Smith <dannysmith@users.sourceforge.net>.
+ */
+
+/* asin = atan (x / sqrt(1 - x^2)) */
+
+lib/libc/mingw/math/x86/atan2f.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+ * Written by J.T. Conklin <jtc@netbsd.org>.
+ * Public domain.
+ *
+ */
+
+lib/libc/mingw/math/x86/fmodf.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+ * Written by J.T. Conklin <jtc@netbsd.org>.
+ * Public domain.
+ *
+ * Adapted for float type by Danny Smith
+ *  <dannysmith@users.sourceforge.net>.
+ */
+
+lib/libc/mingw/math/x86/logbl.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+ * Written by J.T. Conklin <jtc@netbsd.org>.
+ * Changes for long double by Ulrich Drepper <drepper@cygnus.com>
+ * Public domain.
+ */
+
+lib/libc/mingw/math/x86/pow.def.h
+/*
+ This Software is provided under the Zope Public License (ZPL) Version 2.1.
+
+ Copyright (c) 2009, 2010 by the mingw-w64 project
+
+ See the AUTHORS file for the list of contributors to the mingw-w64 project.
+
+ This license has been certified as open source. It has also been designated
+ as GPL compatible by the Free Software Foundation (FSF).
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions in source code must retain the accompanying copyright
+      notice, this list of conditions, and the following disclaimer.
+   2. Redistributions in binary form must reproduce the accompanying
+      copyright notice, this list of conditions, and the following disclaimer
+      in the documentation and/or other materials provided with the
+      distribution.
+   3. Names of the copyright holders must not be used to endorse or promote
+      products derived from this software without prior written permission
+      from the copyright holders.
+   4. The right to distribute this software or to use it for any purpose does
+      not give you the right to use Servicemarks (sm) or Trademarks (tm) of
+      the copyright holders.  Use of them is covered by separate agreement
+      with the copyright holders.
+   5. If any files are modified, you must cause the modified files to carry
+      prominent notices stating that you changed the files and the date of
+      any change.
+
+ Disclaimer
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESSED
+ OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+/* IEEE 754 - Elementary Functions - Special Cases
+ * pow(+/-0, oo) is +0
+ * pow(+/-0, -oo) is +oo
+ * pow (x, +/-0) is 1 for any x (even a zero, quiet NaN, or infinity)
+ * pow (+1, y) is 1 for any y (even a quiet NaN)
+ * pow (+/-0, y) is +/-oo and signals the divideByZero exception for y an odd integer < 0
+ * pow (+/-0, y) is +oo and signals the divideByZero exception for finite y < 0 and not an odd integer
+ * pow (+/-0, y) is +/-0 for finite y > 0 an odd integer
+ * pow (+/-0, y) is +0 for finite y > 0 and not an odd integer
+ * pow (-1, +/-oo) is 1 with no exception
+ pow( -inf, y) = +0 for y<0 and not an odd integer
+ pow( -inf, y) = -inf for y an odd integer > 0
+ pow( -inf, y) = +inf for y>0 and not an odd integer
+ pow (+/-inf, y) is +/-0 with no exception for y an odd integer < 0
+ pow (+/-inf, -inf) is +0 with no exception
+ pow (+/-inf, +inf) is +inf with no exception
+ pow (+/-inf, y) is +0 with no exception for finite y < 0 and not an odd integer
+ pow (+/-inf, y) is +/-inf with no exception for finite y > 0 an odd integer
+ pow (+/-inf, y) is +inf with no exception for finite y > 0 and not an odd integer
+ pow (x, y) signals the invalid operation exception for finite x < 0 and finite non-integer y.
+ 
+ For x /= 0: lim y->oo (1/x)^y results as: for |x| < 1 that sgn(x)*0 and for |x| > 0 that sgn(x)*Infinity
+
+*/
+
+lib/libc/mingw/misc/delayimp.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ *
+ * This file is derived from Microsoft implementation file delayhlp.cpp, which
+ * is free for users to modify and derive.
+ */
+
+lib/libc/mingw/misc/dirent.c
+/*
+ * dirent.c
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-runtime package.
+ * No warranty is given; refer to the file DISCLAIMER within the package.
+ *
+ * Derived from DIRLIB.C by Matt J. Weinstein
+ * This note appears in the DIRLIB.H
+ * DIRLIB.H by M. J. Weinstein   Released to public domain 1-Jan-89
+ *
+ * Updated by Jeremy Bettis <jeremy@hksys.com>
+ * Significantly revised and rewinddir, seekdir and telldir added by Colin
+ * Peters <colin@fu.is.saga-u.ac.jp>
+ *	
+ */
+
+lib/libc/mingw/misc/getopt.c
+/*	$OpenBSD: getopt_long.c,v 1.23 2007/10/31 12:34:57 chl Exp $	*/
+/*	$NetBSD: getopt_long.c,v 1.15 2002/01/31 22:43:40 tv Exp $	*/
+
+/*
+ * Copyright (c) 2002 Todd C. Miller <Todd.Miller@courtesan.com>
+ *
+ * Permission to use, copy, modify, and distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ *
+ * Sponsored in part by the Defense Advanced Research Projects
+ * Agency (DARPA) and Air Force Research Laboratory, Air Force
+ * Materiel Command, USAF, under agreement number F39502-99-1-0512.
+ */
+/*-
+ * Copyright (c) 2000 The NetBSD Foundation, Inc.
+ * All rights reserved.
+ *
+ * This code is derived from software contributed to The NetBSD Foundation
+ * by Dieter Baron and Thomas Klausner.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE NETBSD FOUNDATION, INC. AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+ * TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION OR CONTRIBUTORS
+ * BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ */
+
+lib/libc/mingw/misc/mingw-aligned-malloc.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+  __mingw_aligned_malloc and friends, implemented using Microsoft's public
+  interfaces and with the help of the algorithm description provided
+  by Wu Yongwei: http://sourceforge.net/mailarchive/message.php?msg_id=3847075
+
+  I hereby place this implementation in the public domain.
+               -- Steven G. Johnson (stevenj@alum.mit.edu)
+*/
+
+lib/libc/mingw/misc/mingw_wcstold.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*  Wide char wrapper for strtold
+ *  Revision history:
+ *  6 Nov 2002	Initial version.
+ *  25 Aug 2006  Don't use strtold internal functions.
+ *
+ *  Contributor:   Danny Smith <dannysmith@users.sourceforege.net>
+ */
+
+ /* This routine has been placed in the public domain.*/
+
+lib/libc/mingw/misc/tdelete.c
+/*	$NetBSD: tdelete.c,v 1.3 1999/09/20 04:39:43 lukem Exp $	*/
+
+/*
+ * Tree search generalized from Knuth (6.2.2) Algorithm T just like
+ * the AT&T man page says.
+ *
+ * The node_t structure is for internal use only, lint doesn't grok it.
+ *
+ * Written by reading the System V Interface Definition, not the code.
+ *
+ * Totally public domain.
+ */
+
+lib/libc/mingw/misc/tfind.c
+/*	$NetBSD: tfind.c,v 1.3.18.2 2005/03/23 11:12:21 tron Exp $	*/
+
+/*
+ * Tree search generalized from Knuth (6.2.2) Algorithm T just like
+ * the AT&T man page says.
+ *
+ * The node_t structure is for internal use only, lint doesn't grok it.
+ *
+ * Written by reading the System V Interface Definition, not the code.
+ *
+ * Totally public domain.
+ */
+
+lib/libc/mingw/misc/tsearch.c
+/*	$NetBSD: tsearch.c,v 1.4 1999/09/20 04:39:43 lukem Exp $	*/
+
+/*
+ * Tree search generalized from Knuth (6.2.2) Algorithm T just like
+ * the AT&T man page says.
+ *
+ * The node_t structure is for internal use only, lint doesn't grok it.
+ *
+ * Written by reading the System V Interface Definition, not the code.
+ *
+ * Totally public domain.
+ */
+
+lib/libc/mingw/misc/twalk.c
+/*	$NetBSD: twalk.c,v 1.2 1999/09/16 11:45:37 lukem Exp $	*/
+
+/*
+ * Tree search generalized from Knuth (6.2.2) Algorithm T just like
+ * the AT&T man page says.
+ *
+ * The node_t structure is for internal use only, lint doesn't grok it.
+ *
+ * Written by reading the System V Interface Definition, not the code.
+ *
+ * Totally public domain.
+ */
+
+lib/libc/mingw/misc/wcstof.c
+/*  Wide char wrapper for strtof
+ *  Revision history:
+ *  25 Aug 2006 Initial version.
+ *
+ *  Contributor:   Danny Smith <dannysmith@users.sourceforege.net>
+ */
+
+ /* This routine has been placed in the public domain.*/
+
+lib/libc/mingw/misc/wcstoimax.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*
+    This source code was extracted from the Q8 package created and
+    placed in the PUBLIC DOMAIN by Doug Gwyn <gwyn@arl.mil>
+
+    last edit:	1999/11/05	gwyn@arl.mil
+
+	Implements subclause 7.8.2 of ISO/IEC 9899:1999 (E).
+
+	This particular implementation requires the matching <inttypes.h>.
+	It also assumes that character codes for A..Z and a..z are in
+	contiguous ascending order; this is true for ASCII but not EBCDIC.
+*/
+
+lib/libc/mingw/misc/wmemcmp.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+/*	This source code was extracted from the Q8 package created and placed
+    in the PUBLIC DOMAIN by Doug Gwyn <gwyn@arl.mil>
+    last edit:	1999/11/05	gwyn@arl.mil
+
+    Implements subclause 7.24 of ISO/IEC 9899:1999 (E).
+
+	It supports an encoding where all char codes are mapped
+	to the *same* code values within a wchar_t or wint_t,
+	so long as no other wchar_t codes are used by the program.
+
+*/
+
+lib/libc/mingw/stdio/mingw_fprintf.c
+/* fprintf.c
+ *
+ * $Id: fprintf.c,v 1.1 2008/08/11 22:41:55 keithmarshall Exp $
+ *
+ * Provides an implementation of the "fprintf" function, conforming
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.  This
+ * is included in libmingwex.a, whence it may replace the Microsoft
+ * function of the same name.
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This implementation of "fprintf" will normally be invoked by calling
+ * "__mingw_fprintf()" in preference to a direct reference to "fprintf()"
+ * itself; this leaves the MSVCRT implementation as the default, which
+ * will be deployed when user code invokes "fprint()".  Users who then
+ * wish to use this implementation may either call "__mingw_fprintf()"
+ * directly, or may use conditional preprocessor defines, to redirect
+ * references to "fprintf()" to "__mingw_fprintf()".
+ *
+ * Compiling this module with "-D INSTALL_AS_DEFAULT" will change this
+ * recommended convention, such that references to "fprintf()" in user
+ * code will ALWAYS be redirected to "__mingw_fprintf()"; if this option
+ * is adopted, then users wishing to use the MSVCRT implementation of
+ * "fprintf()" will be forced to use a "back-door" mechanism to do so.
+ * Such a "back-door" mechanism is provided with MinGW, allowing the
+ * MSVCRT implementation to be called as "__msvcrt_fprintf()"; however,
+ * since users may not expect this behaviour, a standard libmingwex.a
+ * installation does not employ this option.
+ *
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ */
+
+lib/libc/mingw/stdio/mingw_pformat.c
+/* pformat.c
+ *
+ * $Id: pformat.c,v 1.9 2011/01/07 22:57:00 keithmarshall Exp $
+ *
+ * Provides a core implementation of the formatting capabilities
+ * common to the entire `printf()' family of functions; it conforms
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ * The elements of this implementation which deal with the formatting
+ * of floating point numbers, (i.e. the `%e', `%E', `%f', `%F', `%g'
+ * and `%G' format specifiers, but excluding the hexadecimal floating
+ * point `%a' and `%A' specifiers), make use of the `__gdtoa' function
+ * written by David M. Gay, and are modelled on his sample code, which
+ * has been deployed under its accompanying terms of use:--
+ *
+ ******************************************************************
+ * Copyright (C) 1997, 1999, 2001 Lucent Technologies
+ * All Rights Reserved
+ *
+ * Permission to use, copy, modify, and distribute this software and
+ * its documentation for any purpose and without fee is hereby
+ * granted, provided that the above copyright notice appear in all
+ * copies and that both that the copyright notice and this
+ * permission notice and warranty disclaimer appear in supporting
+ * documentation, and that the name of Lucent or any of its entities
+ * not be used in advertising or publicity pertaining to
+ * distribution of the software without specific, written prior
+ * permission.
+ *
+ * LUCENT DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE,
+ * INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS.
+ * IN NO EVENT SHALL LUCENT OR ANY OF ITS ENTITIES BE LIABLE FOR ANY
+ * SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER
+ * IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
+ * ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+ * THIS SOFTWARE.
+ ******************************************************************
+ *
+ */
+
+lib/libc/mingw/stdio/mingw_printf.c
+/* printf.c
+ *
+ * $Id: printf.c,v 1.1 2008/08/11 22:41:55 keithmarshall Exp $
+ *
+ * Provides an implementation of the "printf" function, conforming
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.  This
+ * is included in libmingwex.a, whence it may replace the Microsoft
+ * function of the same name.
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This implementation of "printf" will normally be invoked by calling
+ * "__mingw_printf()" in preference to a direct reference to "printf()"
+ * itself; this leaves the MSVCRT implementation as the default, which
+ * will be deployed when user code invokes "print()".  Users who then
+ * wish to use this implementation may either call "__mingw_printf()"
+ * directly, or may use conditional preprocessor defines, to redirect
+ * references to "printf()" to "__mingw_printf()".
+ *
+ * Compiling this module with "-D INSTALL_AS_DEFAULT" will change this
+ * recommended convention, such that references to "printf()" in user
+ * code will ALWAYS be redirected to "__mingw_printf()"; if this option
+ * is adopted, then users wishing to use the MSVCRT implementation of
+ * "printf()" will be forced to use a "back-door" mechanism to do so.
+ * Such a "back-door" mechanism is provided with MinGW, allowing the
+ * MSVCRT implementation to be called as "__msvcrt_printf()"; however,
+ * since users may not expect this behaviour, a standard libmingwex.a
+ * installation does not employ this option.
+ *
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ */
+
+lib/libc/mingw/stdio/mingw_sformat.c
+/*
+ This Software is provided under the Zope Public License (ZPL) Version 2.1.
+
+ Copyright (c) 2011 by the mingw-w64 project
+
+ See the AUTHORS file for the list of contributors to the mingw-w64 project.
+
+ This license has been certified as open source. It has also been designated
+ as GPL compatible by the Free Software Foundation (FSF).
+
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions in source code must retain the accompanying copyright
+      notice, this list of conditions, and the following disclaimer.
+   2. Redistributions in binary form must reproduce the accompanying
+      copyright notice, this list of conditions, and the following disclaimer
+      in the documentation and/or other materials provided with the
+      distribution.
+   3. Names of the copyright holders must not be used to endorse or promote
+      products derived from this software without prior written permission
+      from the copyright holders.
+   4. The right to distribute this software or to use it for any purpose does
+      not give you the right to use Servicemarks (sm) or Trademarks (tm) of
+      the copyright holders.  Use of them is covered by separate agreement
+      with the copyright holders.
+   5. If any files are modified, you must cause the modified files to carry
+      prominent notices stating that you changed the files and the date of
+      any change.
+
+ Disclaimer
+
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY EXPRESSED
+ OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+ EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
+ OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
+lib/libc/mingw/stdio/mingw_snprintf.c
+/* snprintf.c
+ *
+ * $Id: snprintf.c,v 1.3 2008/07/28 23:24:20 keithmarshall Exp $
+ *
+ * Provides an implementation of the "snprintf" function, conforming
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.  This
+ * is included in libmingwex.a, replacing the redirection through
+ * libmoldnames.a, to the MSVCRT standard "_snprintf" function; (the
+ * standard MSVCRT function remains available, and may  be invoked
+ * directly, using this fully qualified form of its name).
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ */
+
+lib/libc/mingw/stdio/mingw_sprintf.c
+/* sprintf.c
+ *
+ * $Id: sprintf.c,v 1.1 2008/08/11 22:41:55 keithmarshall Exp $
+ *
+ * Provides an implementation of the "sprintf" function, conforming
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.  This
+ * is included in libmingwex.a, whence it may replace the Microsoft
+ * function of the same name.
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This implementation of "sprintf" will normally be invoked by calling
+ * "__mingw_sprintf()" in preference to a direct reference to "sprintf()"
+ * itself; this leaves the MSVCRT implementation as the default, which
+ * will be deployed when user code invokes "sprint()".  Users who then
+ * wish to use this implementation may either call "__mingw_sprintf()"
+ * directly, or may use conditional preprocessor defines, to redirect
+ * references to "sprintf()" to "__mingw_sprintf()".
+ *
+ * Compiling this module with "-D INSTALL_AS_DEFAULT" will change this
+ * recommended convention, such that references to "sprintf()" in user
+ * code will ALWAYS be redirected to "__mingw_sprintf()"; if this option
+ * is adopted, then users wishing to use the MSVCRT implementation of
+ * "sprintf()" will be forced to use a "back-door" mechanism to do so.
+ * Such a "back-door" mechanism is provided with MinGW, allowing the
+ * MSVCRT implementation to be called as "__msvcrt_sprintf()"; however,
+ * since users may not expect this behaviour, a standard libmingwex.a
+ * installation does not employ this option.
+ *
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ */
+
+lib/libc/mingw/stdio/mingw_vfprintf.c
+/* vfprintf.c
+ *
+ * $Id: vfprintf.c,v 1.1 2008/08/11 22:41:55 keithmarshall Exp $
+ *
+ * Provides an implementation of the "vfprintf" function, conforming
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.  This
+ * is included in libmingwex.a, whence it may replace the Microsoft
+ * function of the same name.
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This implementation of "vfprintf" will normally be invoked by calling
+ * "__mingw_vfprintf()" in preference to a direct reference to "vfprintf()"
+ * itself; this leaves the MSVCRT implementation as the default, which
+ * will be deployed when user code invokes "vfprint()".  Users who then
+ * wish to use this implementation may either call "__mingw_vfprintf()"
+ * directly, or may use conditional preprocessor defines, to redirect
+ * references to "vfprintf()" to "__mingw_vfprintf()".
+ *
+ * Compiling this module with "-D INSTALL_AS_DEFAULT" will change this
+ * recommended convention, such that references to "vfprintf()" in user
+ * code will ALWAYS be redirected to "__mingw_vfprintf()"; if this option
+ * is adopted, then users wishing to use the MSVCRT implementation of
+ * "vfprintf()" will be forced to use a "back-door" mechanism to do so.
+ * Such a "back-door" mechanism is provided with MinGW, allowing the
+ * MSVCRT implementation to be called as "__msvcrt_vfprintf()"; however,
+ * since users may not expect this behaviour, a standard libmingwex.a
+ * installation does not employ this option.
+ *
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ */
+
+lib/libc/mingw/stdio/mingw_vprintf.c
+/* vprintf.c
+ *
+ * $Id: vprintf.c,v 1.1 2008/08/11 22:41:55 keithmarshall Exp $
+ *
+ * Provides an implementation of the "vprintf" function, conforming
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.  This
+ * is included in libmingwex.a, whence it may replace the Microsoft
+ * function of the same name.
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This implementation of "vprintf" will normally be invoked by calling
+ * "__mingw_vprintf()" in preference to a direct reference to "vprintf()"
+ * itself; this leaves the MSVCRT implementation as the default, which
+ * will be deployed when user code invokes "vprint()".  Users who then
+ * wish to use this implementation may either call "__mingw_vprintf()"
+ * directly, or may use conditional preprocessor defines, to redirect
+ * references to "vprintf()" to "__mingw_vprintf()".
+ *
+ * Compiling this module with "-D INSTALL_AS_DEFAULT" will change this
+ * recommended convention, such that references to "vprintf()" in user
+ * code will ALWAYS be redirected to "__mingw_vprintf()"; if this option
+ * is adopted, then users wishing to use the MSVCRT implementation of
+ * "vprintf()" will be forced to use a "back-door" mechanism to do so.
+ * Such a "back-door" mechanism is provided with MinGW, allowing the
+ * MSVCRT implementation to be called as "__msvcrt_vprintf()"; however,
+ * since users may not expect this behaviour, a standard libmingwex.a
+ * installation does not employ this option.
+ *
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ */
+
+lib/libc/mingw/stdio/mingw_vsnprintf.c
+/* vsnprintf.c
+ *
+ * $Id: vsnprintf.c,v 1.3 2008/07/28 23:24:20 keithmarshall Exp $
+ *
+ * Provides an implementation of the "vsnprintf" function, conforming
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.  This
+ * is included in libmingwex.a, replacing the redirection through
+ * libmoldnames.a, to the MSVCRT standard "_vsnprintf" function; (the
+ * standard MSVCRT function remains available, and may  be invoked
+ * directly, using this fully qualified form of its name).
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ */
+
+lib/libc/mingw/stdio/mingw_vsprintf.c
+/* vsprintf.c
+ *
+ * $Id: vsprintf.c,v 1.1 2008/08/11 22:41:55 keithmarshall Exp $
+ *
+ * Provides an implementation of the "vsprintf" function, conforming
+ * generally to C99 and SUSv3/POSIX specifications, with extensions
+ * to support Microsoft's non-standard format specifications.  This
+ * is included in libmingwex.a, whence it may replace the Microsoft
+ * function of the same name.
+ *
+ * Written by Keith Marshall <keithmarshall@users.sourceforge.net>
+ *
+ * This implementation of "vsprintf" will normally be invoked by calling
+ * "__mingw_vsprintf()" in preference to a direct reference to "vsprintf()"
+ * itself; this leaves the MSVCRT implementation as the default, which
+ * will be deployed when user code invokes "vsprint()".  Users who then
+ * wish to use this implementation may either call "__mingw_vsprintf()"
+ * directly, or may use conditional preprocessor defines, to redirect
+ * references to "vsprintf()" to "__mingw_vsprintf()".
+ *
+ * Compiling this module with "-D INSTALL_AS_DEFAULT" will change this
+ * recommended convention, such that references to "vsprintf()" in user
+ * code will ALWAYS be redirected to "__mingw_vsprintf()"; if this option
+ * is adopted, then users wishing to use the MSVCRT implementation of
+ * "vsprintf()" will be forced to use a "back-door" mechanism to do so.
+ * Such a "back-door" mechanism is provided with MinGW, allowing the
+ * MSVCRT implementation to be called as "__msvcrt_vsprintf()"; however,
+ * since users may not expect this behaviour, a standard libmingwex.a
+ * installation does not employ this option.
+ *
+ *
+ * This is free software.  You may redistribute and/or modify it as you
+ * see fit, without restriction of copyright.
+ *
+ * This software is provided "as is", in the hope that it may be useful,
+ * but WITHOUT WARRANTY OF ANY KIND, not even any implied warranty of
+ * MERCHANTABILITY, nor of FITNESS FOR ANY PARTICULAR PURPOSE.  At no
+ * time will the author accept any form of liability for any damages,
+ * however caused, resulting from the use of this software.
+ *
+ */
+
+lib/libc/mingw/stdio/strtok_r.c
+/*-
+ * Copyright (c) 1998 Softweyr LLC.  All rights reserved.
+ *
+ * strtok_r, from Berkeley strtok
+ * Oct 13, 1998 by Wes Peters <wes@softweyr.com>
+ *
+ * Copyright (c) 1988, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notices, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notices, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY SOFTWEYR LLC, THE REGENTS AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+ * PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL SOFTWEYR LLC, THE
+ * REGENTS, OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+ * TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+lib/libc/mingw/stdio/ucrt__snwprintf.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the mingw-w64 runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+// For ucrt, this function normally is an inline function in stdio.h.
+// libmingwex doesn't use the ucrt version of headers, and wassert.c can
+// end up requiring a concrete version of it.
+
+lib/libc/mingw/winpthreads/barrier.c
+/*
+   Copyright (c) 2011-2016  mingw-w64 project
+
+   Permission is hereby granted, free of charge, to any person obtaining a
+   copy of this software and associated documentation files (the "Software"),
+   to deal in the Software without restriction, including without limitation
+   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+   and/or sell copies of the Software, and to permit persons to whom the
+   Software is furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+*/
+
+lib/libc/mingw/winpthreads/clock.c
+/**
+ * This file has no copyright assigned and is placed in the Public Domain.
+ * This file is part of the w64 mingw-runtime package.
+ * No warranty is given; refer to the file DISCLAIMER.PD within this package.
+ */
+
+lib/libc/mingw/winpthreads/cond.c
+/*
+   Copyright (c) 2011-2016  mingw-w64 project
+
+   Permission is hereby granted, free of charge, to any person obtaining a
+   copy of this software and associated documentation files (the "Software"),
+   to deal in the Software without restriction, including without limitation
+   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+   and/or sell copies of the Software, and to permit persons to whom the
+   Software is furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+*/
+
+/*
+ * Posix Condition Variables for Microsoft Windows.
+ * 22-9-2010 Partly based on the ACE framework implementation.
+ */
+
+lib/libc/mingw/winpthreads/mutex.c
+/*
+   Copyright (c) 2011, 2014 mingw-w64 project
+   Copyright (c) 2015 Intel Corporation
+
+   Permission is hereby granted, free of charge, to any person obtaining a
+   copy of this software and associated documentation files (the "Software"),
+   to deal in the Software without restriction, including without limitation
+   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+   and/or sell copies of the Software, and to permit persons to whom the
+   Software is furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+*/
+
+lib/libc/mingw/winpthreads/spinlock.c
+/*
+   Copyright (c) 2013 mingw-w64 project
+   Copyright (c) 2015 Intel Corporation
+
+   Permission is hereby granted, free of charge, to any person obtaining a
+   copy of this software and associated documentation files (the "Software"),
+   to deal in the Software without restriction, including without limitation
+   the rights to use, copy, modify, merge, publish, distribute, sublicense,
+   and/or sell copies of the Software, and to permit persons to whom the
+   Software is furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in
+   all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+*/

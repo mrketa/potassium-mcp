@@ -1,0 +1,53 @@
+{
+  "name": "@mrketa/potassium-mcp",
+  "version": "1.0.0",
+  "private": false,
+  "type": "module",
+  "description": "Local Potassium MCP bridge with bounded read-only tools by default",
+  "bin": {
+    "potassium-mcp": "bin/potassium-mcp.js"
+  },
+  "potassiumMcpRuntime": {
+    "ownershipSchema": 3,
+    "launcherProtocol": 1
+  },
+  "files": [
+    "assets/",
+    "bin/",
+    "src/",
+    "config.example.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mrketa/potassium-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mrketa/potassium-mcp/issues"
+  },
+  "homepage": "https://github.com/mrketa/potassium-mcp#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "release:check": "node ../tools/release.mjs check",
+    "release:pack": "node ../tools/release.mjs pack",
+    "release:publish": "node release-publish.js",
+    "test": "node --test --test-concurrency=1"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "jsonc-parser": "3.3.1",
+    "ws": "8.21.3",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "web-tree-sitter": "0.25.10"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

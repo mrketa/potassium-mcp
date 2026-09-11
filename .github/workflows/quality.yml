@@ -1,0 +1,115 @@
+name: MCP quality
+on:
+  pull_request:
+    paths: ["potassium-mcp/**", "app/PotassiumMcp.ParserHost/**", "native/luau-parser/**", "tools/**", ".github/workflows/**", "release-manifest.json"]
+  push:
+    branches: [main, master]
+    paths: ["potassium-mcp/**", "app/PotassiumMcp.ParserHost/**", "native/luau-parser/**", "tools/**", ".github/workflows/**", "release-manifest.json"]
+  workflow_dispatch:
+    inputs:
+      soak:
+        description: Run the isolated 30-minute packed-package soak
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: mcp-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: potassium-mcp/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.424"
+      - run: npm ci --prefix potassium-mcp --ignore-scripts
+      - run: node tools/native-parser.mjs build
+      - run: node tools/parser-host.mjs build
+      - run: npm --prefix potassium-mcp test
+      - run: node --test tools/release.test.mjs tools/github-release.test.mjs tools/package-smoke.test.mjs
+      - name: Provision checksum-pinned Lune
+        run: node tools/bootstrap-runner.mjs toolchain
+      - name: Full real-JSON bootstrap qualification
+        run: node tools/bootstrap-runner.mjs full
+      - run: node tools/bootstrap-runner.mjs queue
+      - name: Build actual sanitized npm tarball
+        run: node tools/release.mjs npm-pack
+      - name: Install foreign tarball and exercise public bin, setup and SDK transports
+        run: node tools/package-smoke.mjs smoke
+      - name: Qualify compatible package version upgrade and rollback
+        timeout-minutes: 5
+        run: node tools/package-version-smoke.mjs --npm-artifact release-out/NPM-ARTIFACT.json --output release-out/version-roundtrip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: package-smoke-windows-node-${{ matrix.node }}
+          path: release-out/*.json
+          if-no-files-found: warn
+      - name: Manual engine qualification remains required
+        run: Write-Output 'SKIP engine/live-client and external-host qualification; this job certifies isolated Windows host/runtime paths only.'
+  linux-core:
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: potassium-mcp/package-lock.json
+      - run: npm ci --prefix potassium-mcp
+      - name: Portable transport and read boundaries with visible platform skips
+        working-directory: potassium-mcp
+        run: >-
+          node --test --test-concurrency=1
+          test/bridge.test.js test/broker.test.js test/broker-state.test.js test/broker-repair.test.js
+          test/stateful-http.test.js test/proxy.test.js test/request-id-transport.test.js
+          test/mcp.test.js test/host-policy.test.js test/transport-audit-regressions.test.js
+          test/safe-read.test.js test/safe-read-boundaries.test.js test/read-policy-audit.test.js
+          test/async-artifact-store.test.js test/builtin-fallback.test.js test/server-config.test.js
+          test/deploy.test.js test/release-publish.test.js
+      - run: node --test tools/release.test.mjs tools/github-release.test.mjs tools/package-smoke.test.mjs
+      - run: node tools/bootstrap-runner.mjs toolchain
+      - run: node tools/bootstrap-runner.mjs full
+      - run: echo 'SKIP Windows installer/ACL and engine qualification; Linux job is portable host core only.'
+  soak:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.soak }}
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.424"
+      - run: npm ci --prefix potassium-mcp --ignore-scripts
+      - run: node tools/native-parser.mjs build
+      - run: node tools/parser-host.mjs build
+      - run: node tools/bootstrap-runner.mjs toolchain
+      - run: node tools/release.mjs npm-pack
+      - name: Run actual bounded 30-minute load
+        run: node --expose-gc tools/package-smoke.mjs soak
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-soak-evidence
+          path: release-out/*EVIDENCE.json
+          if-no-files-found: warn

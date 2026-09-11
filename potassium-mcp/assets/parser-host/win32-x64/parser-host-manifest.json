@@ -1,0 +1,163 @@
+{
+  "schema": 1,
+  "platform": "win32-x64",
+  "executable": {
+    "bytes": 67523708,
+    "sha256": "dc03889e37be6704ba5354897b363552c7cba258d08222299f69caffdfbb5eab"
+  },
+  "files": {
+    "PotassiumMcp.ParserHost.exe": {
+      "bytes": 67523708,
+      "sha256": "dc03889e37be6704ba5354897b363552c7cba258d08222299f69caffdfbb5eab"
+    },
+    "LICENSE-DOTNET.txt": {
+      "bytes": 1139,
+      "sha256": "d7a68596ab69b06f51ca278a6545148e4269a9381c26d597c13df5d88e08cf5b"
+    },
+    "THIRD-PARTY-NOTICES-DOTNET.txt": {
+      "bytes": 68910,
+      "sha256": "b60b2912da28eaa6518593c9e2efb5334ee062d3c42e80d8fdfa806b3dc52977"
+    }
+  },
+  "runtime": {
+    "assets/native-parser/win32-x64/PotassiumMcp.LuauParser.exe": "ebec7ff49e845cee5809b22c80ad90920176c6457e61f5e1f9f20266e5e61409",
+    "nativeManifestSha256": "e8df83723428623a7c09c2de56e7b4601dbf8f48ef6c354966db83af7be18407",
+    "nativeImports": {
+      "dlls": [
+        "api-ms-win-crt-environment-l1-1-0.dll",
+        "api-ms-win-crt-heap-l1-1-0.dll",
+        "api-ms-win-crt-math-l1-1-0.dll",
+        "api-ms-win-crt-private-l1-1-0.dll",
+        "api-ms-win-crt-runtime-l1-1-0.dll",
+        "api-ms-win-crt-stdio-l1-1-0.dll",
+        "api-ms-win-crt-string-l1-1-0.dll",
+        "kernel32.dll"
+      ],
+      "symbols": {
+        "api-ms-win-crt-environment-l1-1-0.dll": [
+          "__p__environ"
+        ],
+        "api-ms-win-crt-heap-l1-1-0.dll": [
+          "_set_new_mode",
+          "calloc",
+          "free",
+          "malloc"
+        ],
+        "api-ms-win-crt-math-l1-1-0.dll": [
+          "__setusermatherr"
+        ],
+        "api-ms-win-crt-private-l1-1-0.dll": [
+          "__C_specific_handler",
+          "memchr"
+        ],
+        "api-ms-win-crt-runtime-l1-1-0.dll": [
+          "__p___argc",
+          "__p___argv",
+          "_cexit",
+          "_configure_narrow_argv",
+          "_crt_atexit",
+          "_exit",
+          "_initialize_narrow_environment",
+          "_initterm",
+          "_initterm_e",
+          "_set_app_type",
+          "_set_invalid_parameter_handler",
+          "abort",
+          "exit",
+          "signal"
+        ],
+        "api-ms-win-crt-stdio-l1-1-0.dll": [
+          "__acrt_iob_func",
+          "__p__commode",
+          "__p__fmode",
+          "__stdio_common_vfprintf",
+          "__stdio_common_vsprintf",
+          "fputc",
+          "fwrite"
+        ],
+        "api-ms-win-crt-string-l1-1-0.dll": [
+          "iswctype",
+          "strcmp",
+          "strlen",
+          "strncmp"
+        ],
+        "kernel32.dll": [
+          "CloseHandle",
+          "CreateFileW",
+          "CreateProcessW",
+          "DeleteCriticalSection",
+          "DeleteFileW",
+          "EnterCriticalSection",
+          "ExitProcess",
+          "FreeLibrary",
+          "GetEnvironmentVariableW",
+          "GetLastError",
+          "GetModuleFileNameW",
+          "GetProcAddress",
+          "GetProcessHeap",
+          "GetStdHandle",
+          "GetTickCount64",
+          "HeapAlloc",
+          "HeapFree",
+          "HeapReAlloc",
+          "InitializeCriticalSection",
+          "LeaveCriticalSection",
+          "LoadLibraryExW",
+          "MultiByteToWideChar",
+          "QueryPerformanceCounter",
+          "ReadFile",
+          "SetLastError",
+          "SetUnhandledExceptionFilter",
+          "Sleep",
+          "TerminateProcess",
+          "TlsGetValue",
+          "VirtualAlloc",
+          "VirtualProtect",
+          "VirtualQuery",
+          "WaitForSingleObject",
+          "WriteFile"
+        ]
+      },
+      "sha256": "41eaf26d38a2e4d3c2d1ec1154119b89170bd32095b787be57194b175110daf4",
+      "policy": "kernel32-msvcrt-ntdll-ucrt-only; dynamic-ws2_32-probe-only"
+    }
+  },
+  "sources": {
+    "app/PotassiumMcp.ParserHost/PotassiumMcp.ParserHost.csproj": "9dc7138806c15d869dd290bbb6b2a997cb6c9e5abb489ac8d2c41abee5632589",
+    "app/PotassiumMcp.ParserHost/Native.cs": "67d5961b1a0e5cd21c5e6f305650886ce938e8f8702c1feebb80cd1e5390a609",
+    "app/PotassiumMcp.ParserHost/Workspace.cs": "b6bb912d95d30691acf315974ab608bf47a9ce46663a7c264157142092f26f91",
+    "app/PotassiumMcp.ParserHost/Sandbox.cs": "ba86b8448c4e438ffc552f1a828c99d1fb733ceb96c43fe19beb78bfc216def6",
+    "app/PotassiumMcp.ParserHost/Program.cs": "aff0e84321df50fd5d9b637f882a434ffe78feae1b0376d4f13fb7eb91bbcdba",
+    "tools/parser-host.mjs": "5f921fcb5c1eb23808261d22c299e5973aaa876a3e662ca5e99162c02b3f7f1c"
+  },
+  "build": {
+    "sdk": "8.0.424",
+    "runtime": "8.0.30",
+    "rid": "win-x64",
+    "selfContained": true,
+    "deterministic": true,
+    "symbols": false,
+    "runtimePackage": {
+      "name": "microsoft.netcore.app.runtime.win-x64",
+      "integrity": "sha512-7oiBHBIHoEFHkA0jHGrhg9CJ0EegAG5RJMazYl3EEYN7g0b0d7BLzGNCVqtNl+stACQxjQuHsYkmsS8SFABJVg=="
+    }
+  },
+  "boundary": {
+    "appContainer": "standard",
+    "capabilities": [],
+    "uiRestrictions": "0x00ff",
+    "childProcesses": "atomic-job-active-process-limit-no-breakaway",
+    "filesystem": "read-only staged native worker plus own AppContainer profile and Windows AppContainer-public resources",
+    "activeProcesses": 1,
+    "processMemoryBytes": 268435456,
+    "jobMemoryBytes": 268435456,
+    "cpuMilliseconds": 5000,
+    "wallMilliseconds": 10000,
+    "inputBytes": 16777216,
+    "outputBytes": 8388608
+  },
+  "probes": {
+    "cpuMilliseconds": 1000,
+    "wallMilliseconds": 10000
+  }
+}

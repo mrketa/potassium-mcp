@@ -8,3 +8,6 @@ app/PotassiumMcp.Setup/assets/runtime-bundle.manifest.json
 app/**/bin/
 app/**/obj/
 .vs/
+
+.cache/
+.env*

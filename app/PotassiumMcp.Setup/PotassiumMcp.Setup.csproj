@@ -7,18 +7,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>PotassiumMcp.Setup</AssemblyName>
-    <Version>0.10.0-beta.3</Version>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\version.txt').Trim())</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <RuntimeBundleDirectory Condition="'$(RuntimeBundleDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\release-out\windows-setup\stage</RuntimeBundleDirectory>
   </PropertyGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\..\LICENSE" Link="assets\Potassium-LICENSE.txt" LogicalName="PotassiumMcp.Setup.assets.Potassium-LICENSE.txt" />
-    <EmbeddedResource Include="assets\runtime-bundle.zip" LogicalName="PotassiumMcp.Setup.assets.runtime-bundle.zip" Condition="Exists('assets\runtime-bundle.zip')" />
-    <EmbeddedResource Include="assets\runtime-bundle.manifest.json" LogicalName="PotassiumMcp.Setup.assets.runtime-bundle.manifest.json" Condition="Exists('assets\runtime-bundle.manifest.json')" />
+    <EmbeddedResource Include="$(RuntimeBundleDirectory)\runtime-bundle.zip" LogicalName="PotassiumMcp.Setup.runtime-bundle.zip" Condition="Exists('$(RuntimeBundleDirectory)\runtime-bundle.zip')" />
+    <EmbeddedResource Include="$(RuntimeBundleDirectory)\runtime-bundle.manifest.json" LogicalName="PotassiumMcp.Setup.runtime-bundle.manifest.json" Condition="Exists('$(RuntimeBundleDirectory)\runtime-bundle.manifest.json')" />
   </ItemGroup>
   <Target Name="RequireVerifiedRuntimeBundle" BeforeTargets="PrepareForPublish">
-    <Error Condition="!Exists('assets\runtime-bundle.zip') Or !Exists('assets\runtime-bundle.manifest.json')" Text="Stage the verified runtime bundle and manifest before publishing PotassiumMcp.Setup." />
+    <Error Condition="!Exists('$(RuntimeBundleDirectory)\runtime-bundle.zip') Or !Exists('$(RuntimeBundleDirectory)\runtime-bundle.manifest.json')" Text="Run node tools/windows-release.mjs stage before publishing, or node tools/windows-release.mjs build to produce and verify the complete Windows distribution." />
   </Target>
 </Project>

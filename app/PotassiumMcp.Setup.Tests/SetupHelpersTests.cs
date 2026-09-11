@@ -1,236 +1,388 @@
-using Xunit;
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using PotassiumMcp.Setup;
+using System.Text.Json.Nodes;
+using Xunit;
 
 namespace PotassiumMcp.Setup.Tests;
 
 public sealed class SetupHelpersTests
 {
+    [Theory]
+    [InlineData("../node.exe")]
+    [InlineData("./node/node.exe")]
+    [InlineData("node\\node.exe")]
+    [InlineData("node/node.exe:payload")]
+    [InlineData("node/NUL.txt")]
+    [InlineData("node/node.exe.")]
+    public void Archive_path_aliases_are_not_adopted(string path) => Assert.False(BundleValidation.IsSafeRelativePath(path));
+
     [Fact]
-    public void Manifest_validation_rejects_unsafe_path_and_bad_hash()
+    public void Archive_verification_rejects_extra_files_and_changed_bytes()
     {
-        Assert.Throws<InvalidDataException>(() => BundleValidation.ParseManifest("{\"files\":[{\"path\":\"../node.exe\",\"sha256\":\"not-a-hash\"}]}"));
+        using var fixture = new InstallationFixture();
+        using var archiveBytes = fixture.Archive(extraFile: true);
+        using var archive = new ZipArchive(archiveBytes, ZipArchiveMode.Read);
+        Assert.Throws<InvalidDataException>(() => BundleValidation.Verify(archive, fixture.Manifest));
+        using var changedBytes = fixture.Archive(changeNode: true);
+        using var changed = new ZipArchive(changedBytes, ZipArchiveMode.Read);
+        Assert.Throws<InvalidDataException>(() => BundleValidation.Verify(changed, fixture.Manifest));
     }
 
     [Fact]
-    public void Manifest_validation_accepts_and_verifies_exact_archive()
+    public void Archive_verification_rejects_symlinks_and_alias_entries()
     {
-        const string content = "node";
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(content)));
-        var manifest = BundleValidation.ParseManifest($"{{\"files\":[{{\"path\":\"runtime/node.exe\",\"sha256\":\"{hash}\"}}]}}");
-        using var bytes = new MemoryStream();
-        using (var archive = new ZipArchive(bytes, ZipArchiveMode.Create, true))
-        using (var writer = new StreamWriter(archive.CreateEntry("runtime/node.exe").Open())) writer.Write(content);
-        bytes.Position = 0;
-        using var input = new ZipArchive(bytes, ZipArchiveMode.Read);
-        BundleValidation.Verify(input, manifest);
+        using var fixture = new InstallationFixture();
+        using var linkedBytes = fixture.Archive(linkNode: true);
+        using var linked = new ZipArchive(linkedBytes, ZipArchiveMode.Read);
+        Assert.Throws<InvalidDataException>(() => BundleValidation.Verify(linked, fixture.Manifest));
+        using var aliasBytes = fixture.Archive(aliasNode: true);
+        using var alias = new ZipArchive(aliasBytes, ZipArchiveMode.Read);
+        Assert.Throws<InvalidDataException>(() => BundleValidation.Verify(alias, fixture.Manifest));
     }
 
     [Fact]
-    public void Manifest_validation_accepts_tar_style_current_directory_prefix()
+    public void Manifest_rejects_case_collisions_and_size_overflows()
     {
-        const string content = "node";
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(content)));
-        var manifest = BundleValidation.ParseManifest($"{{\"files\":[{{\"path\":\"runtime/node.exe\",\"sha256\":\"{hash}\"}}]}}");
-        using var bytes = new MemoryStream();
-        using (var archive = new ZipArchive(bytes, ZipArchiveMode.Create, true))
-        using (var writer = new StreamWriter(archive.CreateEntry("./runtime/node.exe").Open())) writer.Write(content);
-        bytes.Position = 0;
-        using var input = new ZipArchive(bytes, ZipArchiveMode.Read);
-
-        BundleValidation.Verify(input, manifest);
+        using var fixture = new InstallationFixture();
+        var collision = fixture.Manifest with { Files = fixture.Manifest.Files.Append(new("NODE/NODE.EXE", new string('a', 64), 1)).ToArray() };
+        Assert.Throws<InvalidDataException>(() => BundleValidation.ParseManifest(InstallationFixture.Serialize(collision)));
+        var oversized = fixture.Manifest with { Files = fixture.Manifest.Files.Select(file => file with { Bytes = BundleValidation.MaxFileBytes + 1 }).ToArray() };
+        Assert.Throws<InvalidDataException>(() => BundleValidation.ParseManifest(InstallationFixture.Serialize(oversized)));
     }
 
     [Fact]
-    public void Install_arguments_include_explicit_paths_and_do_not_enable_admin_without_consent()
+    public void Launcher_lifetime_lock_prevents_mutation_until_all_clients_release_it()
     {
-        var arguments = CliArguments.Build(new CliRequest("install", ["codex", "cursor", "codex"], "user", "C:\\bundle.tgz", WorkspaceRoot: "C:\\Potassium\\workspace", AutoexecRoot: "C:\\Potassium\\autoexec"));
-        Assert.Equal(["install", "--json", "--scope", "user", "--package-source", "C:\\bundle.tgz", "--host", "codex", "--host", "cursor", "--workspace", "C:\\Potassium\\workspace", "--autoexec", "C:\\Potassium\\autoexec"], arguments);
-        Assert.DoesNotContain("--allow-unsafe-execute", arguments);
-    }
-
-    [Fact]
-    public void Host_catalog_includes_visible_omp_option()
-    {
-        Assert.Contains("omp", HostCatalog.CommonHosts, StringComparer.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Omp_install_arguments_use_project_scope_without_working_directory_argument()
-    {
-        var arguments = CliArguments.Build(new CliRequest("install", ["omp"], "project", "C:\\bundle.tgz", WorkspaceRoot: "C:\\Potassium\\workspace", AutoexecRoot: "C:\\Potassium\\autoexec", WorkingDirectory: "C:\\project"));
-        Assert.Equal(["install", "--json", "--scope", "project", "--package-source", "C:\\bundle.tgz", "--host", "omp", "--workspace", "C:\\Potassium\\workspace", "--autoexec", "C:\\Potassium\\autoexec"], arguments);
-    }
-
-    [Fact]
-    public void Project_directory_validation_requires_an_existing_directory()
-    {
-        var existing = Path.Combine(Path.GetTempPath(), "PotassiumMcp.Setup.Tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(existing);
-        try
+        using var fixture = new InstallationFixture();
+        using (WindowsInstallation.AcquireLock(fixture.App, true)) { }
+        using (var first = WindowsInstallation.AcquireLock(fixture.App, false))
         {
-            Assert.True(ProjectDirectory.IsValid(existing));
-            Assert.False(ProjectDirectory.IsValid(Path.Combine(existing, "missing")));
-            Assert.False(ProjectDirectory.IsValid(null));
+            using (var second = WindowsInstallation.AcquireLock(fixture.App, false))
+                Assert.Throws<IOException>(() => WindowsInstallation.AcquireLock(fixture.App, true));
+            Assert.Throws<IOException>(() => WindowsInstallation.AcquireLock(fixture.App, true));
         }
-        finally
-        {
-            Directory.Delete(existing, recursive: true);
-        }
+        using var mutation = WindowsInstallation.AcquireLock(fixture.App, true);
+        Assert.Throws<IOException>(() => WindowsInstallation.AcquireLock(fixture.App, false));
     }
 
     [Fact]
-    public void Combined_cli_results_preserve_each_failure()
+    public void Empty_foreign_lock_is_not_claimed()
     {
-        var combined = CliResults.Combine([
-            new CliResult(true, "User hosts installed", "codex configured"),
-            new CliResult(false, "OMP failed", "project configuration failed")
-        ]);
-
-        Assert.False(combined.Ok);
-        Assert.Contains("User hosts installed", combined.Summary);
-        Assert.Contains("OMP failed", combined.Summary);
-        Assert.Contains("codex configured", combined.Details);
-        Assert.Contains("project configuration failed", combined.Details);
+        using var fixture = new InstallationFixture();
+        var path = Path.Combine(fixture.App, ".windows-install.lock");
+        File.WriteAllBytes(path, []);
+        Assert.Throws<InvalidDataException>(() => WindowsInstallation.AcquireLock(fixture.App, true));
+        Assert.Empty(File.ReadAllBytes(path));
     }
 
     [Fact]
-    public void Verify_arguments_exclude_install_only_options()
+    public async Task Corrupt_installation_returns_managed_failure_without_starting_a_probe()
     {
-        var arguments = CliArguments.Build(new CliRequest("verify", ["codex"], "user", "C:\\bundle.tgz", true, "C:\\Potassium\\workspace", "C:\\Potassium\\autoexec"));
-        Assert.Equal(["verify", "--json"], arguments);
+        using var fixture = new InstallationFixture();
+        using (WindowsInstallation.AcquireLock(fixture.App, true)) { }
+        File.AppendAllText(Path.Combine(fixture.VersionRoot, "node", "node.exe"), "changed");
+        var runner = new SetupRunner();
+        var state = runner.GetInstallationState(new(fixture.App, fixture.Private, fixture.Workspace));
+        Assert.False(state.Installed);
+        Assert.Null(state.Connection);
+        var check = await runner.RunAsync(new("check", fixture.Workspace, fixture.Private, fixture.App));
+        Assert.False(check.Ok);
+        Assert.Null(check.Connection);
+        Assert.Null(check.McpConnected);
     }
 
     [Fact]
-    public void Uninstall_arguments_request_owned_uninstall_only()
+    public void Active_runtime_requires_receipt_binding_and_unmodified_immutable_files()
     {
-        var arguments = CliArguments.Build(new CliRequest("uninstall", ["codex"], "user", "C:\\bundle.tgz", true, "C:\\Potassium\\workspace", "C:\\Potassium\\autoexec"));
-        Assert.Equal(["uninstall", "--json", "--all"], arguments);
+        using var fixture = new InstallationFixture();
+        var runtime = WindowsInstallation.ResolveActive(fixture.App, fixture.Receipt);
+        Assert.Equal(fixture.VersionRoot, runtime.VersionRoot);
+        File.AppendAllText(runtime.Node, "changed");
+        Assert.Throws<InvalidDataException>(() => WindowsInstallation.ResolveActive(fixture.App, fixture.Receipt));
+        Assert.Throws<InvalidDataException>(() => WindowsInstallation.ReadReceipt(fixture.App, Path.Combine(fixture.Root, "other-private")));
     }
 
     [Fact]
-    public void Discovery_prefers_valid_ownership_paths()
+    public void Active_pointer_cannot_select_an_unowned_runtime_or_retained_deployment()
     {
-        var local = CreateTemporaryLocalAppData();
-        try
-        {
-            var ownedWorkspace = Directory.CreateDirectory(Path.Combine(local, "owned-workspace")).FullName;
-            var ownedAutoexec = Directory.CreateDirectory(Path.Combine(local, "owned-autoexec")).FullName;
-            var ownedScript = Path.Combine(ownedAutoexec, "potassium_mcp_autoexec.lua");
-            File.WriteAllText(ownedScript, "-- owned");
-            Directory.CreateDirectory(Path.Combine(local, "Potassium", "workspace"));
-            Directory.CreateDirectory(Path.Combine(local, "Potassium", "autoexec"));
-            File.WriteAllText(Path.Combine(local, "Potassium", "autoexec", "potassium_mcp_autoexec.lua"), "-- fallback");
-            Directory.CreateDirectory(Path.Combine(local, "Potassium", "MCP"));
-            File.WriteAllText(Path.Combine(local, "Potassium", "MCP", "ownership.json"),
-                $$"""{"schema":2,"workspaceRoot":"{{ownedWorkspace.Replace("\\", "\\\\")}}","autoexecRoot":"{{ownedAutoexec.Replace("\\", "\\\\")}}","scripts":[{"target":"{{ownedScript.Replace("\\", "\\\\")}}"}]}""");
-
-            var discovery = PotassiumPathDiscoveryService.Discover(local);
-
-            Assert.Equal(ownedWorkspace, discovery.WorkspaceRoot);
-            Assert.Equal(ownedAutoexec, discovery.AutoexecRoot);
-        }
-        finally { Directory.Delete(local, recursive: true); }
+        using var fixture = new InstallationFixture();
+        fixture.WriteOwnership(status: "retained");
+        Assert.Throws<InvalidDataException>(() => WindowsInstallation.ResolveActive(fixture.App, fixture.Receipt));
+        fixture.WriteOwnership(packageRoot: Path.Combine(fixture.Root, "foreign", "package"));
+        Assert.Throws<InvalidDataException>(() => WindowsInstallation.ResolveActive(fixture.App, fixture.Receipt));
     }
 
     [Fact]
-    public void Discovery_derives_legacy_autoexec_only_from_its_owned_script()
+    public void Unknown_runtime_content_and_connection_edits_are_preserved_as_conflicts()
     {
-        var local = CreateTemporaryLocalAppData();
-        try
-        {
-            var workspace = Directory.CreateDirectory(Path.Combine(local, "Potassium", "workspace")).FullName;
-            var autoexec = Directory.CreateDirectory(Path.Combine(local, "Potassium", "autoexec")).FullName;
-            var autoexecScript = Path.Combine(autoexec, "potassium_mcp_autoexec.lua");
-            File.WriteAllText(autoexecScript, "-- owned");
-            Directory.CreateDirectory(Path.Combine(local, "Potassium", "MCP"));
-            File.WriteAllText(Path.Combine(local, "Potassium", "MCP", "ownership.json"),
-                $$"""{"schema":2,"workspaceRoot":"{{workspace.Replace("\\", "\\\\")}}","scripts":[{"target":"{{autoexecScript.Replace("\\", "\\\\")}}"}]}""");
+        using var fixture = new InstallationFixture();
+        var foreign = Path.Combine(fixture.VersionRoot, "custom.txt");
+        File.WriteAllText(foreign, "user content");
+        Assert.Throws<InvalidDataException>(() => WindowsInstallation.ResolveActive(fixture.App, fixture.Receipt));
+        Assert.Equal("user content", File.ReadAllText(foreign));
+        File.Delete(foreign);
+        var connection = WindowsInstallation.Connection(fixture.App);
+        File.WriteAllText(connection.FilePath, "user connector");
+        Assert.Throws<InvalidDataException>(() => WindowsInstallation.VerifyConnector(fixture.App, fixture.Receipt));
+        Assert.Equal("user connector", File.ReadAllText(connection.FilePath));
+    }
 
-            var discovery = PotassiumPathDiscoveryService.Discover(local);
+    [Fact]
+    public void Generic_connector_is_token_free_and_requires_no_harness_arguments()
+    {
+        using var fixture = new InstallationFixture();
+        var connection = WindowsInstallation.Connection(fixture.App);
+        using var json = JsonDocument.Parse(connection.Json);
+        var entry = json.RootElement.GetProperty("mcpServers").GetProperty("potassium");
+        Assert.Equal(Path.Combine(fixture.App, WindowsInstallation.LauncherName), entry.GetProperty("command").GetString());
+        Assert.Empty(entry.GetProperty("args").EnumerateArray());
+        Assert.False(entry.TryGetProperty("env", out _));
+        Assert.DoesNotContain(fixture.Secret, connection.Json, StringComparison.Ordinal);
+        Assert.DoesNotContain(fixture.VersionRoot, connection.Json, StringComparison.Ordinal);
+    }
 
-            Assert.Equal(workspace, discovery.WorkspaceRoot);
-            Assert.Equal(autoexec, discovery.AutoexecRoot);
-        }
-        finally { Directory.Delete(local, recursive: true); }
+    [Fact]
+    public void Existing_agent_policy_does_not_request_a_read_identity_grant()
+    {
+        using var fixture = new InstallationFixture();
+        File.WriteAllText(fixture.Config, "{\"allowUnsafeExecute\":true,\"hostPolicies\":{\"agent\":{\"read\":false,\"admin\":false,\"execute\":false}}}");
+        Assert.False(CliArguments.NeedsReadIdentity(fixture.Private));
+        File.WriteAllText(fixture.Config, "{\"hostPolicies\":{\"existing\":{\"read\":true,\"admin\":true,\"execute\":false}}}");
+        Assert.True(CliArguments.NeedsReadIdentity(fixture.Private));
+    }
+
+    [Fact]
+    public void Missing_or_recovering_configuration_never_requests_a_read_identity_grant()
+    {
+        using var fixture = new InstallationFixture();
+        File.WriteAllText(fixture.Config, "{\"hostPolicies\":{}}");
+        Assert.True(CliArguments.NeedsReadIdentity(fixture.Private));
+        var journal = fixture.Private + ".transaction.json";
+        File.WriteAllText(journal, "{\"schema\":1,\"phase\":\"applying\"}");
+        Assert.False(CliArguments.NeedsReadIdentity(fixture.Private));
+        File.Delete(fixture.Config);
+        Assert.False(CliArguments.NeedsReadIdentity(fixture.Private));
+        File.Delete(journal);
+        Assert.False(CliArguments.NeedsReadIdentity(fixture.Private));
+    }
+
+    [Fact]
+    public void Options_reopen_custom_private_workspace_without_default_discovery()
+    {
+        using var fixture = new InstallationFixture();
+        var options = SetupOptions.Parse(["--app-root", fixture.App, "--install-root", fixture.Private]);
+        Assert.Equal(fixture.Workspace, options.WorkspaceRoot);
+        Assert.Throws<InvalidDataException>(() => SetupOptions.Parse(["--app-root", fixture.Workspace, "--install-root", fixture.Private]));
+        Assert.Throws<ArgumentException>(() => SetupOptions.Parse(["--host", "desktop"]));
+    }
+
+    [Fact]
+    public async Task Partial_retained_uninstall_preserves_private_data_and_requires_verified_repair()
+    {
+        using var fixture = new InstallationFixture();
+        using (WindowsInstallation.AcquireLock(fixture.App, true)) { }
+        fixture.WriteOwnership(status: "retained");
+        var config = File.ReadAllBytes(fixture.Config);
+        var token = File.ReadAllBytes(fixture.Token);
+        var unknown = Path.Combine(fixture.VersionRoot, "user-note.txt");
+        File.WriteAllText(unknown, "keep me");
+        File.Delete(Path.Combine(fixture.VersionRoot, "node", "node.exe"));
+        var result = await new SetupRunner().RunAsync(new("uninstall", fixture.Workspace, fixture.Private, fixture.App));
+        Assert.False(result.Ok);
+        Assert.True(result.CleanupPending);
+        Assert.Null(result.Connection);
+        Assert.Equal(config, File.ReadAllBytes(fixture.Config));
+        Assert.Equal(token, File.ReadAllBytes(fixture.Token));
+        Assert.Equal("keep me", File.ReadAllText(unknown));
+        Assert.True(File.Exists(Path.Combine(fixture.App, WindowsInstallation.LauncherName)));
+        Assert.True(File.Exists(WindowsInstallation.Connection(fixture.App).FilePath));
+        Assert.True(File.Exists(Path.Combine(fixture.App, WindowsInstallation.ReceiptName)));
+    }
+
+    [Fact]
+    public async Task Applying_core_journal_with_retained_pointer_preserves_rollback_runtime()
+    {
+        using var fixture = new InstallationFixture();
+        fixture.WriteOwnership(status: "retained");
+        var node = Path.Combine(fixture.VersionRoot, "node", "node.exe");
+        var bytes = File.ReadAllBytes(node);
+        var journal = fixture.Private + ".transaction.json";
+        File.WriteAllText(journal, "{\"schema\":1,\"phase\":\"applying\"}");
+        var result = await new SetupRunner().RunAsync(new("uninstall", fixture.Workspace, fixture.Private, fixture.App));
+        Assert.False(result.Ok);
+        Assert.True(result.CleanupPending);
+        Assert.Null(result.Connection);
+        Assert.Equal(bytes, File.ReadAllBytes(node));
+        Assert.True(File.Exists(Path.Combine(fixture.App, WindowsInstallation.LauncherName)));
+        Assert.Equal("{\"schema\":1,\"phase\":\"applying\"}", File.ReadAllText(journal));
+    }
+
+    [Fact]
+    public async Task Failed_first_setup_can_remove_only_receipt_owned_application_files()
+    {
+        using var fixture = new InstallationFixture();
+        File.Delete(Path.Combine(fixture.Private, "ownership.json"));
+        var config = File.ReadAllBytes(fixture.Config);
+        var token = File.ReadAllBytes(fixture.Token);
+        var foreign = Path.Combine(fixture.App, "user-note.txt");
+        File.WriteAllText(foreign, "keep me");
+        var result = await new SetupRunner().RunAsync(new("uninstall", fixture.Workspace, fixture.Private, fixture.App));
+        Assert.True(result.Ok);
+        Assert.False(Directory.Exists(fixture.VersionRoot));
+        Assert.False(File.Exists(Path.Combine(fixture.App, WindowsInstallation.LauncherName)));
+        Assert.False(File.Exists(fixture.Private + ".lock"));
+        Assert.Equal(config, File.ReadAllBytes(fixture.Config));
+        Assert.Equal(token, File.ReadAllBytes(fixture.Token));
+        Assert.Equal("keep me", File.ReadAllText(foreign));
+    }
+
+    [Fact]
+    public async Task Existing_core_lock_blocks_app_only_cleanup_without_taking_over()
+    {
+        using var fixture = new InstallationFixture();
+        File.Delete(Path.Combine(fixture.Private, "ownership.json"));
+        var lockPath = fixture.Private + ".lock";
+        File.WriteAllText(lockPath, "foreign core lock");
+        var result = await new SetupRunner().RunAsync(new("uninstall", fixture.Workspace, fixture.Private, fixture.App));
+        Assert.False(result.Ok);
+        Assert.True(File.Exists(Path.Combine(fixture.App, WindowsInstallation.LauncherName)));
+        Assert.True(Directory.Exists(fixture.VersionRoot));
+        Assert.Equal("foreign core lock", File.ReadAllText(lockPath));
+    }
+
+    [Fact]
+    public void Missing_manifest_recovers_only_exact_empty_receipt_owned_version()
+    {
+        using var fixture = new InstallationFixture();
+        var manifest = File.ReadAllBytes(Path.Combine(fixture.VersionRoot, WindowsInstallation.ManifestName));
+        Directory.Delete(fixture.VersionRoot, true);
+        Directory.CreateDirectory(fixture.VersionRoot);
+        WindowsInstallation.RestoreEmptyVersionManifest(fixture.App, fixture.Receipt.Bundles[0], manifest);
+        Assert.Equal(manifest, File.ReadAllBytes(Path.Combine(fixture.VersionRoot, WindowsInstallation.ManifestName)));
+        File.Delete(Path.Combine(fixture.VersionRoot, WindowsInstallation.ManifestName));
+        File.WriteAllText(Path.Combine(fixture.VersionRoot, "unknown"), "preserve");
+        Assert.Throws<InvalidDataException>(() => WindowsInstallation.RestoreEmptyVersionManifest(fixture.App, fixture.Receipt.Bundles[0], manifest));
+        Assert.Equal("preserve", File.ReadAllText(Path.Combine(fixture.VersionRoot, "unknown")));
+        Assert.False(File.Exists(Path.Combine(fixture.VersionRoot, WindowsInstallation.ManifestName)));
     }
 
     [Theory]
-    [InlineData("workspace")]
-    [InlineData("data")]
-    public void Discovery_accepts_one_existing_workspace_candidate(string workspaceName)
+    [InlineData("2147483648")]
+    [InlineData("3.5")]
+    public async Task Numeric_schema_corruption_is_reported_as_managed_failure(string schema)
     {
-        var local = CreateTemporaryLocalAppData();
-        try
-        {
-            var workspace = Directory.CreateDirectory(Path.Combine(local, "Potassium", workspaceName)).FullName;
-            var autoexec = Directory.CreateDirectory(Path.Combine(local, "Potassium", "autoexec")).FullName;
-
-            var discovery = PotassiumPathDiscoveryService.Discover(local);
-
-            Assert.Equal(workspace, discovery.WorkspaceRoot);
-            Assert.Equal(autoexec, discovery.AutoexecRoot);
-        }
-        finally { Directory.Delete(local, recursive: true); }
+        using var fixture = new InstallationFixture();
+        using (WindowsInstallation.AcquireLock(fixture.App, true)) { }
+        var path = Path.Combine(fixture.Private, "ownership.json");
+        var state = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        state["schema"] = JsonNode.Parse(schema);
+        File.WriteAllText(path, state.ToJsonString());
+        var result = await new SetupRunner().RunAsync(new("check", fixture.Workspace, fixture.Private, fixture.App));
+        Assert.False(result.Ok);
+        Assert.Null(result.Connection);
+        Assert.Null(result.McpConnected);
     }
 
     [Fact]
-    public void Discovery_rejects_ambiguous_or_incomplete_candidates()
+    public async Task Bounded_output_drains_excess_without_retaining_it()
     {
-        var ambiguous = CreateTemporaryLocalAppData();
-        var incomplete = CreateTemporaryLocalAppData();
-        try
-        {
-            Directory.CreateDirectory(Path.Combine(ambiguous, "Potassium", "workspace"));
-            Directory.CreateDirectory(Path.Combine(ambiguous, "Potassium", "data"));
-            var autoexec = Directory.CreateDirectory(Path.Combine(ambiguous, "Potassium", "autoexec")).FullName;
-            File.WriteAllText(Path.Combine(autoexec, "potassium_mcp_autoexec.lua"), "-- installed");
-            Directory.CreateDirectory(Path.Combine(incomplete, "Potassium", "workspace"));
-
-            Assert.False(PotassiumPathDiscoveryService.Discover(ambiguous).IsResolved);
-            Assert.False(PotassiumPathDiscoveryService.Discover(incomplete).IsResolved);
-        }
-        finally
-        {
-            Directory.Delete(ambiguous, recursive: true);
-            Directory.Delete(incomplete, recursive: true);
-        }
+        using var source = new MemoryStream(Encoding.UTF8.GetBytes(new string('x', 65536) + "not retained"));
+        using var reader = new StreamReader(source);
+        var result = await WindowsInstallation.ReadOutputBoundedAsync(reader, 64);
+        Assert.StartsWith(new string('x', 64), result, StringComparison.Ordinal);
+        Assert.DoesNotContain("not retained", result, StringComparison.Ordinal);
+        Assert.Equal(-1, reader.Read());
     }
 
     [Fact]
-    public void Json_rendering_redacts_secrets_and_paths()
+    public void Json_errors_redact_credentials_and_personal_paths()
     {
         var result = UserFacingText.Render("{\"ok\":false,\"message\":\"Could not install\",\"token\":\"abc123\",\"path\":\"C:\\\\Users\\\\Ada\\\\file\"}", "", 1);
         Assert.False(result.Ok);
-        Assert.Equal("Could not install", result.Summary);
         Assert.DoesNotContain("abc123", result.Details);
         Assert.DoesNotContain("Ada", result.Details);
     }
 
-    [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, true)]
-    public void Admin_access_requires_informed_consent(bool advanced, bool checkedConsent, bool expected) => Assert.Equal(expected, AdminConsent.IsAllowed(advanced, checkedConsent));
-
-    [Fact]
-    public void Workspace_cleanup_removes_private_temp_directory()
+    private sealed class InstallationFixture : IDisposable
     {
-        string path;
-        using (var workspace = RuntimeWorkspace.Create())
+        public string Root { get; } = Path.Combine(Path.GetTempPath(), "PotassiumMcp.Setup.Tests", Guid.NewGuid().ToString("N"));
+        public string App => Path.Combine(Root, "application");
+        public string Private => Path.Combine(Root, "private");
+        public string Workspace => Path.Combine(Root, "executor", "workspace");
+        public string Config => Path.Combine(Private, "config.json");
+        public string Token => Path.Combine(Workspace, ".potassium-mcp-token");
+        public string Secret { get; } = new('7', 64);
+        public BundleManifest Manifest { get; }
+        public WindowsReceipt Receipt { get; }
+        public string VersionRoot { get; }
+        public string PackageRoot => Path.Combine(VersionRoot, BundleValidation.RequiredEntries.PackageRoot.Replace('/', Path.DirectorySeparatorChar));
+        private readonly Dictionary<string, byte[]> files;
+
+        public InstallationFixture()
         {
-            path = workspace.Root;
-            Directory.CreateDirectory(path);
-            File.WriteAllText(Path.Combine(path, "private.txt"), "temporary");
+            Directory.CreateDirectory(App);
+            Directory.CreateDirectory(Private);
+            Directory.CreateDirectory(Workspace);
+            files = new(StringComparer.Ordinal)
+            {
+                [BundleValidation.RequiredEntries.Node] = Encoding.UTF8.GetBytes("fixture node; never executed"),
+                [BundleValidation.RequiredEntries.Cli] = Encoding.UTF8.GetBytes("fixture cli; never executed"),
+                [BundleValidation.RequiredEntries.Launcher] = Encoding.UTF8.GetBytes("fixture launcher; never executed"),
+                [BundleValidation.RequiredEntries.PackageRoot + "/src/proxy.js"] = Encoding.UTF8.GetBytes("fixture proxy; never executed"),
+                [BundleValidation.RequiredEntries.PackageRoot + "/package.json"] = Encoding.UTF8.GetBytes("{\"name\":\"@mrketa/potassium-mcp\",\"version\":\"9.1.0\",\"potassiumMcpRuntime\":{\"ownershipSchema\":3,\"launcherProtocol\":1}}")
+            };
+            Manifest = new(1, "9.1.0", "22.0.0", BundleValidation.RequiredEntries, files.Select(pair => new BundleFile(pair.Key, WindowsInstallation.Hash(pair.Value), pair.Value.Length)).ToArray());
+            var manifest = Encoding.UTF8.GetBytes(Serialize(Manifest));
+            var id = WindowsInstallation.Hash(manifest);
+            VersionRoot = Path.Combine(App, "versions", id);
+            Directory.CreateDirectory(VersionRoot);
+            foreach (var pair in files)
+            {
+                var path = Path.Combine(VersionRoot, pair.Key.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, pair.Value);
+            }
+            File.WriteAllBytes(Path.Combine(VersionRoot, WindowsInstallation.ManifestName), manifest);
+            Receipt = new(1, App, Private, [new(id, "versions/" + id)], [WindowsInstallation.Hash(files[BundleValidation.RequiredEntries.Launcher])]);
+            File.WriteAllText(Path.Combine(App, WindowsInstallation.ReceiptName), Serialize(Receipt));
+            File.WriteAllBytes(Path.Combine(App, WindowsInstallation.LauncherName), files[BundleValidation.RequiredEntries.Launcher]);
+            var connection = WindowsInstallation.Connection(App);
+            File.WriteAllText(connection.FilePath, connection.Json);
+            File.WriteAllText(Config, "{\"hostPolicies\":{\"agent\":{\"read\":true,\"admin\":false,\"execute\":false}}}");
+            File.WriteAllText(Token, Secret);
+            WriteOwnership();
         }
-        Assert.False(Directory.Exists(path));
-    }
 
-    private static string CreateTemporaryLocalAppData()
-    {
-        var path = Path.Combine(Path.GetTempPath(), "PotassiumMcp.Setup.Tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(path);
-        return path;
+        public static string Serialize<T>(T value) => JsonSerializer.Serialize(value, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+
+        public void WriteOwnership(string status = "active", string? packageRoot = null)
+        {
+            var state = new { schema = 3, status, installRoot = Private, workspaceRoot = Workspace, configPath = Config, tokenPath = Token,
+                configSha256 = WindowsInstallation.FileHash(Config), tokenSha256 = WindowsInstallation.FileHash(Token), serverSha256 = WindowsInstallation.Hash(files[BundleValidation.RequiredEntries.PackageRoot + "/src/proxy.js"]),
+                runtime = new { mode = "external", root = packageRoot ?? PackageRoot, nodeExecutable = Path.Combine(VersionRoot, "node", "node.exe"), nodeSha256 = WindowsInstallation.Hash(files[BundleValidation.RequiredEntries.Node]) }, hosts = new { } };
+            File.WriteAllText(Path.Combine(Private, "ownership.json"), Serialize(state));
+        }
+
+        public MemoryStream Archive(bool extraFile = false, bool changeNode = false, bool linkNode = false, bool aliasNode = false)
+        {
+            var bytes = new MemoryStream();
+            using (var archive = new ZipArchive(bytes, ZipArchiveMode.Create, true))
+            {
+                foreach (var pair in files)
+                {
+                    var node = pair.Key == BundleValidation.RequiredEntries.Node;
+                    var entry = archive.CreateEntry(aliasNode && node ? "./" + pair.Key : pair.Key);
+                    if (node && linkNode) entry.ExternalAttributes = 0xA000 << 16;
+                    using var output = entry.Open();
+                    output.Write(node && changeNode ? Encoding.UTF8.GetBytes("changed") : pair.Value);
+                }
+                if (extraFile) archive.CreateEntry("foreign.txt");
+            }
+            bytes.Position = 0;
+            return bytes;
+        }
+        public void Dispose() { if (Directory.Exists(Root)) Directory.Delete(Root, true); }
     }
 }

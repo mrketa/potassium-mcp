@@ -2,3 +2,7 @@
 *.exe binary
 *.zip binary
 *.tgz binary
+
+*.wasm binary
+potassium-mcp/assets/parser-host/win32-x64/LICENSE-DOTNET.txt -text
+potassium-mcp/assets/parser-host/win32-x64/THIRD-PARTY-NOTICES-DOTNET.txt -text

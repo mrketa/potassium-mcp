@@ -1,0 +1,595 @@
+{
+  "schema": 1,
+  "platform": "win32-x64",
+  "parser": {
+    "runtime": "tree-sitter",
+    "runtimeVersion": "0.25.0",
+    "grammar": "tree-sitter-luau",
+    "grammarVersion": "1.2.0"
+  },
+  "executable": {
+    "bytes": 211456,
+    "sha256": "ebec7ff49e845cee5809b22c80ad90920176c6457e61f5e1f9f20266e5e61409"
+  },
+  "files": {
+    "PotassiumMcp.LuauParser.exe": {
+      "bytes": 211456,
+      "sha256": "ebec7ff49e845cee5809b22c80ad90920176c6457e61f5e1f9f20266e5e61409"
+    },
+    "LICENSE-tree-sitter.txt": {
+      "bytes": 1078,
+      "sha256": "d39420a108609f487bece31800015cccabdb531fee4d543d66595459b3812d9a"
+    },
+    "LICENSE-tree-sitter-luau.txt": {
+      "bytes": 1101,
+      "sha256": "099c44248f8cf353123211318680e93465587c005a4b3730ce8cb5334de043d6"
+    },
+    "LICENSE-tree-sitter-lua.txt": {
+      "bytes": 1079,
+      "sha256": "9a32b02e4c917b1ce6b5e79d8ea81e25cefd7f27d89c7235f2afb262c06cf32e"
+    },
+    "LICENSE-ICU.txt": {
+      "bytes": 21001,
+      "sha256": "6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d"
+    },
+    "LICENSE-ZIG.txt": {
+      "bytes": 1080,
+      "sha256": "5c537d6853e005298a285d508cff9ac7192cea23576c840d485b2b586a7ff177"
+    },
+    "LICENSE-MINGW.txt": {
+      "bytes": 2326,
+      "sha256": "99a69660981156c21336fdb5661f89341b013c94e4bf9e1c7467b4745718397f"
+    },
+    "THIRD-PARTY-NOTICES-MINGW.txt": {
+      "bytes": 89171,
+      "sha256": "dda28372ee4971f2e98648ce6fff4276a51a2b98e8c754765d9c1b03217b1345"
+    }
+  },
+  "imports": {
+    "dlls": [
+      "api-ms-win-crt-environment-l1-1-0.dll",
+      "api-ms-win-crt-heap-l1-1-0.dll",
+      "api-ms-win-crt-math-l1-1-0.dll",
+      "api-ms-win-crt-private-l1-1-0.dll",
+      "api-ms-win-crt-runtime-l1-1-0.dll",
+      "api-ms-win-crt-stdio-l1-1-0.dll",
+      "api-ms-win-crt-string-l1-1-0.dll",
+      "kernel32.dll"
+    ],
+    "symbols": {
+      "api-ms-win-crt-environment-l1-1-0.dll": [
+        "__p__environ"
+      ],
+      "api-ms-win-crt-heap-l1-1-0.dll": [
+        "_set_new_mode",
+        "calloc",
+        "free",
+        "malloc"
+      ],
+      "api-ms-win-crt-math-l1-1-0.dll": [
+        "__setusermatherr"
+      ],
+      "api-ms-win-crt-private-l1-1-0.dll": [
+        "__C_specific_handler",
+        "memchr"
+      ],
+      "api-ms-win-crt-runtime-l1-1-0.dll": [
+        "__p___argc",
+        "__p___argv",
+        "_cexit",
+        "_configure_narrow_argv",
+        "_crt_atexit",
+        "_exit",
+        "_initialize_narrow_environment",
+        "_initterm",
+        "_initterm_e",
+        "_set_app_type",
+        "_set_invalid_parameter_handler",
+        "abort",
+        "exit",
+        "signal"
+      ],
+      "api-ms-win-crt-stdio-l1-1-0.dll": [
+        "__acrt_iob_func",
+        "__p__commode",
+        "__p__fmode",
+        "__stdio_common_vfprintf",
+        "__stdio_common_vsprintf",
+        "fputc",
+        "fwrite"
+      ],
+      "api-ms-win-crt-string-l1-1-0.dll": [
+        "iswctype",
+        "strcmp",
+        "strlen",
+        "strncmp"
+      ],
+      "kernel32.dll": [
+        "CloseHandle",
+        "CreateFileW",
+        "CreateProcessW",
+        "DeleteCriticalSection",
+        "DeleteFileW",
+        "EnterCriticalSection",
+        "ExitProcess",
+        "FreeLibrary",
+        "GetEnvironmentVariableW",
+        "GetLastError",
+        "GetModuleFileNameW",
+        "GetProcAddress",
+        "GetProcessHeap",
+        "GetStdHandle",
+        "GetTickCount64",
+        "HeapAlloc",
+        "HeapFree",
+        "HeapReAlloc",
+        "InitializeCriticalSection",
+        "LeaveCriticalSection",
+        "LoadLibraryExW",
+        "MultiByteToWideChar",
+        "QueryPerformanceCounter",
+        "ReadFile",
+        "SetLastError",
+        "SetUnhandledExceptionFilter",
+        "Sleep",
+        "TerminateProcess",
+        "TlsGetValue",
+        "VirtualAlloc",
+        "VirtualProtect",
+        "VirtualQuery",
+        "WaitForSingleObject",
+        "WriteFile"
+      ]
+    },
+    "sha256": "41eaf26d38a2e4d3c2d1ec1154119b89170bd32095b787be57194b175110daf4",
+    "policy": "kernel32-msvcrt-ntdll-ucrt-only; dynamic-ws2_32-probe-only"
+  },
+  "sources": {
+    "native/luau-parser/LICENSE-tree-sitter-lua.txt": "9a32b02e4c917b1ce6b5e79d8ea81e25cefd7f27d89c7235f2afb262c06cf32e",
+    "native/luau-parser/allocator.h": "2ed8e7788f14ef099fb0d86c4cefb7d09e856c81852b9c51534e0fb5bd3be33e",
+    "native/luau-parser/runtime.c": "244be93c4982b7ebe4c14fd35a3f35eec3277077ff82ab62492c8c468b23d597",
+    "native/luau-parser/scanner.c": "ed1341a3d8fb469671f0e61cb828528843523c8b2280fbf1f1aceaa1fb32d326",
+    "native/luau-parser/source-provenance.json": "5aea1f230ee876c5672dddd18bb62201aacf99c6b92c4573a4add124d8b5f935",
+    "native/luau-parser/vendor/tree-sitter-luau/LICENSE": "099c44248f8cf353123211318680e93465587c005a4b3730ce8cb5334de043d6",
+    "native/luau-parser/vendor/tree-sitter-luau/src/parser.c": "8f25bc1779400fa93d5492310e291fb895363ec051d44753444e724e99a08250",
+    "native/luau-parser/vendor/tree-sitter-luau/src/scanner.c": "a157bb5210454add058a08ce53eabcccad41aab6dac7006def2554e5cfebd376",
+    "native/luau-parser/vendor/tree-sitter-luau/src/tree_sitter/alloc.h": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea",
+    "native/luau-parser/vendor/tree-sitter-luau/src/tree_sitter/array.h": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94",
+    "native/luau-parser/vendor/tree-sitter-luau/src/tree_sitter/parser.h": "a1f6ef161fbaf48a0e10fca90ef5290a062462b307b3898aa562993853b9f80a",
+    "native/luau-parser/vendor/tree-sitter/LICENSE": "d39420a108609f487bece31800015cccabdb531fee4d543d66595459b3812d9a",
+    "native/luau-parser/vendor/tree-sitter/include/tree_sitter/api.h": "937c5389713f99318ac7adbdb3a95e9976bbd211e35e37ed5df878f29aa86c30",
+    "native/luau-parser/vendor/tree-sitter/src/alloc.c": "c7d15b9015568f439af4adf28ead9e2bd14901221819276727c11227a29576da",
+    "native/luau-parser/vendor/tree-sitter/src/alloc.h": "2ad7cc5391be8043ffdcc111b9b21b7767f592790fc8389acb6fcee7fd1acb61",
+    "native/luau-parser/vendor/tree-sitter/src/array.h": "2ee1350009660a2dd5d116f9e9644d280f1703ef1c7b460d9d46a7f3dee1c816",
+    "native/luau-parser/vendor/tree-sitter/src/atomic.h": "bbc630cb913ac64274ce4412bc9d504174220323993f306ded74abe502867e74",
+    "native/luau-parser/vendor/tree-sitter/src/clock.h": "abd8fa83a805900f8e03b8b2b1abd47f9c7b8252f4401485c060348c407f5448",
+    "native/luau-parser/vendor/tree-sitter/src/error_costs.h": "0e8d1a21e0d60981e762989108231df6610d95591892f631c6c78a9ef831a2ab",
+    "native/luau-parser/vendor/tree-sitter/src/get_changed_ranges.c": "d9095e0f36cebe4e6d29ec9cd1b53416968dc7424058ce019fb8242c3b7e3203",
+    "native/luau-parser/vendor/tree-sitter/src/get_changed_ranges.h": "f394bd0b6fce006be460fd16cbea3cc96e248c810a4d97e8830463c29c85e4a5",
+    "native/luau-parser/vendor/tree-sitter/src/host.h": "e1982b9795b9c52b5ab564d8b9876189d65a97ca02f78351e1740b0985992fd2",
+    "native/luau-parser/vendor/tree-sitter/src/language.c": "52bc642d7a5e944c30daa9e4e5a78150105ebde5bde90167adb64b8928bbe37d",
+    "native/luau-parser/vendor/tree-sitter/src/language.h": "56e32fb53672609be6e8bfa7e6d0f92ef463fd53d2be910d169a07ee5f03df1b",
+    "native/luau-parser/vendor/tree-sitter/src/length.h": "7fc186fb4bf50233059e8be9ca68efe95e66d34ced4b8a8f38f14497352faeb1",
+    "native/luau-parser/vendor/tree-sitter/src/lexer.c": "56a418eb47351b85d8f73729fa756765e2d9b3c6873d6be8f240a2e7fad22431",
+    "native/luau-parser/vendor/tree-sitter/src/lexer.h": "7d76308f7a2d3246a3e28fb27698be928f848130d1bfacc39f9f623127671b74",
+    "native/luau-parser/vendor/tree-sitter/src/lib.c": "6bca070a6a70740c8e8af244af8a7311dbea09fbb60372376f5260facaf785f0",
+    "native/luau-parser/vendor/tree-sitter/src/node.c": "bfe9c7867881142600ad48570ef345dbb2b25319e61e1e08c7a15cc519dcb6a6",
+    "native/luau-parser/vendor/tree-sitter/src/parser.c": "280da7a951dd13f45a6bb97f8629c28398a77dd2936a44b239b10bc89ce2eafd",
+    "native/luau-parser/vendor/tree-sitter/src/parser.h": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2",
+    "native/luau-parser/vendor/tree-sitter/src/point.h": "0929027be2ff54627be560f3bafc1af59e81ac6d5a8d5864455601a0dbee50ff",
+    "native/luau-parser/vendor/tree-sitter/src/portable/endian.h": "0c54a3b28461d59fad2f199e355bb2c8c8f22bdeffe62b21f77881c521b276b2",
+    "native/luau-parser/vendor/tree-sitter/src/query.c": "8febd1af580ad500e70b9808a479bca205dfb9e7787ffe12ab3002928254bd21",
+    "native/luau-parser/vendor/tree-sitter/src/reduce_action.h": "8f40396e431d7ff558694ca248eed1332b6cf6f7e6255f06cddfde78020bd308",
+    "native/luau-parser/vendor/tree-sitter/src/reusable_node.h": "10be747ea4c733ca181dc43d55d155ac8e5b8caa247079621cca0ce633347bfb",
+    "native/luau-parser/vendor/tree-sitter/src/stack.c": "6c82df33cdf4bd197e9ec83334ae64d5c40a6692806fa01331a5dda4913979c6",
+    "native/luau-parser/vendor/tree-sitter/src/stack.h": "13a2fb028036cf889fa92d55c3d7c0b57ba368a274f20a1961e695207cf3b91c",
+    "native/luau-parser/vendor/tree-sitter/src/subtree.c": "d64b107feeb5aafbac42a4ee13fa8ce385740bbe776b635ae74521f8cab5b864",
+    "native/luau-parser/vendor/tree-sitter/src/subtree.h": "9380a9984a3a071d6a32ed05f7fad8b8853afa991f0a36cc29ccb90f1e3a1a0f",
+    "native/luau-parser/vendor/tree-sitter/src/tree.c": "ef55fd2d34daad7e43605ba0469f6c67a9afb31963077e9c73f2fb0478e254bb",
+    "native/luau-parser/vendor/tree-sitter/src/tree.h": "60591fb35ca078a8bb323004ece0377ac4f4c6cdbd3c4473af6e2b97186e024b",
+    "native/luau-parser/vendor/tree-sitter/src/tree_cursor.c": "226a7df588cbfcb69b0ef69c1afaec58e2194d9fb495f8601d25a4d90c20035e",
+    "native/luau-parser/vendor/tree-sitter/src/tree_cursor.h": "3e8d9671ab1397bcaeb3e0cbf153a61a99e214782b43c09e5cde5a01e8283a1a",
+    "native/luau-parser/vendor/tree-sitter/src/ts_assert.h": "ac1ec4b7ba388a9d8708feeb6c5c766b2927cecfd6db644b939772e1dc086526",
+    "native/luau-parser/vendor/tree-sitter/src/unicode.h": "6cf0ec5a54e72644e506cca20b854dc7c49249cb1cff0d806635a10c8efba340",
+    "native/luau-parser/vendor/tree-sitter/src/unicode/ICU_SHA": "2879b4cf5a2c625c6509c26e341b9c8b0c50fde284113b449e00567bdf4e593c",
+    "native/luau-parser/vendor/tree-sitter/src/unicode/LICENSE": "6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d",
+    "native/luau-parser/vendor/tree-sitter/src/unicode/ptypes.h": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69",
+    "native/luau-parser/vendor/tree-sitter/src/unicode/umachine.h": "2d79c0903d9e73e247b948bc0a12b6a785257ca0273bddab56fb59561f8d7391",
+    "native/luau-parser/vendor/tree-sitter/src/unicode/urename.h": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69",
+    "native/luau-parser/vendor/tree-sitter/src/unicode/utf.h": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69",
+    "native/luau-parser/vendor/tree-sitter/src/unicode/utf16.h": "c370d9069f37fad2b53981c06dc648bbc21923db1655517a31bb237df4fba041",
+    "native/luau-parser/vendor/tree-sitter/src/unicode/utf8.h": "39651224b2ca2452359c7f3339f3cc0a841fe7db64f8a00c9c5ec19c0389645c",
+    "native/luau-parser/vendor/tree-sitter/src/wasm_store.c": "1e737648689763de0294acc753ba22166365a8786a900d846856887aabd7772c",
+    "native/luau-parser/vendor/tree-sitter/src/wasm_store.h": "4f70d0500b0775e5d862a8e7d191b3853d73378c65e020e01767838a18debe0e",
+    "native/luau-parser/worker.c": "af470f3bdea8cf3533ef77a6aff426f5dc646f93257f6a3799b6a16bf87a8554",
+    "tools/native-parser.mjs": "cfb75ec38bd4ac97050ed1a7e6fae00575cc8021fdd801485043828c542d0d5d"
+  },
+  "provenance": {
+    "schema": 1,
+    "parser": {
+      "runtime": "tree-sitter",
+      "runtimeVersion": "0.25.0",
+      "grammar": "tree-sitter-luau",
+      "grammarVersion": "1.2.0"
+    },
+    "grammarAbi": 14,
+    "derivation": "Unmodified C runtime and generated grammar/scanner from SHA512-verified published npm archives. Only C/header/Unicode and license inputs are vendored; no npm native addon, install script, WASM engine or source execution is used. The Luau grammar derives from the MIT-licensed tree-sitter-lua grammar; its notice is retained separately.",
+    "packages": {
+      "tree-sitter": {
+        "version": "0.25.0",
+        "tarball": "https://registry.npmjs.org/tree-sitter/-/tree-sitter-0.25.0.tgz",
+        "integrity": "sha512-PGZZzFW63eElZJDe/b/R/LbsjDDYJa5UEjLZJB59RQsMX+fo0j54fqBPn1MGKav/QNa0JR0zBiVaikYDWCj5KQ==",
+        "archiveBytes": 179372
+      },
+      "tree-sitter-luau": {
+        "version": "1.2.0",
+        "tarball": "https://registry.npmjs.org/tree-sitter-luau/-/tree-sitter-luau-1.2.0.tgz",
+        "integrity": "sha512-2LBeROsknOCLzryCFyqTgZ6AXiEl4U0/f32ILn7BQWCPABVtNwNh9U+MDnSUrGJRNvFicrfh+KcVRyKtG0ZEuQ==",
+        "archiveBytes": 378988
+      }
+    },
+    "files": {
+      "vendor/tree-sitter-luau/LICENSE": {
+        "package": "tree-sitter-luau",
+        "archivePath": "package/LICENSE",
+        "bytes": 1101,
+        "sha256": "099c44248f8cf353123211318680e93465587c005a4b3730ce8cb5334de043d6"
+      },
+      "vendor/tree-sitter-luau/src/parser.c": {
+        "package": "tree-sitter-luau",
+        "archivePath": "package/src/parser.c",
+        "bytes": 674031,
+        "sha256": "8f25bc1779400fa93d5492310e291fb895363ec051d44753444e724e99a08250"
+      },
+      "vendor/tree-sitter-luau/src/scanner.c": {
+        "package": "tree-sitter-luau",
+        "archivePath": "package/src/scanner.c",
+        "bytes": 6082,
+        "sha256": "a157bb5210454add058a08ce53eabcccad41aab6dac7006def2554e5cfebd376"
+      },
+      "vendor/tree-sitter-luau/src/tree_sitter/alloc.h": {
+        "package": "tree-sitter-luau",
+        "archivePath": "package/src/tree_sitter/alloc.h",
+        "bytes": 985,
+        "sha256": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea"
+      },
+      "vendor/tree-sitter-luau/src/tree_sitter/array.h": {
+        "package": "tree-sitter-luau",
+        "archivePath": "package/src/tree_sitter/array.h",
+        "bytes": 10431,
+        "sha256": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94"
+      },
+      "vendor/tree-sitter-luau/src/tree_sitter/parser.h": {
+        "package": "tree-sitter-luau",
+        "archivePath": "package/src/tree_sitter/parser.h",
+        "bytes": 7039,
+        "sha256": "a1f6ef161fbaf48a0e10fca90ef5290a062462b307b3898aa562993853b9f80a"
+      },
+      "vendor/tree-sitter/include/tree_sitter/api.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/include/tree_sitter/api.h",
+        "bytes": 47452,
+        "sha256": "937c5389713f99318ac7adbdb3a95e9976bbd211e35e37ed5df878f29aa86c30"
+      },
+      "vendor/tree-sitter/LICENSE": {
+        "package": "tree-sitter",
+        "archivePath": "package/LICENSE",
+        "bytes": 1078,
+        "sha256": "d39420a108609f487bece31800015cccabdb531fee4d543d66595459b3812d9a"
+      },
+      "vendor/tree-sitter/src/alloc.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/alloc.c",
+        "bytes": 1542,
+        "sha256": "c7d15b9015568f439af4adf28ead9e2bd14901221819276727c11227a29576da"
+      },
+      "vendor/tree-sitter/src/alloc.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/alloc.h",
+        "bytes": 919,
+        "sha256": "2ad7cc5391be8043ffdcc111b9b21b7767f592790fc8389acb6fcee7fd1acb61"
+      },
+      "vendor/tree-sitter/src/array.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/array.h",
+        "bytes": 10445,
+        "sha256": "2ee1350009660a2dd5d116f9e9644d280f1703ef1c7b460d9d46a7f3dee1c816"
+      },
+      "vendor/tree-sitter/src/atomic.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/atomic.h",
+        "bytes": 1384,
+        "sha256": "bbc630cb913ac64274ce4412bc9d504174220323993f306ded74abe502867e74"
+      },
+      "vendor/tree-sitter/src/clock.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/clock.h",
+        "bytes": 3543,
+        "sha256": "abd8fa83a805900f8e03b8b2b1abd47f9c7b8252f4401485c060348c407f5448"
+      },
+      "vendor/tree-sitter/src/error_costs.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/error_costs.h",
+        "bytes": 294,
+        "sha256": "0e8d1a21e0d60981e762989108231df6610d95591892f631c6c78a9ef831a2ab"
+      },
+      "vendor/tree-sitter/src/get_changed_ranges.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/get_changed_ranges.c",
+        "bytes": 16537,
+        "sha256": "d9095e0f36cebe4e6d29ec9cd1b53416968dc7424058ce019fb8242c3b7e3203"
+      },
+      "vendor/tree-sitter/src/get_changed_ranges.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/get_changed_ranges.h",
+        "bytes": 836,
+        "sha256": "f394bd0b6fce006be460fd16cbea3cc96e248c810a4d97e8830463c29c85e4a5"
+      },
+      "vendor/tree-sitter/src/host.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/host.h",
+        "bytes": 520,
+        "sha256": "e1982b9795b9c52b5ab564d8b9876189d65a97ca02f78351e1740b0985992fd2"
+      },
+      "vendor/tree-sitter/src/language.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/language.c",
+        "bytes": 8514,
+        "sha256": "52bc642d7a5e944c30daa9e4e5a78150105ebde5bde90167adb64b8928bbe37d"
+      },
+      "vendor/tree-sitter/src/language.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/language.h",
+        "bytes": 8339,
+        "sha256": "56e32fb53672609be6e8bfa7e6d0f92ef463fd53d2be910d169a07ee5f03df1b"
+      },
+      "vendor/tree-sitter/src/length.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/length.h",
+        "bytes": 1275,
+        "sha256": "7fc186fb4bf50233059e8be9ca68efe95e66d34ced4b8a8f38f14497352faeb1"
+      },
+      "vendor/tree-sitter/src/lexer.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/lexer.c",
+        "bytes": 15124,
+        "sha256": "56a418eb47351b85d8f73729fa756765e2d9b3c6873d6be8f240a2e7fad22431"
+      },
+      "vendor/tree-sitter/src/lexer.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/lexer.h",
+        "bytes": 1263,
+        "sha256": "7d76308f7a2d3246a3e28fb27698be928f848130d1bfacc39f9f623127671b74"
+      },
+      "vendor/tree-sitter/src/lib.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/lib.c",
+        "bytes": 280,
+        "sha256": "6bca070a6a70740c8e8af244af8a7311dbea09fbb60372376f5260facaf785f0"
+      },
+      "vendor/tree-sitter/src/node.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/node.c",
+        "bytes": 25429,
+        "sha256": "bfe9c7867881142600ad48570ef345dbb2b25319e61e1e08c7a15cc519dcb6a6"
+      },
+      "vendor/tree-sitter/src/parser.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/parser.c",
+        "bytes": 78856,
+        "sha256": "280da7a951dd13f45a6bb97f8629c28398a77dd2936a44b239b10bc89ce2eafd"
+      },
+      "vendor/tree-sitter/src/parser.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/parser.h",
+        "bytes": 7624,
+        "sha256": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2"
+      },
+      "vendor/tree-sitter/src/point.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/point.h",
+        "bytes": 1307,
+        "sha256": "0929027be2ff54627be560f3bafc1af59e81ac6d5a8d5864455601a0dbee50ff"
+      },
+      "vendor/tree-sitter/src/portable/endian.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/portable/endian.h",
+        "bytes": 6801,
+        "sha256": "0c54a3b28461d59fad2f199e355bb2c8c8f22bdeffe62b21f77881c521b276b2"
+      },
+      "vendor/tree-sitter/src/query.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/query.c",
+        "bytes": 149211,
+        "sha256": "8febd1af580ad500e70b9808a479bca205dfb9e7787ffe12ab3002928254bd21"
+      },
+      "vendor/tree-sitter/src/reduce_action.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/reduce_action.h",
+        "bytes": 772,
+        "sha256": "8f40396e431d7ff558694ca248eed1332b6cf6f7e6255f06cddfde78020bd308"
+      },
+      "vendor/tree-sitter/src/reusable_node.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/reusable_node.h",
+        "bytes": 2747,
+        "sha256": "10be747ea4c733ca181dc43d55d155ac8e5b8caa247079621cca0ce633347bfb"
+      },
+      "vendor/tree-sitter/src/stack.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/stack.c",
+        "bytes": 28493,
+        "sha256": "6c82df33cdf4bd197e9ec83334ae64d5c40a6692806fa01331a5dda4913979c6"
+      },
+      "vendor/tree-sitter/src/stack.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/stack.h",
+        "bytes": 4872,
+        "sha256": "13a2fb028036cf889fa92d55c3d7c0b57ba368a274f20a1961e695207cf3b91c"
+      },
+      "vendor/tree-sitter/src/subtree.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/subtree.c",
+        "bytes": 34522,
+        "sha256": "d64b107feeb5aafbac42a4ee13fa8ce385740bbe776b635ae74521f8cab5b864"
+      },
+      "vendor/tree-sitter/src/subtree.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/subtree.h",
+        "bytes": 12518,
+        "sha256": "9380a9984a3a071d6a32ed05f7fad8b8853afa991f0a36cc29ccb90f1e3a1a0f"
+      },
+      "vendor/tree-sitter/src/tree_cursor.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/tree_cursor.c",
+        "bytes": 22933,
+        "sha256": "226a7df588cbfcb69b0ef69c1afaec58e2194d9fb495f8601d25a4d90c20035e"
+      },
+      "vendor/tree-sitter/src/tree_cursor.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/tree_cursor.h",
+        "bytes": 1285,
+        "sha256": "3e8d9671ab1397bcaeb3e0cbf153a61a99e214782b43c09e5cde5a01e8283a1a"
+      },
+      "vendor/tree-sitter/src/tree.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/tree.c",
+        "bytes": 5272,
+        "sha256": "ef55fd2d34daad7e43605ba0469f6c67a9afb31963077e9c73f2fb0478e254bb"
+      },
+      "vendor/tree-sitter/src/tree.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/tree.h",
+        "bytes": 663,
+        "sha256": "60591fb35ca078a8bb323004ece0377ac4f4c6cdbd3c4473af6e2b97186e024b"
+      },
+      "vendor/tree-sitter/src/ts_assert.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/ts_assert.h",
+        "bytes": 205,
+        "sha256": "ac1ec4b7ba388a9d8708feeb6c5c766b2927cecfd6db644b939772e1dc086526"
+      },
+      "vendor/tree-sitter/src/unicode.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode.h",
+        "bytes": 1634,
+        "sha256": "6cf0ec5a54e72644e506cca20b854dc7c49249cb1cff0d806635a10c8efba340"
+      },
+      "vendor/tree-sitter/src/unicode/ICU_SHA": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode/ICU_SHA",
+        "bytes": 41,
+        "sha256": "2879b4cf5a2c625c6509c26e341b9c8b0c50fde284113b449e00567bdf4e593c"
+      },
+      "vendor/tree-sitter/src/unicode/LICENSE": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode/LICENSE",
+        "bytes": 21001,
+        "sha256": "6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d"
+      },
+      "vendor/tree-sitter/src/unicode/ptypes.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode/ptypes.h",
+        "bytes": 72,
+        "sha256": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69"
+      },
+      "vendor/tree-sitter/src/unicode/umachine.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode/umachine.h",
+        "bytes": 14865,
+        "sha256": "2d79c0903d9e73e247b948bc0a12b6a785257ca0273bddab56fb59561f8d7391"
+      },
+      "vendor/tree-sitter/src/unicode/urename.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode/urename.h",
+        "bytes": 72,
+        "sha256": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69"
+      },
+      "vendor/tree-sitter/src/unicode/utf.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode/utf.h",
+        "bytes": 72,
+        "sha256": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69"
+      },
+      "vendor/tree-sitter/src/unicode/utf16.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode/utf16.h",
+        "bytes": 23878,
+        "sha256": "c370d9069f37fad2b53981c06dc648bbc21923db1655517a31bb237df4fba041"
+      },
+      "vendor/tree-sitter/src/unicode/utf8.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/unicode/utf8.h",
+        "bytes": 31698,
+        "sha256": "39651224b2ca2452359c7f3339f3cc0a841fe7db64f8a00c9c5ec19c0389645c"
+      },
+      "vendor/tree-sitter/src/wasm_store.c": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/wasm_store.c",
+        "bytes": 62248,
+        "sha256": "1e737648689763de0294acc753ba22166365a8786a900d846856887aabd7772c"
+      },
+      "vendor/tree-sitter/src/wasm_store.h": {
+        "package": "tree-sitter",
+        "archivePath": "package/vendor/tree-sitter/lib/src/wasm_store.h",
+        "bytes": 1137,
+        "sha256": "4f70d0500b0775e5d862a8e7d191b3853d73378c65e020e01767838a18debe0e"
+      }
+    }
+  },
+  "build": {
+    "zigVersion": "0.14.1",
+    "archive": "https://ziglang.org/download/0.14.1/zig-x86_64-windows-0.14.1.zip",
+    "archiveBytes": 82229343,
+    "archiveSha256": "554f5378228923ffd558eac35e21af020c73789d87afeabf4bfd16f2e6feed2c",
+    "compilerExecutable": {
+      "bytes": 168132608,
+      "sha256": "1ddf230367e07738c4a769eae66c1db7469e37bd520e81c86356453d0db2b9fd"
+    },
+    "compilerLibrariesSha256": "be6bb3969f2e09beb499e22aefc30081f272d9dd77ff6957ff1f6961f6d420bc",
+    "compilerLibraryFiles": 14669,
+    "target": "x86_64-windows-gnu",
+    "deterministic": true,
+    "symbols": false,
+    "normalizedPeFields": [
+      "IMAGE_FILE_HEADER.TimeDateStamp=0"
+    ],
+    "flags": [
+      "cc",
+      "-target",
+      "x86_64-windows-gnu",
+      "-std=c11",
+      "-O2",
+      "-DNDEBUG",
+      "-ffunction-sections",
+      "-fdata-sections",
+      "-s",
+      "-ffile-prefix-map=<source-root>=/_/src",
+      "-I",
+      "native/luau-parser/vendor/tree-sitter/include",
+      "-I",
+      "native/luau-parser/vendor/tree-sitter/src",
+      "-I",
+      "native/luau-parser/vendor/tree-sitter-luau/src",
+      "native/luau-parser/worker.c",
+      "native/luau-parser/runtime.c",
+      "native/luau-parser/scanner.c",
+      "native/luau-parser/vendor/tree-sitter-luau/src/parser.c"
+    ]
+  },
+  "limits": {
+    "modules": 32,
+    "sourceBytes": 262144,
+    "aggregateSourceBytes": 4194304,
+    "nodes": 200000,
+    "depth": 512,
+    "outputBytes": 8388608,
+    "allocationBytes": 201326592
+  },
+  "protocol": {
+    "input": "PMCPAST1",
+    "schema": 1,
+    "probeInput": "PMCPPRB1",
+    "sourceExecution": false
+  }
+}

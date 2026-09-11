@@ -1,0 +1,86 @@
+name: Windows Setup
+on:
+  pull_request:
+    paths:
+      - "app/PotassiumMcp.Setup/**"
+      - "app/PotassiumMcp.Setup.Tests/**"
+      - "app/PotassiumMcp.Launcher/**"
+      - "app/PotassiumMcp.ParserHost/**"
+      - "potassium-mcp/**"
+      - "tools/windows-release*"
+      - "tools/parser-host.mjs"
+      - "tools/native-parser.mjs"
+      - "native/luau-parser/**"
+      - "tools/release.mjs"
+      - "release-manifest.json"
+      - "version.txt"
+      - "LICENSE"
+      - ".github/workflows/windows-setup.yml"
+  push:
+    branches: [main, master]
+    paths:
+      - "app/PotassiumMcp.Setup/**"
+      - "app/PotassiumMcp.Setup.Tests/**"
+      - "app/PotassiumMcp.Launcher/**"
+      - "app/PotassiumMcp.ParserHost/**"
+      - "potassium-mcp/**"
+      - "tools/windows-release*"
+      - "tools/parser-host.mjs"
+      - "tools/native-parser.mjs"
+      - "native/luau-parser/**"
+      - "tools/release.mjs"
+      - "release-manifest.json"
+      - "version.txt"
+      - "LICENSE"
+      - ".github/workflows/windows-setup.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-setup-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-setup:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22.23.2
+          cache: npm
+          cache-dependency-path: potassium-mcp/package-lock.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.424"
+      - name: Install source-only build dependencies
+        run: npm ci --prefix potassium-mcp --ignore-scripts --no-audit --no-fund
+      - name: Build pinned native Luau parser
+        run: node tools/native-parser.mjs build
+      - name: Build sealed parser isolation host
+        run: node tools/parser-host.mjs build
+      - name: Verify actual parser isolation boundaries
+        run: node --test --test-concurrency=1 potassium-mcp/test/parser-sandbox.test.js
+      - name: Test packaging boundaries
+        run: node --test tools/windows-release.test.mjs
+      - name: Test managed installer and launcher boundaries
+        run: dotnet test app/PotassiumMcp.Setup.Tests/PotassiumMcp.Setup.Tests.csproj --configuration Release --verbosity normal
+      - name: Pack current sanitized npm artifact
+        run: node tools/release.mjs npm-pack
+      - name: Build actual bundled x64 Setup executable and distribution
+        run: node tools/windows-release.mjs build
+      - name: Verify distributed EXE resources and ZIP digests without installing
+        run: node tools/windows-release.mjs check
+      - name: Retain Windows distribution without publishing
+        uses: actions/upload-artifact@v4
+        with:
+          name: potassium-mcp-windows-setup-${{ github.sha }}
+          path: |
+            release-out/windows-setup/Setup.exe
+            release-out/windows-setup/*.zip
+            release-out/windows-setup/*.json
+            release-out/windows-setup/SHA256SUMS.txt
+            release-out/windows-setup/LICENSES/**
+          if-no-files-found: error
+      - name: State qualification boundary
+        run: Write-Output 'Verified actual installer resources and managed boundaries. This workflow does not install, register harnesses, contact a game, sign executables, or publish a release. Interactive GUI installation remains separate qualification.'

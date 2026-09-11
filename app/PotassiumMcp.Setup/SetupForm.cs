@@ -1,207 +1,384 @@
-using System.Diagnostics;
-
 namespace PotassiumMcp.Setup;
 
 public sealed class SetupForm : Form
 {
-    private readonly Dictionary<string, CheckBox> hosts = new(StringComparer.OrdinalIgnoreCase);
-    private readonly RadioButton standard = new() { Text = "Standard setup (recommended)", Checked = true, AutoSize = true };
-    private readonly RadioButton advanced = new() { Text = "Advanced: allow trusted local admin actions", AutoSize = true };
-    private readonly CheckBox consent = new() { Text = "I understand this can let trusted local tools make changes.", AutoSize = true, Visible = false };
-    private readonly Button install = new() { Text = "Install", AutoSize = true };
-    private readonly Button repair = new() { Text = "Repair", AutoSize = true };
-    private readonly Button uninstall = new() { Text = "Uninstall", AutoSize = true };
-    private readonly Button doctor = new() { Text = "Check this PC", AutoSize = true };
-    private readonly Button verify = new() { Text = "Live verify", AutoSize = true };
-    private readonly TextBox workspaceRoot = new() { Width = 470, AccessibleName = "Potassium workspace folder" };
-    private readonly TextBox autoexecRoot = new() { Width = 470, AccessibleName = "Potassium autoexec folder" };
-    private readonly Button browseWorkspace = new() { Text = "Browse workspace…", AutoSize = true };
-    private readonly Button browseAutoexec = new() { Text = "Browse autoexec…", AutoSize = true };
-    private readonly TextBox projectRoot = new() { Width = 470, AccessibleName = "OMP project folder" };
-    private readonly Button browseProject = new() { Text = "Browse project…", AutoSize = true };
-    private readonly Label pathStatus = new() { AutoSize = true, MaximumSize = new Size(640, 0), ForeColor = Color.DimGray, AccessibleName = "Potassium path discovery status" };
-    private readonly TextBox result = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Dock = DockStyle.Fill, MinimumSize = new Size(620, 120), AccessibleName = "Setup results" };
-    private readonly Label restart = new() { AutoSize = true, MaximumSize = new Size(640, 0) };
+    private readonly SetupOptions options;
     private readonly SetupRunner runner = new();
-
-    public SetupForm()
+    private readonly Button install = ActionButton("&Install", "Install Potassium MCP");
+    private readonly Button check = ActionButton("&Check connection", "Check connection");
+    private readonly Button repair = ActionButton("&Repair", "Repair installation");
+    private readonly Button remove = ActionButton("&Remove…", "Remove installation");
+    private readonly Button browseWorkspace = ActionButton("Change &folder…", "Change workspace folder");
+    private readonly Button copyConfiguration = ActionButton("Copy confi&guration", "Copy configuration");
+    private readonly Button copyCommand = ActionButton("Copy co&mmand", "Copy command");
+    private readonly Button copyPath = ActionButton("Copy &path", "Copy configuration file path");
+    private readonly Button close = ActionButton("Close", "Close setup");
+    private readonly LinkLabel maintenance = Link("Maintenance", "Installation maintenance");
+    private readonly LinkLabel showDetails = Link("Show details", "Show operation details");
+    private readonly TextBox workspace = ReadOnlyField("Potassium workspace folder");
+    private readonly TextBox command = ReadOnlyField("Stable MCP command");
+    private readonly TextBox connectionPath = ReadOnlyField("Connection configuration file path");
+    private readonly Label workspaceStatus = Paragraph("", "Workspace discovery status");
+    private readonly Label status = Paragraph("", "Setup status");
+    private readonly Label connectionStatus = Paragraph("", "MCP and executor connection status");
+    private readonly Label warning = Paragraph("", "Setup attention required");
+    private readonly Label copyStatus = Paragraph("", "Clipboard status");
+    private readonly TextBox details = new()
     {
+        Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both, WordWrap = false,
+        Dock = DockStyle.Top, Height = 140, AccessibleName = "Operation details", Visible = false
+    };
+    private readonly TableLayoutPanel maintenancePanel = Column("Maintenance actions");
+    private readonly TableLayoutPanel connectionPanel = Column("Connect an MCP-capable harness");
+    private readonly Panel scroll;
+    private ConnectionInfo? connection;
+    private bool busy;
+    private bool installed;
+
+    public SetupForm(SetupOptions options)
+    {
+        this.options = options;
+        SuspendLayout();
         Text = "Potassium MCP Setup";
-        StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(720, 810);
-        Font = new Font("Segoe UI", 10F);
         AccessibleName = "Potassium MCP Setup";
-        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(28), AutoScroll = true, ColumnCount = 1, RowCount = 1 };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        Controls.Add(layout);
-        Add(layout, new Label { Text = "Connect Potassium MCP", Font = new Font(Font, FontStyle.Bold), AutoSize = true, AccessibleName = "Welcome" });
-        Add(layout, new Label { Text = "This setup connects your AI app to Potassium on this PC. It only uses local setup commands. It does not sign in, send telemetry, or contact an AI provider.", AutoSize = true, MaximumSize = new Size(640, 0) });
-        Add(layout, new Label { Text = "Choose the AI apps you use", Font = new Font(Font, FontStyle.Bold), AutoSize = true });
-        var hostPanel = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, AccessibleName = "Supported AI apps" };
-        foreach (var host in HostCatalog.CommonHosts)
+        StartPosition = FormStartPosition.CenterScreen;
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
+        Font = new Font("Segoe UI", 10F);
+        ClientSize = new Size(740, 590);
+        MinimumSize = new Size(580, 440);
+
+        var shell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        scroll = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = new Padding(24, 20, 24, 8), TabIndex = 0 };
+        var content = Column("Setup and connection");
+        scroll.Controls.Add(content);
+        shell.Controls.Add(scroll, 0, 0);
+        Controls.Add(shell);
+
+        var heading = Paragraph("Install Potassium MCP", "Setup purpose");
+        heading.Font = new Font(Font.FontFamily, 16F, FontStyle.Bold);
+        Add(content, heading);
+        Add(content, Paragraph("Set up one local MCP connection for any MCP-capable harness. No app selection or automatic app configuration is needed.", "Setup introduction"));
+        Add(content, Paragraph("Potassium workspace", "Workspace label"));
+        Add(content, workspace);
+        Add(content, workspaceStatus);
+        Add(content, Row("Workspace actions", browseWorkspace));
+
+        Add(content, Row("Setup actions", install, check, maintenance));
+        Add(maintenancePanel, Row("Maintenance commands", repair, remove));
+        Add(maintenancePanel, Paragraph("Remove deletes only verified app-owned files. Private settings, credentials and artifacts are kept. Remove the MCP entry from your harness yourself.", "Removal information"));
+        maintenancePanel.Visible = false;
+        Add(content, maintenancePanel);
+
+        status.Font = new Font(Font, FontStyle.Bold);
+        Add(content, status);
+        Add(content, warning);
+        Add(content, connectionStatus);
+        Add(connectionPanel, Paragraph("Connect your harness", "Connection instructions heading"));
+        Add(connectionPanel, Paragraph("Copy configuration into your harness’s MCP settings, keeping existing servers. The file below has the same token-free settings. Restart or reload your harness to connect.", "Connection instructions"));
+        Add(connectionPanel, Row("Copy connection information", copyConfiguration, copyCommand, copyPath));
+        Add(connectionPanel, copyStatus);
+        Add(connectionPanel, Paragraph("Command · no arguments", "Command label"));
+        Add(connectionPanel, command);
+        Add(connectionPanel, Paragraph("Configuration file", "Configuration file label"));
+        Add(connectionPanel, connectionPath);
+        connectionPanel.Visible = false;
+        Add(content, connectionPanel);
+        Add(content, showDetails);
+        Add(content, details);
+
+        var footer = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 2, Padding = new Padding(24, 8, 24, 12), TabIndex = 1 };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        var license = Link("Licenses and notices", "Licenses and notices");
+        license.LinkClicked += (_, _) => ShowNotices();
+        footer.Controls.Add(license, 0, 0);
+        footer.Controls.Add(close, 1, 0);
+        close.TabIndex = 1;
+        shell.Controls.Add(footer, 0, 1);
+
+        workspace.Text = options.WorkspaceRoot ?? runner.DiscoverWorkspace() ?? "";
+        workspaceStatus.Text = string.IsNullOrWhiteSpace(workspace.Text)
+            ? "Workspace not found. Choose your existing Potassium workspace with Change folder."
+            : options.WorkspaceRoot is not null ? "Using the workspace supplied to Setup." : "Using the discovered Potassium workspace.";
+        var state = runner.GetInstallationState(options);
+        installed = state.Installed;
+        status.Text = state.Summary;
+        SetConnection(state.Connection);
+        showDetails.Visible = false;
+        warning.Visible = false;
+        connectionStatus.Visible = false;
+
+        maintenance.LinkClicked += (_, _) => TogglePanel(maintenancePanel, maintenance, "Maintenance", "Hide maintenance");
+        showDetails.LinkClicked += (_, _) =>
         {
-            var checkbox = new CheckBox { Text = DisplayHost(host), Tag = host, AutoSize = true, Checked = IsDetected(host), AccessibleName = DisplayHost(host) };
-            hosts.Add(host, checkbox);
-            hostPanel.Controls.Add(checkbox);
-        }
-        Add(layout, hostPanel);
-        Add(layout, new Label { Text = "OMP project", Font = new Font(Font, FontStyle.Bold), AutoSize = true });
-        Add(layout, FolderRow("Project", projectRoot, browseProject));
-        Add(layout, new Label { Text = "Potassium folders", Font = new Font(Font, FontStyle.Bold), AutoSize = true });
-        Add(layout, FolderRow("Workspace", workspaceRoot, browseWorkspace));
-        Add(layout, FolderRow("Autoexec", autoexecRoot, browseAutoexec));
-        Add(layout, pathStatus);
-        Add(layout, new Label { Text = "Access level", Font = new Font(Font, FontStyle.Bold), AutoSize = true });
-        Add(layout, standard);
-        Add(layout, advanced);
-        Add(layout, new Label { Text = "Advanced access is off by default. Turn it on only if you trust the local AI tools that will use Potassium MCP. You can change this later by running setup again.", AutoSize = true, MaximumSize = new Size(640, 0), ForeColor = Color.Maroon });
-        Add(layout, consent);
-        var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, AccessibleName = "Setup actions" };
-        actions.Controls.AddRange([install, repair, uninstall, doctor, verify]);
-        Add(layout, actions);
-        Add(layout, restart);
-        Add(layout, result, fill: true);
-        var footer = new FlowLayoutPanel { AutoSize = true };
-        var license = new LinkLabel { Text = "Potassium license (Apache-2.0)", AutoSize = true };
-        var attribution = new LinkLabel { Text = "Node.js attribution", AutoSize = true };
-        license.Click += (_, _) => ShowText("Potassium MCP license", LegalNotices.ApacheLicense());
-        attribution.Click += (_, _) => ShowText("Node.js attribution", LegalNotices.NodeAttribution);
-        footer.Controls.AddRange([license, attribution]);
-        Add(layout, footer);
-        browseWorkspace.Click += (_, _) => BrowseForFolder(workspaceRoot, "Choose the Potassium workspace folder");
-        browseAutoexec.Click += (_, _) => BrowseForFolder(autoexecRoot, "Choose the Potassium autoexec folder");
-        browseProject.Click += (_, _) => BrowseForFolder(projectRoot, "Choose the OMP project folder");
-        var discovery = PotassiumPathDiscoveryService.Discover(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
-        workspaceRoot.Text = discovery.WorkspaceRoot ?? "";
-        autoexecRoot.Text = discovery.AutoexecRoot ?? "";
-        pathStatus.Text = discovery.Status;
-        advanced.CheckedChanged += (_, _) => { consent.Visible = advanced.Checked; consent.Checked = false; };
+            details.Visible = !details.Visible;
+            showDetails.Text = details.Visible ? "Hide details" : "Show details";
+            if (details.Visible) details.Focus();
+        };
+        browseWorkspace.Click += (_, _) => BrowseWorkspace();
         install.Click += async (_, _) => await ExecuteAsync("install");
+        check.Click += async (_, _) => await ExecuteAsync("check");
         repair.Click += async (_, _) => await ExecuteAsync("repair");
-        uninstall.Click += async (_, _) => await ExecuteAsync("uninstall");
-        doctor.Click += (_, _) => RunStaticDoctor();
-        verify.Click += async (_, _) => await ExecuteAsync("verify");
-        restart.Text = HostCatalog.RestartInstructions(SelectedHosts());
-        foreach (var host in hosts.Values) host.CheckedChanged += (_, _) => restart.Text = HostCatalog.RestartInstructions(SelectedHosts());
+        remove.Click += async (_, _) => await ExecuteAsync("uninstall");
+        copyConfiguration.Click += (_, _) => CopyConnection(connection?.Json, "Configuration copied.");
+        copyCommand.Click += (_, _) => CopyConnection(connection?.Command, "Command copied. Use it without arguments.");
+        copyPath.Click += (_, _) => CopyConnection(connection?.FilePath, "Configuration file path copied.");
+        close.Click += (_, _) => Close();
+        FormClosing += (_, eventArgs) =>
+        {
+            if (!busy) return;
+            eventArgs.Cancel = true;
+            warning.Text = "Please wait for the current operation to finish before closing Setup. No process has been stopped.";
+            warning.Visible = true;
+        };
+        AcceptButton = install;
+        CancelButton = close;
+        UpdateControls();
+        ResumeLayout(true);
     }
 
-    private static void Add(TableLayoutPanel layout, Control control, bool fill = false)
+    private async Task ExecuteAsync(string operation)
     {
-        control.Margin = new Padding(0, 0, 0, 12);
-        layout.RowStyles.Add(new RowStyle(fill ? SizeType.Percent : SizeType.AutoSize, fill ? 100 : 0));
-        layout.Controls.Add(control, 0, layout.RowCount++);
-        if (fill) control.Dock = DockStyle.Fill;
-    }
+        if (busy) return;
+        if (operation is "install" or "repair" && !Directory.Exists(workspace.Text))
+        {
+            workspaceStatus.Text = "Choose an existing Potassium workspace with Change folder before continuing.";
+            browseWorkspace.Focus();
+            UpdateControls();
+            return;
+        }
+        if (operation == "uninstall" && MessageBox.Show(this,
+            "Remove Potassium MCP from this application folder?\n\nPrivate settings, credentials and artifacts will be kept. Close MCP sessions first. Remove the connection from your harness’s settings yourself.",
+            "Remove Potassium MCP", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
 
-    private static FlowLayoutPanel FolderRow(string label, TextBox textBox, Button browse)
-    {
-        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = true, AccessibleName = label + " folder" };
-        row.Controls.AddRange([new Label { Text = label + ":", AutoSize = true, Margin = new Padding(0, 6, 8, 0) }, textBox, browse]);
-        return row;
-    }
-
-    private async Task ExecuteAsync(string command)
-    {
-        var selected = SelectedHosts();
-        if (command is "install" or "repair" && selected.Count == 0)
-        {
-            result.Text = "Choose at least one AI app before continuing.";
-            return;
-        }
-        if (command is "install" or "repair" && (!Directory.Exists(workspaceRoot.Text) || !Directory.Exists(autoexecRoot.Text)))
-        {
-            result.Text = "Choose existing Potassium workspace and autoexec folders before continuing.";
-            return;
-        }
-        if (command is "install" or "repair" && selected.Contains("omp", StringComparer.OrdinalIgnoreCase) && !ProjectDirectory.IsValid(projectRoot.Text))
-        {
-            result.Text = "Choose an existing OMP project folder before continuing.";
-            return;
-        }
-        if (advanced.Checked && !AdminConsent.IsAllowed(true, consent.Checked))
-        {
-            result.Text = "To use advanced access, first confirm that you understand the warning.";
-            consent.Focus();
-            return;
-        }
-        SetBusy(true);
-        result.Text = command == "verify" ? "Checking your installed connection…" : "Working locally…";
+        var revealConnection = false;
+        busy = true;
+        SetConnection(null);
+        warning.Visible = false;
+        connectionStatus.Visible = false;
+        details.Clear();
+        details.Visible = false;
+        showDetails.Text = "Show details";
+        showDetails.Visible = false;
+        status.Text = operation == "check" ? "Checking the installed MCP connection…" : "Working locally. Please keep Setup open…";
+        UpdateControls();
         try
         {
-            var responses = new List<CliResult>();
-            if (command is "install" or "repair")
+            var progress = new Progress<string>(message => status.Text = UserFacingText.Redact(message));
+            var response = await runner.RunAsync(new CliRequest(operation,
+                string.IsNullOrWhiteSpace(workspace.Text) ? null : workspace.Text,
+                options.InstallRoot, options.ApplicationRoot), progress);
+            status.Text = response.Summary;
+            details.Text = response.Details;
+            showDetails.Visible = !string.IsNullOrWhiteSpace(response.Details);
+            var notices = new List<string>();
+            if (response.CleanupPending)
+                notices.Add("Cleanup is pending. Some files may still be in use. Close MCP sessions, then retry the operation; see details before making further changes.");
+            if (response.RestartRequired)
+                notices.Add("Restart or reload your MCP harness before using the connection again. Follow any additional restart instructions in the details.");
+            warning.Text = string.Join(Environment.NewLine, notices);
+            warning.Visible = notices.Count > 0;
+            if (operation == "check")
             {
-                var allowUnsafeExecute = AdminConsent.IsAllowed(advanced.Checked, consent.Checked);
-                var userHosts = selected.Where(host => !string.Equals(host, "omp", StringComparison.OrdinalIgnoreCase)).ToArray();
-                if (userHosts.Length > 0)
-                    responses.Add(await RunRequestAsync(new CliRequest(command, userHosts, "user", "bundled-package.tgz", allowUnsafeExecute, workspaceRoot.Text, autoexecRoot.Text)));
-                if (selected.Contains("omp", StringComparer.OrdinalIgnoreCase))
-                    responses.Add(await RunRequestAsync(new CliRequest(command, ["omp"], "project", "bundled-package.tgz", allowUnsafeExecute, workspaceRoot.Text, autoexecRoot.Text, projectRoot.Text)));
+                connectionStatus.Text = $"MCP connection: {ConnectionState(response.McpConnected)}.  Potassium executor: {ExecutorState(response.ExecutorConnected)}.";
+                connectionStatus.Visible = true;
             }
-            else
+            if (response.Ok && !response.CleanupPending)
             {
-                responses.Add(await RunRequestAsync(new CliRequest(command, Array.Empty<string>(), "", "")));
+                if (operation == "uninstall") installed = false;
+                else if (operation is "install" or "repair") installed = true;
+                SetConnection(operation == "uninstall" ? null : response.Connection);
+                if (operation is "install" or "repair" && response.Connection is not null)
+                {
+                    maintenancePanel.Visible = false;
+                    maintenance.Text = "Maintenance";
+                    revealConnection = true;
+                }
             }
-            var response = CliResults.Combine(responses);
-            result.Text = response.Summary + Environment.NewLine + Environment.NewLine + response.Details;
+            if (!response.Ok && showDetails.Visible)
+            {
+                details.Visible = true;
+                showDetails.Text = "Hide details";
+            }
         }
         catch (Exception exception)
         {
-            result.Text = "Setup could not finish." + Environment.NewLine + Environment.NewLine + UserFacingText.Redact(exception.Message);
+            status.Text = "Setup could not finish. No successful outcome has been confirmed.";
+            details.Text = UserFacingText.Redact(exception.Message);
+            details.Visible = true;
+            showDetails.Visible = true;
+            showDetails.Text = "Hide details";
         }
-        finally { SetBusy(false); }
+        finally
+        {
+            busy = false;
+            UpdateControls();
+            if (revealConnection)
+            {
+                scroll.ScrollControlIntoView(status);
+                copyConfiguration.Focus();
+                scroll.ScrollControlIntoView(copyConfiguration);
+            }
+        }
     }
 
-    private async Task<CliResult> RunRequestAsync(CliRequest request)
+    private void BrowseWorkspace()
     {
-        try
+        using var dialog = new FolderBrowserDialog
         {
-            return await runner.RunAsync(request);
-        }
-        catch (Exception exception)
-        {
-            return new CliResult(false, "Setup could not finish.", UserFacingText.Redact(exception.Message));
-        }
+            Description = "Choose your existing Potassium workspace", UseDescriptionForTitle = true,
+            ShowNewFolderButton = false, SelectedPath = Directory.Exists(workspace.Text) ? workspace.Text : ""
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        workspace.Text = dialog.SelectedPath;
+        workspaceStatus.Text = "Using the selected workspace. Install or Repair applies this folder.";
+        SetConnection(null);
+        connectionStatus.Visible = false;
+        UpdateControls();
     }
 
-    private List<string> SelectedHosts() => hosts.Where(pair => pair.Value.Checked).Select(pair => pair.Key).ToList();
-    private void SetBusy(bool busy)
+    private void SetConnection(ConnectionInfo? value)
     {
+        connection = value;
+        command.Text = value?.Command ?? "";
+        connectionPath.Text = value?.FilePath ?? "";
+        connectionPanel.Visible = value is not null;
+        copyStatus.Text = "";
+        copyStatus.Visible = false;
+    }
+
+    private void UpdateControls()
+    {
+        var validWorkspace = Directory.Exists(workspace.Text);
+        install.Text = installed ? "&Update" : "&Install";
+        install.AccessibleName = installed ? "Update Potassium MCP" : "Install Potassium MCP";
+        install.Enabled = !busy && validWorkspace;
+        repair.Enabled = !busy && validWorkspace;
+        check.Enabled = !busy && Directory.Exists(options.ApplicationRoot);
+        remove.Enabled = !busy && Directory.Exists(options.ApplicationRoot);
+        maintenance.Enabled = !busy;
+        browseWorkspace.Enabled = !busy;
+        close.Enabled = !busy;
+        copyConfiguration.Enabled = !busy && connection is not null && !string.IsNullOrWhiteSpace(connection.Json);
+        copyCommand.Enabled = !busy && connection is not null && !string.IsNullOrWhiteSpace(connection.Command);
+        copyPath.Enabled = !busy && connection is not null && !string.IsNullOrWhiteSpace(connection.FilePath);
         UseWaitCursor = busy;
-        foreach (var button in new[] { install, repair, uninstall, doctor, verify, browseWorkspace, browseAutoexec, browseProject }) button.Enabled = !busy;
     }
-    private void BrowseForFolder(TextBox target, string title)
+
+    private void CopyConnection(string? value, string confirmation)
     {
-        using var dialog = new FolderBrowserDialog { Description = title, UseDescriptionForTitle = true, SelectedPath = Directory.Exists(target.Text) ? target.Text : "" };
-        if (dialog.ShowDialog(this) == DialogResult.OK)
+        if (busy || connection is null || string.IsNullOrWhiteSpace(value)) return;
+        try
         {
-            target.Text = dialog.SelectedPath;
-            pathStatus.Text = "Using the folders you selected.";
+            Clipboard.SetText(value);
+            copyStatus.Text = confirmation;
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            copyStatus.Text = "The clipboard is busy. Try copying again.";
+        }
+        copyStatus.Visible = true;
+    }
+
+    private void ShowNotices()
+    {
+        try
+        {
+            using var dialog = new Form
+            {
+                Text = "Licenses and notices", AccessibleName = "Licenses and notices",
+                StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(640, 440),
+                MinimumSize = new Size(400, 300), Font = Font, AutoScaleMode = AutoScaleMode.Dpi,
+                MinimizeBox = false, ShowInTaskbar = false
+            };
+            var contents = new TextBox
+            {
+                Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical,
+                Text = LegalNotices.ApacheLicense() + Environment.NewLine + Environment.NewLine + LegalNotices.NodeAttribution,
+                AccessibleName = "License and attribution text", TabIndex = 0
+            };
+            var dismiss = ActionButton("Close", "Close licenses and notices");
+            dismiss.Dock = DockStyle.Bottom;
+            dismiss.DialogResult = DialogResult.OK;
+            dismiss.TabIndex = 1;
+            dialog.Controls.Add(contents);
+            dialog.Controls.Add(dismiss);
+            dialog.CancelButton = dismiss;
+            dialog.ShowDialog(this);
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, UserFacingText.Redact(exception.Message), "Notices unavailable", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
-    private static void ShowText(string title, string text)
+
+    private static string ConnectionState(bool? connected) => connected switch { true => "connected", false => "not connected", null => "not confirmed" };
+    private static string ExecutorState(bool? connected) => connected switch { true => "attached", false => "not attached", null => "not confirmed" };
+
+    private static void TogglePanel(Control panel, LinkLabel link, string collapsed, string expanded)
     {
-        using var dialog = new Form { Text = title, StartPosition = FormStartPosition.CenterParent, Size = new Size(700, 560), MinimizeBox = false, MaximizeBox = false };
-        var contents = new TextBox { Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Text = text, AccessibleName = title };
-        dialog.Controls.Add(contents);
-        dialog.ShowDialog();
+        panel.Visible = !panel.Visible;
+        link.Text = panel.Visible ? expanded : collapsed;
     }
-    private static string DisplayHost(string host) => host switch { "claude-code" => "Claude Code", "claude-desktop" => "Claude Desktop", "vscode" => "VS Code", "omp" => "OMP", _ => char.ToUpperInvariant(host[0]) + host[1..] };
-    private static bool IsDetected(string host) => host switch
+
+    private static Button ActionButton(string text, string name) => new()
     {
-        "claude-desktop" => File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Claude", "claude_desktop_config.json")),
-        "cursor" => Directory.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Cursor")),
-        "vscode" => Directory.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Code")),
-        _ => false
+        Text = text, AccessibleName = name, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        MinimumSize = new Size(88, 30), Padding = new Padding(8, 2, 8, 2), UseVisualStyleBackColor = true
     };
 
-    private void RunStaticDoctor()
+    private static LinkLabel Link(string text, string name) => new()
     {
-        var detected = hosts.Where(pair => IsDetected(pair.Key)).Select(pair => DisplayHost(pair.Key)).ToArray();
-        var selected = SelectedHosts();
-        result.Text = "This PC check does not contact a service." + Environment.NewLine + Environment.NewLine +
-            (detected.Length == 0 ? "No supported AI app was detected automatically. You can still choose one from the list above." : "Detected: " + string.Join(", ", detected) + ".") +
-            Environment.NewLine + (selected.Count == 0 ? "No app is selected yet." : "Selected: " + string.Join(", ", selected) + ".") +
-            Environment.NewLine + "Use Live verify after installation to check the local MCP connection.";
+        Text = text, AccessibleName = name, AutoSize = true, TabStop = true, Anchor = AnchorStyles.Left,
+        Margin = new Padding(0, 6, 12, 6)
+    };
+
+    private static TextBox ReadOnlyField(string name) => new()
+    {
+        ReadOnly = true, AccessibleName = name, Dock = DockStyle.Top
+    };
+
+    private static Label Paragraph(string text, string name) => new()
+    {
+        Text = text, AccessibleName = name, AutoSize = true, Dock = DockStyle.Top,
+        UseMnemonic = false, Margin = new Padding(0, 0, 0, 8)
+    };
+
+    private static TableLayoutPanel Column(string name)
+    {
+        var panel = new TableLayoutPanel
+        {
+            AccessibleName = name, Dock = DockStyle.Top, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1, RowCount = 0,
+            Margin = Padding.Empty, TabStop = false
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        return panel;
+    }
+
+    private static void Add(TableLayoutPanel panel, Control control)
+    {
+        control.TabIndex = panel.RowCount;
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.Controls.Add(control, 0, panel.RowCount++);
+    }
+
+    private static FlowLayoutPanel Row(string name, params Control[] controls)
+    {
+        var row = new FlowLayoutPanel
+        {
+            AccessibleName = name, Dock = DockStyle.Top, AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink, WrapContents = true, Margin = new Padding(0, 4, 0, 8), TabStop = false
+        };
+        for (var index = 0; index < controls.Length; index++)
+        {
+            controls[index].TabIndex = index;
+            row.Controls.Add(controls[index]);
+        }
+        return row;
     }
 }

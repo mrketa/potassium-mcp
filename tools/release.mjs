@@ -1,248 +1,242 @@
-#!/usr/bin/env node
-/**
- * Deterministic release assembly and policy gates. This file intentionally has
- * no third-party dependencies so the release process can audit itself.
- */
-import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import {
-  copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync,
-  rmSync, statSync, writeFileSync
-} from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
-import process from 'node:process';
+import { createHash } from "node:crypto";
+import { cp, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+import { fileURLToPath } from "node:url";
+import { distTagForVersion, runNpm, validateNpmArtifact } from "../potassium-mcp/release-publish.js";
+import { PARSER_HOST_FILES, verifyParserHost } from "./parser-host.mjs";
+import { NATIVE_PARSER_FILES, verifyNativeParser } from "./native-parser.mjs";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const out = resolve(process.env.RELEASE_OUT ?? join(root, 'release-out'));
-const appAssets = resolve(root, 'app', 'PotassiumMcp.Setup', 'assets');
-const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-const version = packageJson.version;
-const packageName = packageJson.name;
-const npmPaths = new Set([
-  'AI-GUIDE.md', 'ADVANCED.md', 'LICENSE', 'README.md', 'SECURITY.md',
-  'config.example.json', 'package.json'
-]);
-const npmPrefixes = ['assets/', 'bin/', 'src/'];
-const forbiddenPathParts = ['test/', 'tests/', 'tools/', '.github/', 'node_modules/', 'workspace/', 'private/'];
-const forbiddenText = [
-  /autofarm/i, /oh\s*my\s*pi/i, /anthropic[_ -]?api[_ -]?key/i,
-  /openai[_ -]?api[_ -]?key/i, /google[_ -]?api[_ -]?key/i,
-  /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
-  /(?:npm|github|ghp|github_pat)_[A-Za-z0-9_\-]{20,}/,
-  /AKIA[0-9A-Z]{16}/
-];
+const here = path.dirname(fileURLToPath(import.meta.url));
+export const projectRoot = path.resolve(here, "..");
 
-function fail(message) { throw new Error(message); }
-function sha256(path) { return createHash('sha256').update(readFileSync(path)).digest('hex'); }
-function json(path, value) { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`); }
-function run(command, args, options = {}) {
-  return execFileSync(command, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options });
+export function portableRelative(from, target) {
+  const relative = path.relative(from, target);
+  if (!relative || path.isAbsolute(relative) || relative.split(path.sep).includes("..")) throw new Error(`Path escapes its base: ${target}`);
+  return relative.split(path.sep).join("/");
 }
-function runNpm(args, options = {}) {
-  const candidates = [
-    process.env.npm_execpath,
-    join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js'),
-    join(dirname(dirname(process.execPath)), 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
-  ].filter(Boolean);
-  const npmCli = candidates.find((candidate) => existsSync(candidate));
-  if (!npmCli) fail('could not locate the npm CLI used by this Node installation');
-  return run(process.execPath, [npmCli, ...args], options);
-}
-function walk(directory) {
-  if (!existsSync(directory)) return [];
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    const path = join(directory, entry.name);
-    return entry.isDirectory() ? walk(path) : [path];
-  });
-}
-function safeRelative(path, base = root) { return relative(base, path).split(sep).join('/'); }
-function assertCleanText(path) {
-  const contents = readFileSync(path);
-  if (contents.includes(0)) return;
-  const text = contents.toString('utf8');
-  for (const expression of forbiddenText) if (expression.test(text)) fail(`private term or secret pattern in ${safeRelative(path)}`);
-}
-function assertVersion() {
-  if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) fail(`invalid package version: ${version}`);
-  const tag = process.env.GITHUB_REF_TYPE === 'tag' ? process.env.GITHUB_REF_NAME : undefined;
-  if (tag && tag !== `v${version}`) fail(`tag ${tag} does not match v${version}`);
-  const prerelease = version.includes('-');
-  const distTag = process.env.NPM_DIST_TAG ?? (prerelease ? 'next' : 'latest');
-  if (distTag !== (prerelease ? 'next' : 'latest')) fail(`${prerelease ? 'prereleases must publish with the next dist-tag' : 'stable releases must publish with the latest dist-tag'}`);
-  return distTag;
-}
-function assertNpmPath(path) {
-  if (forbiddenPathParts.some((part) => path.includes(part))) fail(`forbidden npm artifact path: ${path}`);
-  if (!(npmPaths.has(path) || npmPrefixes.some((prefix) => path.startsWith(prefix)))) fail(`npm artifact path is not allowlisted: ${path}`);
-}
-function parsePackJson() {
-  const result = JSON.parse(runNpm(['pack', '--dry-run', '--json']));
-  if (!Array.isArray(result) || result.length !== 1 || !Array.isArray(result[0].files)) fail('npm pack did not return one package inventory');
-  return result[0];
-}
-function validateNpmPackage() {
-  assertVersion();
-  if (packageJson.license !== 'Apache-2.0') fail('package must declare Apache-2.0');
-  if (!packageJson.bin?.['potassium-mcp'] || !npmPaths.has('package.json')) fail('missing potassium-mcp executable entrypoint');
-  const pack = parsePackJson();
-  const inventory = pack.files.map(({ path }) => path).sort();
-  for (const item of inventory) assertNpmPath(item);
-  for (const required of [...npmPaths, packageJson.bin['potassium-mcp']]) {
-    if (!inventory.includes(required)) fail(`npm package is missing required public file: ${required}`);
+const sha256 = (content) => createHash("sha256").update(content).digest("hex");
+const parserHostPrefix = "potassium-mcp/assets/parser-host/win32-x64/";
+const parserHostExecutable = `${parserHostPrefix}PotassiumMcp.ParserHost.exe`;
+const nativeParserPrefix = "potassium-mcp/assets/native-parser/win32-x64/";
+const nativeParserExecutable = `${nativeParserPrefix}PotassiumMcp.LuauParser.exe`;
+
+
+
+function assertSafeContent(relative, content) {
+  const absolutePath = /(?:^|[\s"'=(])(?:[A-Za-z]:[\\/](?![<>])|\\\\[A-Za-z0-9._-]+[\\/]|\/(?:home|Users|root|tmp)\/[A-Za-z0-9_.-]+)/m;
+  if (absolutePath.test(content)) throw new Error(`Absolute local path found in ${relative}`);
+  const credentialAssignment = /(?:^|\n)\s*(?:(?:export\s+)?(?:const|let|var|local)\s+)?(?:\$env:)?(?:token|secret|api[_-]?key|password|passwd|authorization)\s*(?::|=)\s*(?:["'](?!(?:test|fixture|example|replace-me)-)[^"'\r\n]{16,}["']|(?!(?:test|fixture|example|replace-me)-)[A-Za-z0-9_+/=-]{32,})/i;
+  const bearerLiteral = /\bBearer\s+(?!(?:test|fixture|example|replace-me)-)[A-Za-z0-9._~+/=-]{16,}/i;
+  const structuredSecret = /["'](?:token|secret|api[_-]?key|password|passwd|authorization)["']\s*:\s*["'](?!(?:test|fixture|example|replace-me)-)[^"'\r\n]{16,}["']/i;
+  if (credentialAssignment.test(content) || bearerLiteral.test(content) || structuredSecret.test(content)) {
+    throw new Error(`Potential secret literal found in ${relative}`);
   }
-  for (const item of inventory) assertCleanText(join(root, item));
-  json(join(out, 'npm-inventory.json'), { packageName, version, files: inventory });
-  return pack;
 }
-function packNpm() {
-  const pack = validateNpmPackage();
-  mkdirSync(out, { recursive: true });
-  const result = JSON.parse(runNpm(['pack', '--json', '--pack-destination', out]));
-  const file = join(out, result[0].filename);
-  if (!existsSync(file)) fail('npm pack did not create the expected tarball');
-  return { file, pack };
-}
-function unpackPackage(tgz, destination) {
-  const temporary = join(out, '.npm-package');
-  const packageRoot = join(destination, 'package');
-  const dependencies = join(root, 'node_modules');
-  if (!existsSync(dependencies)) fail('node_modules is required to stage the local setup runtime');
-  rmSync(temporary, { recursive: true, force: true });
-  mkdirSync(temporary, { recursive: true });
-  run('tar', ['-xzf', tgz, '-C', temporary]);
-  cpSync(join(temporary, 'package'), packageRoot, { recursive: true });
-  cpSync(dependencies, join(packageRoot, 'node_modules'), { recursive: true });
-  rmSync(temporary, { recursive: true, force: true });
-}
-function nodePackageDirectories(lock) {
-  return Object.entries(lock.packages ?? {}).filter(([path]) => path.startsWith('node_modules/'));
-}
-function dependencyNotices() {
-  const lock = JSON.parse(readFileSync(join(root, 'package-lock.json'), 'utf8'));
-  const lines = ['THIRD-PARTY NOTICES', '', 'This release includes the following npm dependencies. License values are read from installed package metadata when available.', ''];
-  const components = [];
-  for (const [path, metadata] of nodePackageDirectories(lock).sort(([a], [b]) => a.localeCompare(b))) {
-    const installed = join(root, path, 'package.json');
-    const manifest = existsSync(installed) ? JSON.parse(readFileSync(installed, 'utf8')) : {};
-    const name = manifest.name ?? metadata.name ?? basename(path);
-    const license = manifest.license ?? 'NOASSERTION';
-    lines.push(`${name}@${manifest.version ?? metadata.version ?? 'unknown'} — ${license}`);
-    components.push({ type: 'library', name, version: manifest.version ?? metadata.version ?? 'unknown', licenses: license === 'NOASSERTION' ? [] : [{ license: { id: license } }], externalReferences: metadata.resolved ? [{ type: 'distribution', url: metadata.resolved }] : [] });
+
+export async function loadReleaseManifest(root = projectRoot) {
+  const source = await readFile(path.join(root, "release-manifest.json"), "utf8");
+  const manifest = JSON.parse(source);
+  if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.files) || manifest.files.length === 0) throw new Error("Release manifest must declare schemaVersion 1 and a non-empty files list");
+  const files = [...manifest.files].sort();
+  if (new Set(files).size !== files.length) throw new Error("Release manifest contains duplicate files");
+  for (const file of files) {
+    if (typeof file !== "string" || !file || file.includes("\\") || file.includes(":") || file.startsWith("/") || file.split("/").includes("..") || path.posix.normalize(file) !== file) throw new Error(`Invalid release manifest path: ${file}`);
   }
-  writeFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), `${lines.join('\n')}\n`);
-  return components;
+  return { manifest, files };
 }
-function writeSbom() {
-  mkdirSync(out, { recursive: true });
-  const components = dependencyNotices();
-  json(join(out, `potassium-mcp-${version}.cdx.json`), {
-    bomFormat: 'CycloneDX', specVersion: '1.5', serialNumber: `urn:uuid:${createHash('sha256').update(`${packageName}@${version}`).digest('hex').slice(0, 8)}-0000-4000-8000-000000000000`, version: 1,
-    metadata: { component: { type: 'application', name: packageName, version, licenses: [{ license: { id: 'Apache-2.0' } }] } }, components
-  });
+
+export async function selectPublicFiles(root = projectRoot) {
+  const { files } = await loadReleaseManifest(root);
+  const records = [];
+  for (const relative of files) {
+    let full = root;
+    let info;
+    try {
+      for (const segment of relative.split("/")) {
+        full = path.join(full, segment);
+        info = await lstat(full);
+        if (info.isSymbolicLink()) throw new Error(`Release file must not traverse a symbolic link: ${relative}`);
+      }
+    } catch (error) {
+      if (error.code === "ENOENT") throw new Error(`Release manifest file is missing: ${relative}`);
+      throw error;
+    }
+    if (!info.isFile()) throw new Error(`Release file must be a regular file: ${relative}`);
+    const content = await readFile(full);
+    if (relative !== parserHostExecutable && relative !== nativeParserExecutable) {
+      if (/\.(?:exe|dll|node|wasm)$/i.test(relative)) throw new Error(`Unverified binary release asset: ${relative}`);
+      assertSafeContent(relative, content.toString("utf8"));
+    }
+    records.push({ path: relative, bytes: info.size, sha256: sha256(content) });
+  }
+  if (files.includes(nativeParserExecutable)) {
+    for (const name of NATIVE_PARSER_FILES) if (!files.includes(nativeParserPrefix + name)) throw new Error(`Native parser asset missing from release manifest: ${name}`);
+    const seal = await verifyNativeParser(path.join(root, "potassium-mcp"));
+    const record = records.find((entry) => entry.path === nativeParserExecutable);
+    if (record.sha256 !== seal.executable.sha256 || record.bytes !== seal.executable.bytes) throw new Error("Native parser changed during release verification");
+  }
+  if (files.includes(parserHostExecutable)) {
+    for (const name of PARSER_HOST_FILES) if (!files.includes(parserHostPrefix + name)) throw new Error(`Parser host asset missing from release manifest: ${name}`);
+    const seal = await verifyParserHost(path.join(root, "potassium-mcp"));
+    const record = records.find((entry) => entry.path === parserHostExecutable);
+    if (record.sha256 !== seal.executable.sha256 || record.bytes !== seal.executable.bytes) throw new Error("Parser executable changed during release verification");
+  }
+  return records;
 }
-function copyNodeRuntime(destination) {
-  const runtime = resolve(process.env.NODE_RUNTIME_DIR ?? dirname(process.execPath));
-  const executable = join(runtime, process.platform === 'win32' ? 'node.exe' : 'node');
-  const npmRoot = [
-    join(runtime, 'node_modules', 'npm'),
-    join(dirname(runtime), 'lib', 'node_modules', 'npm'),
-  ].find(existsSync);
-  if (!existsSync(executable)) fail(`NODE_RUNTIME_DIR must contain the Node executable: ${runtime}`);
-  if (!npmRoot) fail(`Node runtime must include the npm CLI: ${runtime}`);
-  cpSync(runtime, destination, { recursive: true, filter: (source) => !source.includes(`${sep}node_modules${sep}`) });
-  cpSync(npmRoot, join(destination, 'node_modules', 'npm'), { recursive: true });
-  const nodeLicense = [join(runtime, 'LICENSE'), join(dirname(runtime), 'LICENSE'), join(root, 'third-party', 'NODE-LICENSE')].find(existsSync);
-  if (!nodeLicense) fail('Node runtime LICENSE was not found');
-  copyFileSync(nodeLicense, join(destination, 'NODE-LICENSE'));
+
+function lockEvidence(lock) {
+  const packages = Object.entries(lock.packages ?? {}).map(([name, entry]) => ({ name, version: entry.version ?? null, integrity: entry.integrity ?? null })).sort((a, b) => a.name.localeCompare(b.name));
+  return { lockfileVersion: lock.lockfileVersion, packages };
 }
-function powershellZip(source, destination) {
-  run('tar', ['-a', '-c', '-f', destination, '-C', source, '.']);
+
+export async function checkRelease(root = projectRoot) {
+  const files = await selectPublicFiles(root);
+  const lock = JSON.parse(await readFile(path.join(root, "potassium-mcp", "package-lock.json"), "utf8"));
+  return { schemaVersion: 1, files, sbom: lockEvidence(lock) };
 }
-function smokeRuntimeBundle(stage) {
-  const node = join(stage, process.platform === 'win32' ? 'node.exe' : 'node');
-  const npmCli = join(stage, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-  const cli = join(stage, 'package', packageJson.bin['potassium-mcp']);
-  if (!run(node, [npmCli, '--version']).trim()) fail('bundled npm CLI did not pass its launch check');
-  const output = run(node, [cli, 'help']);
-  if (!output.includes('Usage: potassium-mcp')) fail('bundled setup command did not pass its launch check');
+
+export async function validateReleaseOutput(root, destination, sourcePaths = []) {
+  root = path.resolve(root);
+  destination = path.resolve(destination);
+  const relativeDestination = portableRelative(root, destination);
+  for (const source of sourcePaths) {
+    const relative = path.relative(destination, path.resolve(root, source));
+    const inverse = path.relative(path.resolve(root, source), destination);
+    const contained = (value) => value === "" || (!path.isAbsolute(value) && value !== ".." && !value.startsWith(`..${path.sep}`));
+    if (contained(relative) || contained(inverse)) throw new Error("Release destination overlaps a manifest source");
+  }
+  let ancestor = root;
+  for (const segment of relativeDestination.split("/")) {
+    ancestor = path.join(ancestor, segment);
+    try {
+      const info = await lstat(ancestor);
+      if (info.isSymbolicLink() || !info.isDirectory()) throw new Error("Release destination must traverse only regular directories");
+    } catch (error) {
+      if (error.code === "ENOENT") break;
+      throw error;
+    }
+  }
+  return destination;
 }
-function stageRuntimeBundle(tgz) {
-  const stage = join(out, 'runtime-bundle');
-  rmSync(stage, { recursive: true, force: true });
-  mkdirSync(stage, { recursive: true });
-  copyNodeRuntime(stage);
-  copyFileSync(tgz, join(stage, 'potassium-mcp.tgz'));
-  unpackPackage(tgz, stage);
-  copyFileSync(join(root, 'LICENSE'), join(stage, 'LICENSE'));
-  copyFileSync(join(root, 'README.md'), join(stage, 'README.md'));
-  copyFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), join(stage, 'THIRD-PARTY-NOTICES.txt'));
-  for (const file of walk(stage)) if (!safeRelative(file, stage).split('/').includes('node_modules')) assertCleanText(file);
-  smokeRuntimeBundle(stage);
-  const manifest = { files: walk(stage).map((file) => ({ path: safeRelative(file, stage).split('/').join('\\'), sha256: sha256(file) })).sort((a, b) => a.path.localeCompare(b.path)) };
-  mkdirSync(appAssets, { recursive: true });
-  json(join(appAssets, 'runtime-bundle.manifest.json'), manifest);
-  rmSync(join(appAssets, 'runtime-bundle.zip'), { force: true });
-  powershellZip(stage, join(appAssets, 'runtime-bundle.zip'));
-  return manifest;
+
+export async function packRelease(root = projectRoot, destination = path.join(root, "release-out", "public")) {
+  root = path.resolve(root);
+  destination = path.resolve(destination);
+  await validateReleaseOutput(root, destination);
+  const relativeDestination = portableRelative(root, destination);
+  const report = await checkRelease(root);
+  await validateReleaseOutput(root, destination, report.files.map((record) => record.path));
+  await rm(destination, { recursive: true, force: true });
+  await mkdir(destination, { recursive: true });
+  for (const record of report.files) {
+    const source = path.join(root, record.path);
+    const target = path.join(destination, record.path);
+    await mkdir(path.dirname(target), { recursive: true });
+    await cp(source, target, { force: true, verbatimSymlinks: true });
+  }
+  const evidence = `${JSON.stringify(report, null, 2)}\n`;
+  await writeFile(path.join(destination, "RELEASE-EVIDENCE.json"), evidence, "utf8");
+  for (const record of report.files) {
+    const copied = await readFile(path.join(destination, record.path));
+    if (copied.length !== record.bytes || sha256(copied) !== record.sha256) throw new Error(`Release copy verification failed: ${record.path}`);
+  }
+  return { destination: relativeDestination, files: report.files.length, evidenceSha256: sha256(evidence) };
 }
-function setupExe() {
-  const fromEnvironment = process.env.SETUP_EXE;
-  const candidates = [fromEnvironment, join(root, 'app', 'PotassiumMcp.Setup', 'bin', 'Release', 'net8.0-windows', 'win-x64', 'publish', 'PotassiumMcp.Setup.exe')].filter(Boolean);
-  return candidates.find(existsSync) ?? fail('SETUP_EXE must point to the published Windows Setup.exe');
-}
-function stagePortable(tgz) {
-  const portable = join(out, `potassium-mcp-${version}-windows-x64`);
-  rmSync(portable, { recursive: true, force: true });
-  mkdirSync(portable, { recursive: true });
-  const setup = setupExe();
-  copyFileSync(setup, join(out, `potassium-mcp-${version}-Setup.exe`));
-  copyFileSync(setup, join(portable, 'Setup.exe'));
-  copyFileSync(tgz, join(portable, 'potassium-mcp.tgz'));
-  copyFileSync(join(root, 'LICENSE'), join(portable, 'LICENSE'));
-  copyFileSync(join(root, 'README.md'), join(portable, 'README.md'));
-  copyFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), join(portable, 'THIRD-PARTY-NOTICES.txt'));
-  copyFileSync(join(out, 'runtime-bundle', 'NODE-LICENSE'), join(portable, 'NODE-LICENSE'));
-  copyFileSync(join(appAssets, 'runtime-bundle.manifest.json'), join(portable, 'runtime-bundle.manifest.json'));
-  for (const file of walk(portable)) assertCleanText(file);
-  const zip = join(out, `${basename(portable)}.zip`);
-  rmSync(zip, { force: true });
-  powershellZip(portable, zip);
-  return { portable, zip };
-}
-function checksums() {
-  const files = walk(out).filter((file) => !file.endsWith('SHA256SUMS') && !file.endsWith('release-evidence.json') && !file.includes(`${sep}runtime-bundle${sep}`)).sort();
-  const lines = files.map((file) => `${sha256(file)}  ${safeRelative(file, out)}`);
-  writeFileSync(join(out, 'SHA256SUMS'), `${lines.join('\n')}\n`);
-}
-function evidence(distTag) {
-  const artifacts = walk(out).filter((file) => statSync(file).isFile()).map((file) => ({ path: safeRelative(file, out), sha256: sha256(file) })).sort((a, b) => a.path.localeCompare(b.path));
-  json(join(out, 'release-evidence.json'), { packageName, version, distTag, ref: process.env.GITHUB_REF ?? null, sha: process.env.GITHUB_SHA ?? null, artifacts });
-}
-function assertUniqueNpmVersion() {
+
+export async function packNpmRelease(root = projectRoot, options = {}) {
+  if (!options || typeof options !== "object" || Array.isArray(options) || Object.keys(options).some((key) => !["command", "env", "output"].includes(key))) throw new Error("Invalid npm release options");
+  const { command = runNpm, env = process.env, output = path.join(root, "release-out") } = options;
+  if (typeof output !== "string" || !output.trim()) throw new Error("Npm release output must be a directory path");
+  root = path.resolve(root);
+  const source = path.join(root, "potassium-mcp");
+  const destination = await validateReleaseOutput(root, output, ["potassium-mcp"]);
+  if ((await lstat(source)).isSymbolicLink()) throw new Error("Npm release directory must not be a symbolic link");
+  const publicFiles = await selectPublicFiles(root);
+  await validateReleaseOutput(root, destination, publicFiles.map((record) => record.path));
+  const metadataPath = path.join(destination, "NPM-ARTIFACT.json");
+  await mkdir(destination, { recursive: true });
+  // A failed rebuild must not leave an old artifact looking publishable.
+  await rm(metadataPath, { force: true });
+  const manifestSource = await readFile(path.join(source, "package.json"), "utf8");
+  const manifestRecord = publicFiles.find((record) => record.path === "potassium-mcp/package.json");
+  if (!manifestRecord || sha256(manifestSource) !== manifestRecord.sha256) throw new Error("Npm manifest is missing from, or changed since, the public content gate");
+  const manifest = JSON.parse(manifestSource);
+  distTagForVersion(manifest.version);
+  if (manifest.name !== "@mrketa/potassium-mcp") throw new Error("Unexpected npm package name");
+  if (manifest.dependencies?.["@modelcontextprotocol/sdk"] !== "1.30.0") throw new Error("MCP SDK must remain pinned to 1.30.0");
+  if (!Array.isArray(manifest.files) || manifest.files.length === 0) throw new Error("Npm package must declare its runtime files");
+  const stage = await mkdtemp(path.join(os.tmpdir(), "potassium-npm-release-"));
   try {
-    runNpm(['view', `${packageName}@${version}`, 'version', '--json']);
-  } catch (error) {
-    if (/E404|404 Not Found/.test(`${error.stderr ?? ''}\n${error.message}`)) return;
-    throw new Error(`could not confirm npm version availability: ${error.stderr ?? error.message}`);
+    const runtimePaths = [];
+    for (const file of manifest.files) {
+      if (typeof file !== "string" || !file || file.includes("\\") || file.includes(":") || file.startsWith("/") || file.split("/").some((part) => part === ".." || part === ".") || /[*?![\]{}]/.test(file)) throw new Error(`Invalid npm runtime path: ${file}`);
+      const relative = file.replace(/\/$/, "");
+      if (!relative || path.posix.normalize(relative) !== relative) throw new Error(`Invalid npm runtime path: ${file}`);
+      if (!publicFiles.some((record) => record.path === `potassium-mcp/${relative}` || record.path.startsWith(`potassium-mcp/${relative}/`))) throw new Error(`Npm runtime path has no public manifest files: ${file}`);
+      runtimePaths.push(relative);
+    }
+    for (const record of publicFiles) {
+      if (!record.path.startsWith("potassium-mcp/")) continue;
+      const relative = record.path.slice("potassium-mcp/".length);
+      if (!runtimePaths.some((entry) => relative === entry || relative.startsWith(`${entry}/`))) continue;
+      const target = path.join(stage, relative);
+      await mkdir(path.dirname(target), { recursive: true });
+      await cp(path.join(root, record.path), target, { verbatimSymlinks: true });
+      if (!(await lstat(target)).isFile() || sha256(await readFile(target)) !== record.sha256) throw new Error(`Npm input changed after the public content gate: ${record.path}`);
+    }
+    // Installed packages have no source checkout, release tooling, or test tree.
+    // These commands are deliberately source-only, not installed npm commands.
+    const installedManifest = { ...manifest };
+    delete installedManifest.scripts;
+    await writeFile(path.join(stage, "package.json"), `${JSON.stringify(installedManifest, null, 2)}\n`);
+    const result = JSON.parse(String(await command(["pack", "--json", "--ignore-scripts"], {
+      cwd: stage, env, encoding: "utf8", stdio: "pipe",
+    })));
+    if (!Array.isArray(result) || result.length !== 1) throw new Error("npm pack must produce exactly one artifact");
+    const packed = result[0];
+    if (packed.name !== manifest.name || packed.version !== manifest.version || typeof packed.filename !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._+-]*\.tgz$/.test(packed.filename)) throw new Error("npm pack returned an unexpected artifact identity");
+    const stagedTarball = path.join(stage, packed.filename);
+    if (!(await lstat(stagedTarball)).isFile()) throw new Error("npm pack must produce a regular tarball");
+    const bytes = await readFile(stagedTarball);
+    const integrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
+    if (packed.integrity !== integrity) throw new Error("npm pack integrity does not match the produced tarball");
+    const metadata = { filename: packed.filename, name: manifest.name, version: manifest.version, integrity, sha256: sha256(bytes) };
+    // Verify the complete output in staging before making metadata discoverable.
+    const stagedMetadata = path.join(stage, "NPM-ARTIFACT.json");
+    const checksum = `${metadata.sha256}  ${metadata.filename}\n`;
+    await writeFile(`${stagedTarball}.sha256`, checksum);
+    await writeFile(stagedMetadata, `${JSON.stringify(metadata, null, 2)}\n`);
+    await validateNpmArtifact(stagedMetadata, manifest);
+    for (const file of [metadata.filename, `${metadata.filename}.sha256`]) {
+      const target = path.join(destination, file);
+      await rm(target, { force: true });
+      await cp(path.join(stage, file), target);
+    }
+    await cp(stagedMetadata, metadataPath);
+    return metadata;
+  } finally {
+    await rm(stage, { recursive: true, force: true });
   }
-  fail(`npm already contains ${packageName}@${version}`);
 }
-const command = process.argv[2] ?? 'validate';
-try {
-  if (command === 'validate') validateNpmPackage();
-  else if (command === 'sbom') writeSbom();
-  else if (command === 'runtime') { const packed = packNpm(); writeSbom(); stageRuntimeBundle(packed.file); }
-  else if (command === 'assemble') {
-    const packed = packNpm();
-    writeSbom();
-    stageRuntimeBundle(packed.file);
-    const portable = stagePortable(packed.file);
-    rmSync(portable.portable, { recursive: true, force: true });
-    rmSync(join(out, 'runtime-bundle'), { recursive: true, force: true });
-    checksums();
-    evidence(assertVersion());
+
+export function parseReleaseArgs(args) {
+  const [command, ...flags] = args;
+  const usage = "Usage: node tools/release.mjs check | pack | npm-pack [--output <directory>]";
+  if (!["check", "pack", "npm-pack"].includes(command)) throw new Error(usage);
+  const options = {};
+  for (let index = 0; index < flags.length; index += 2) {
+    if (command !== "npm-pack" || flags[index] !== "--output" || !flags[index + 1]?.trim() || flags[index + 1].startsWith("-") || Object.hasOwn(options, "output")) throw new Error(usage);
+    options.output = flags[index + 1];
   }
-  else if (command === 'unique-version') assertUniqueNpmVersion();
-  else fail(`unknown release command: ${command}`);
-} catch (error) { console.error(`release policy failure: ${error.message}`); process.exitCode = 1; }
+  return { command, options };
+}
+
+async function main() {
+  const { command, options } = parseReleaseArgs(process.argv.slice(2));
+  if (command === "check") console.log(JSON.stringify(await checkRelease(), null, 2));
+  else if (command === "pack") console.log(JSON.stringify(await packRelease(), null, 2));
+  else console.log(JSON.stringify(await packNpmRelease(projectRoot, options), null, 2));
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch((error) => { console.error(`release failed: ${error.message}`); process.exitCode = 1; });
