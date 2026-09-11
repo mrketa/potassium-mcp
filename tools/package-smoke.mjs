@@ -60,7 +60,11 @@ export async function loadSmokeArtifact(options = {}) {
 function npm(args, cwd, env) {
   const cli = process.env.npm_execpath || (process.platform === "win32" ? path.join(path.dirname(process.execPath), "node_modules/npm/bin/npm-cli.js") : undefined);
   const result = spawnSync(cli ? process.execPath : "npm", cli ? [cli, ...args] : args, { cwd, env, encoding: "utf8", timeout: 180000, maxBuffer: 16 * 1024 * 1024 });
-  if (result.error || result.status !== 0) throw new Error(`npm ${args[0]} failed (${result.error?.code || result.status}): ${result.stderr}`);
+  if (result.error || result.status !== 0) {
+    const error = new Error(`npm ${args[0]} failed (${result.error?.code || result.status}): ${result.stderr}`, { cause: result.error });
+    if (result.pid > 0 && (result.error || result.signal || result.status === null)) error.preserveDirectory = true;
+    throw error;
+  }
   return result.stdout;
 }
 export function isolatedEnv(home) {
