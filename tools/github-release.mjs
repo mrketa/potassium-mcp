@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
 import { validateNpmArtifact } from "../potassium-mcp/release-publish.js";
-import { windowsPowerShellEnvironment } from "../potassium-mcp/src/windows-powershell.js";
+import { WINDOWS_POWERSHELL_SECURITY_PRELUDE, windowsPowerShellEnvironment } from "../potassium-mcp/src/windows-powershell.js";
 import { checkRelease, projectRoot } from "./release.mjs";
 import { checkWindows, safeBundlePath, validateBundleManifest, NODE_SHA256, NODE_VERSION, DOTNET_VERSION } from "./windows-release.mjs";
 
@@ -314,7 +314,7 @@ function crc32(bytes) {
 
 async function unsignedWindowsVerifier(directory) {
   assert.equal(process.platform, "win32", "Sealed Setup qualification requires Windows");
-  const script = "$ErrorActionPreference = 'Stop'; (Get-AuthenticodeSignature -LiteralPath $env:POTASSIUM_RELEASE_SETUP).Status.ToString()";
+  const script = WINDOWS_POWERSHELL_SECURITY_PRELUDE + "$ErrorActionPreference = 'Stop'; (Get-AuthenticodeSignature -LiteralPath $env:POTASSIUM_RELEASE_SETUP).Status.ToString()";
   const status = execFileSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], {
     encoding: "utf8", timeout: 120000, maxBuffer: 1024 * 1024, windowsHide: true,
     env: windowsPowerShellEnvironment({ POTASSIUM_RELEASE_SETUP: path.join(directory, "Setup.exe") }),

@@ -12,7 +12,7 @@ import { createInstallPlan, launcherTimeout, removeConfig, supportsRuntime, tran
 import { cliRegistrationMatches } from "./doctor.js";
 import { resolveInstallRoot, resolveConfigPath } from "./paths.js";
 import { assertHostId, resolveHostPolicy } from "./host-policy.js";
-import { windowsPowerShellEnvironment } from "./windows-powershell.js";
+import { WINDOWS_POWERSHELL_SECURITY_PRELUDE, windowsPowerShellEnvironment } from "./windows-powershell.js";
 import packageMetadata from "../package.json" with { type: "json" };
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -294,7 +294,7 @@ async function applyFileAcl(target, source, options) {
   if (source && options.copyAcl) return options.copyAcl({ source, target });
   if (process.platform !== "win32") return;
   if (!source) return restrictTokenAcl(target, options.run ?? spawnSync);
-  const command = "$acl = Get-Acl -LiteralPath $env:POTASSIUM_ACL_SOURCE; Set-Acl -LiteralPath $env:POTASSIUM_ACL_TARGET -AclObject $acl";
+  const command = WINDOWS_POWERSHELL_SECURITY_PRELUDE + "$acl = Get-Acl -LiteralPath $env:POTASSIUM_ACL_SOURCE; Set-Acl -LiteralPath $env:POTASSIUM_ACL_TARGET -AclObject $acl";
   const result = (options.run ?? spawnSync)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
     encoding: "utf8", windowsHide: true, env: windowsPowerShellEnvironment({ POTASSIUM_ACL_SOURCE: source, POTASSIUM_ACL_TARGET: target }),
   });

@@ -47,9 +47,9 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           import { spawnSync } from 'node:child_process';
-          import { windowsPowerShellEnvironment } from './potassium-mcp/src/windows-powershell.js';
+          import { WINDOWS_POWERSHELL_SECURITY_PRELUDE, windowsPowerShellEnvironment } from './potassium-mcp/src/windows-powershell.js';
           const started = performance.now();
-          const command = "$ErrorActionPreference='Stop'; $p=Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $PID) -Property ProcessId; if (!$p -or $p.ProcessId -ne $PID) { throw 'Own process query failed' }; Get-Acl -LiteralPath $env:GITHUB_WORKSPACE | Out-Null; Get-Command Get-AuthenticodeSignature -ErrorAction Stop | Out-Null; 'ready'";
+          const command = WINDOWS_POWERSHELL_SECURITY_PRELUDE + "$ErrorActionPreference='Stop'; $p=Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $PID) -Property ProcessId; if (!$p -or $p.ProcessId -ne $PID) { throw 'Own process query failed' }; Get-Acl -LiteralPath $env:GITHUB_WORKSPACE | Out-Null; Get-Command Get-AuthenticodeSignature -ErrorAction Stop | Out-Null; 'ready'";
           const result = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command], { env: windowsPowerShellEnvironment(), encoding: 'utf8', timeout: 60000, maxBuffer: 65536, windowsHide: true });
           if (result.error || result.status !== 0 || result.stdout.trim() !== 'ready') throw new Error(`Windows dependency readiness failed: ${result.stderr}`, { cause: result.error });
           console.log(JSON.stringify({ windowsPowerShellReady: true, coldElapsedMs: Math.round(performance.now() - started), runtimeDeadlinesChanged: false }));
