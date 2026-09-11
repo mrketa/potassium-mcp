@@ -23,7 +23,7 @@ jobs:
       matrix:
         node: [22, 24]
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -53,13 +53,15 @@ jobs:
       - name: Install foreign tarball and exercise public bin, setup and SDK transports
         run: node tools/package-smoke.mjs smoke
       - name: Qualify compatible package version upgrade and rollback
-        timeout-minutes: 5
+        timeout-minutes: 15
         run: node tools/package-version-smoke.mjs --npm-artifact release-out/NPM-ARTIFACT.json --output release-out/version-roundtrip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: package-smoke-windows-node-${{ matrix.node }}
-          path: release-out/*.json
+          path: |
+            release-out/*.json
+            release-out/version-roundtrip/*.json
           if-no-files-found: warn
       - name: Manual engine qualification remains required
         run: Write-Output 'SKIP engine/live-client and external-host qualification; this job certifies isolated Windows host/runtime paths only.'

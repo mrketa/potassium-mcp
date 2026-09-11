@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fixed qualification-harness error precedence and cleanup: owned stdio closure is observed before bounded temporary-tree removal, original failures survive cleanup failures, and success evidence is written only after cleanup. Version roundtrips retain bounded phase evidence and consistently use the selected npm CLI on isolated Node runtimes; functional and soak-performance assertions remain unchanged.
 - Fixed Windows PowerShell 5 child processes inheriting incompatible PowerShell 7 module paths. Broker process inspection and installer ACL preservation now rebuild the child module path while retaining explicit operation variables. A real CLI regression preserves private bytes and ACLs under an incompatible inherited Security module. The bounded OS process-inspection allowance is now five seconds for observed cold CIM startup; RPC, proxy-handshake and lifecycle deadlines are unchanged, with no retries or cached ownership.
 - Pinned repository SDK selection to .NET 8.0.424 and corrected hosted qualification fixtures for canonical temporary paths, cross-drive relative identities, actual entrypoint links and bounded native-observer cleanup.
 - Updated locked production transitives `fast-uri` 3.1.5→3.1.7, `hono` 4.13.2→4.13.7, and `qs` 6.15.3→6.16.0 to address reported security advisories within existing dependency ranges; direct dependencies and the package version are unchanged.

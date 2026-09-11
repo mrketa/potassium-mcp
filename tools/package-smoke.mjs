@@ -8,8 +8,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { inspect } from "node:util";
 import { runBootstrap } from "./bootstrap-runner.mjs";
-import { openSdkSmoke, prepareRuntimeAttestation } from "./sdk-smoke.mjs";
+import { observeStdioClose, openSdkSmoke, prepareRuntimeAttestation } from "./sdk-smoke.mjs";
 import { listAllTools } from "../potassium-mcp/test/helpers/list-tools.js";
 import { validateNpmArtifact } from "../potassium-mcp/release-publish.js";
 import { validateReleaseOutput } from "./release.mjs";
@@ -80,6 +81,12 @@ export async function freeLoopbackPorts(count) {
     await Promise.all(listeners.map((listener) => listener.listening ? new Promise((resolve, reject) => listener.close((error) => error ? reject(error) : resolve())) : undefined));
   }
 }
+function appendSmokeFailure(primary, secondary) {
+  if (primary === undefined) return secondary;
+  const error = new AggregateError([primary, secondary], `${primary.message}; ${secondary.message}`, { cause: primary });
+  error.preserveDirectory = primary.preserveDirectory === true || secondary.preserveDirectory === true;
+  return error;
+}
 export async function probeManagedSdk(packageRoot, directory, env, runtime, launcher) {
   const require = createRequire(path.join(packageRoot, "package.json"));
   const { Client } = await import(pathToFileURL(require.resolve("@modelcontextprotocol/sdk/client/index.js")));
@@ -88,6 +95,8 @@ export async function probeManagedSdk(packageRoot, directory, env, runtime, laun
   const attestation = await prepareRuntimeAttestation(directory, "managed-sdk");
   const transport = new StdioClientTransport({ ...(launcher ?? { command: bin, args: ["serve", "--install-root", runtime, "--host-id", "package-smoke"] }), cwd: directory, env: { ...env, NODE_OPTIONS: [env.NODE_OPTIONS, attestation.env.NODE_OPTIONS].filter(Boolean).join(" ") }, stderr: "pipe" });
   const client = new Client({ name: "potassium-managed-lifecycle-smoke", version: "1.0.0" });
+  const waitForClose = observeStdioClose(transport);
+  let failure;
   try {
     await client.connect(transport, { timeout: 20000 });
     transport.stderr?.resume();
@@ -98,7 +107,22 @@ export async function probeManagedSdk(packageRoot, directory, env, runtime, laun
     assert.notEqual(result.isError, true, "managed public serve must reach its authenticated broker");
     const nodeRuntime = await attestation.verify(path.join(packageRoot, "bin", "potassium-mcp.js"));
     return { tools: listed.tools.length, initialized: true, status: true, serverVersion: client.getServerVersion().version, nodeRuntime };
-  } finally { try { await client.close(); } finally { await attestation.close(); } }
+  } catch (error) {
+    failure = error;
+    throw error;
+  } finally {
+    let cleanupFailure;
+    try { await client.close(); } catch (error) { cleanupFailure = error; }
+    try { await waitForClose(); } catch (error) { cleanupFailure = appendSmokeFailure(cleanupFailure, error); }
+    if (!cleanupFailure) {
+      try { await attestation.close(); } catch (error) { cleanupFailure = error; }
+    }
+    if (cleanupFailure) {
+      const error = new Error(`Owned managed SDK cleanup failed; preserve ${directory}`, { cause: cleanupFailure });
+      error.preserveDirectory = true;
+      throw appendSmokeFailure(failure, error);
+    }
+  }
 }
 async function probePinnedNpx(packageRoot, directory, env, runtime, invoke) {
   const metadata = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
@@ -111,6 +135,7 @@ async function probePinnedNpx(packageRoot, directory, env, runtime, invoke) {
 async function packedInstallerRoundtrip({ directory, env, snapshot, packageRoot, invoke, runtime, workspace, setupArgs }) {
   const json = async (target) => JSON.parse(await readFile(target, "utf8"));
   let cleanupBroker = false;
+  let failure;
   try {
   const configPath = path.join(runtime, "config.json");
   const statePath = path.join(runtime, "ownership.json");
@@ -284,13 +309,16 @@ async function packedInstallerRoundtrip({ directory, env, snapshot, packageRoot,
     historicalPackage: historicalSpec, historicalDowngrade: "incompatible public contract rejected without deployment writes; not supported downgrade qualification",
     crossNodeMigration: "not exercised; ownership, public SDK launch and owned broker identities attest this runner's selected Node executable",
   };
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
     if (cleanupBroker) {
       try { invoke(["broker", "stop", "--install-root", runtime, "--wait", "30000", "--json"]); }
       catch (cause) {
         const error = new Error(`Owned staging broker cleanup could not be verified; preserve ${directory}`, { cause });
         error.preserveDirectory = true;
-        throw error;
+        throw appendSmokeFailure(failure, error);
       }
     }
   }
@@ -367,6 +395,8 @@ export async function runPackageSmoke(options = {}) {
   const env = isolatedEnv(home);
   let harness;
   let preserveDirectory = false;
+  let failure;
+  let evidence;
   try {
     await mkdir(home, { recursive: true });
     await writeFile(path.join(home, ".npmrc"), "registry=https://registry.npmjs.org/\n");
@@ -397,21 +427,46 @@ export async function runPackageSmoke(options = {}) {
     const transports = (await harness.probe()).map(({ milliseconds, ...observation }) => observation);
     const nativeCode = await harness.nativeCode();
     const cancellation = await harness.cancellation();
-    const evidence = { mode, node: process.version, platform: process.platform, package: `${installed.name}@${installed.version}`, artifact, installer, sdkRuntime: harness.nodeRuntime, nativeCode, transports, protocol: harness.protocol, cancellation, setup: "real isolated hostless runtime", skipped: ["Roblox/Potassium engine and real external hosts require manual qualification"], ...(mode === "soak" ? { soak: await soak(harness) } : {}) };
-    await harness.close();
-    harness = undefined;
-    await mkdir(destination, { recursive: true });
-    await writeFile(reportPath, `${JSON.stringify(evidence, null, 2)}\n`);
-    return evidence;
+    evidence = { mode, node: process.version, platform: process.platform, package: `${installed.name}@${installed.version}`, artifact, installer, sdkRuntime: harness.nodeRuntime, nativeCode, transports, protocol: harness.protocol, cancellation, setup: "real isolated hostless runtime", skipped: ["Roblox/Potassium engine and real external hosts require manual qualification"], ...(mode === "soak" ? { soak: await soak(harness) } : {}) };
   } catch (error) {
+    failure = error;
     preserveDirectory = error.preserveDirectory === true;
-    throw error;
   } finally {
-    try { await harness?.close(); } finally { if (!preserveDirectory) await rm(directory, { recursive: true, force: true }); }
+    try { await harness?.close(); } catch (cause) {
+      preserveDirectory = true;
+      const error = new Error(`Owned SDK harness cleanup failed; preserve ${directory}`, { cause });
+      error.preserveDirectory = true;
+      failure = appendSmokeFailure(failure, error);
+    }
+    if (!preserveDirectory) {
+      try {
+        // Only our closed temporary tree: let Windows release transient filesystem locks.
+        await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      } catch (cause) {
+        preserveDirectory = true;
+        const error = new Error(`Owned smoke temporary root cleanup failed; retained remnants at ${directory}`, { cause });
+        error.preserveDirectory = true;
+        failure = appendSmokeFailure(failure, error);
+      }
+    }
   }
+  const failureDiagnostic = failure === undefined ? undefined : inspect(failure, { depth: 8, maxArrayLength: 32, maxStringLength: 4096 });
+  const report = failure === undefined ? evidence : {
+    ...(evidence ?? { mode, node: process.version, platform: process.platform, artifact }),
+    status: "failed",
+    cleanup: { directory, status: preserveDirectory ? "preserved" : "removed" },
+    failure: failureDiagnostic.slice(0, 65536),
+    failureTruncated: failureDiagnostic.length > 65536,
+  };
+  try {
+    await mkdir(destination, { recursive: true });
+    await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+  } catch (error) { failure = appendSmokeFailure(failure, error); }
+  if (failure !== undefined) throw failure;
+  return evidence;
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   Promise.resolve().then(() => runPackageSmoke(parsePackageSmokeArgs(process.argv.slice(2))))
     .then((evidence) => console.log(JSON.stringify(evidence, null, 2)))
-    .catch((error) => { console.error(error.message); process.exitCode = 1; });
+    .catch((error) => { console.error(error); process.exitCode = 1; });
 }

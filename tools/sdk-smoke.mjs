@@ -34,6 +34,22 @@ export async function prepareRuntimeAttestation(directory, label) {
   };
 }
 
+export function observeStdioClose(transport) {
+  let resolveClosed;
+  const closed = new Promise((resolve) => { resolveClosed = resolve; });
+  const onclose = transport.onclose;
+  transport.onclose = () => { resolveClosed(); onclose?.(); };
+  return async () => {
+    const controller = new AbortController();
+    try {
+      await Promise.race([
+        closed,
+        delay(5000, undefined, { signal: controller.signal }).then(() => { throw new Error("Owned SDK stdio process did not report close after transport shutdown"); }),
+      ]);
+    } finally { controller.abort(); }
+  };
+}
+
 export async function openSdkSmoke(packageRoot, directory, env = process.env, { diagnosticRawDiscovery = false, mutateHttpHeaders } = {}) {
   const require = createRequire(path.join(packageRoot, "package.json"));
   const { Client } = await import(pathToFileURL(require.resolve("@modelcontextprotocol/sdk/client/index.js")));
@@ -60,6 +76,26 @@ export async function openSdkSmoke(packageRoot, directory, env = process.env, { 
     if (headers.get("mcp-protocol-version") === counters.expected) counters.matchingRequests++;
     return fetch(url, init);
   };
+  async function close() {
+    const failures = [];
+    for (const { client, transport, mode, waitForClose } of clients) {
+      if (mode === "http-stateful") {
+        try { await transport.terminateSession(); } catch (error) { failures.push(error); }
+      }
+      try { await client.close(); } catch (error) { failures.push(error); }
+      try { await waitForClose?.(); } catch (error) { failures.push(error); }
+    }
+    try { await broker.close(); } catch (error) { failures.push(error); }
+    // Keep runtime attestations when any owned resource could still be live.
+    if (!failures.length) {
+      try { await attestation?.close(); } catch (error) { failures.push(error); }
+    }
+    if (failures.length) {
+      const error = new AggregateError(failures, `Owned SDK harness cleanup failed; preserve ${directory}`, { cause: failures[0] });
+      error.preserveDirectory = true;
+      throw error;
+    }
+  }
   try {
     const configPath = path.join(directory, "smoke-config.json");
     await writeFile(configPath, JSON.stringify({ ...config, proxyPort: broker.listener.address().port }), { mode: 0o600 });
@@ -73,7 +109,7 @@ export async function openSdkSmoke(packageRoot, directory, env = process.env, { 
     ];
     for (const [mode, transport] of transports) {
       const client = new Client({ name: "potassium-package-smoke", version: "1.0.0" });
-      clients.push({ mode, client, transport });
+      clients.push({ mode, client, transport, ...(mode === "stdio" ? { waitForClose: observeStdioClose(transport) } : {}) });
       await client.connect(transport, { timeout: 10000 });
       assert.equal(client.getServerVersion().name, "potassium-mcp");
       if (mode !== "stdio") assert.equal(transport.protocolVersion, protocolHeaders.get(mode).expected);
@@ -283,19 +319,13 @@ export async function openSdkSmoke(packageRoot, directory, env = process.env, { 
         if (!released) await owner.callTool({ name: "potassium_code_query", arguments: { indexId: index.indexId, view: "release" } }, undefined, { timeout: 5000 });
       }
     }
-    async function close() {
-      const results = await Promise.allSettled(clients.map(async ({ client, transport, mode }) => {
-        if (mode === "http-stateful") await transport.terminateSession();
-        await client.close();
-      }));
-      try { await broker.close(); } finally { await attestation.close(); }
-      const failed = results.find((entry) => entry.status === "rejected");
-      if (failed) throw failed.reason;
-    }
     return { probe, cancellation, nativeCode, nodeRuntime, protocol, close, broker, clients };
   } catch (error) {
-    await Promise.allSettled(clients.map(({ client }) => client.close()));
-    try { await broker.close(); } finally { await attestation?.close(); }
+    try { await close(); } catch (cleanupError) {
+      const failure = new AggregateError([error, cleanupError], `${error.message}; ${cleanupError.message}`, { cause: error });
+      failure.preserveDirectory = true;
+      throw failure;
+    }
     throw error;
   }
 }
