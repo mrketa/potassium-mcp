@@ -398,7 +398,7 @@ export async function runPackageSmoke(options = {}) {
   let failure;
   let evidence;
   try {
-    await mkdir(home, { recursive: true });
+    await Promise.all(["AppData/Local", "AppData/Roaming"].map((folder) => mkdir(path.join(home, folder), { recursive: true })));
     await writeFile(path.join(home, ".npmrc"), "registry=https://registry.npmjs.org/\n");
     await writeFile(path.join(directory, "package.json"), JSON.stringify({ private: true, type: "module" }));
     const snapshot = path.join(directory, "verified-package.tgz");

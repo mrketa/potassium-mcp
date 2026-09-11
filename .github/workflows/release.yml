@@ -38,7 +38,7 @@ env:
 jobs:
   verify:
     name: Verify selected immutable draft (no publication)
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 45
     permissions:
       contents: read
@@ -449,7 +449,7 @@ jobs:
     name: Protected exact-byte stable promotion
     needs: verify
     if: ${{ inputs.publish && inputs.confirm_version == needs.verify.outputs.version }}
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 45
     environment: stable-publish
     permissions:

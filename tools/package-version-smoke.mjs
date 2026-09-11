@@ -151,7 +151,7 @@ async function main(options) {
   try {
     observation.start("acquisition.extract-and-inventory");
     const home = path.join(directory, "home");
-    await mkdir(home);
+    await Promise.all(["AppData/Local", "AppData/Roaming"].map((folder) => mkdir(path.join(home, folder), { recursive: true })));
     await writeFile(path.join(home, ".npmrc"), "registry=https://registry.npmjs.org/\n");
     const env = isolatedEnv(home);
     const sourceTarball = path.join(directory, "verified-source.tgz");
