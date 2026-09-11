@@ -247,14 +247,14 @@ jobs:
             receipt.npmReadiness.authenticationSucceeded = true;
             receipt.checks.npmAuthentication = true;
             stage('npm-package-permission');
-            // npm returns the actor's permission map. Keep it in memory only:
-            // neither unrelated names nor raw provider responses leave this
-            // function. Only the selected package's reported access is used.
-            const packages = npmJson(['access', 'list', 'packages', actor]);
-            assert(packages && typeof packages === 'object' && !Array.isArray(packages), 'Invalid npm permission response');
-            const listed = Object.hasOwn(packages, identity.name);
-            const access = listed ? packages[identity.name] : undefined;
-            receipt.npmReadiness.selectedPackageListed = listed;
+            // Query only the selected package, not organization/user package
+            // inventories. Keep other collaborator names and raw output in
+            // memory; retain only the authenticated actor's reported access.
+            const collaborators = npmJson(['access', 'list', 'collaborators', identity.name]);
+            assert(collaborators && typeof collaborators === 'object' && !Array.isArray(collaborators), 'Invalid npm permission response');
+            const listed = Object.hasOwn(collaborators, actor);
+            const access = listed ? collaborators[actor] : undefined;
+            receipt.npmReadiness.actorListedForPackage = listed;
             receipt.npmReadiness.selectedPackageAccess = !listed ? 'absent' : access === 'read-write' || access === 'read-only' ? access : 'unrecognized';
             assert(listed && access === 'read-write', 'Selected npm package does not report write permission');
             receipt.checks.npmPackageWritePermission = true;
@@ -492,7 +492,7 @@ jobs:
                 if (receipt.stage === 'npm-authentication') {
                   Object.assign(failure, { category: 'authentication', code: 'AUTHENTICATION_NOT_VERIFIED' });
                 } else if (receipt.stage === 'npm-package-permission' && !receipt.checks.npmPackageWritePermission) {
-                  Object.assign(failure, receipt.npmReadiness.selectedPackageListed === undefined
+                  Object.assign(failure, receipt.npmReadiness.actorListedForPackage === undefined
                     ? { category: 'registry-query', code: 'INVALID_PERMISSION_RESPONSE' }
                     : { category: 'package-permission', code: 'SELECTED_PACKAGE_NOT_WRITABLE' });
                 }
