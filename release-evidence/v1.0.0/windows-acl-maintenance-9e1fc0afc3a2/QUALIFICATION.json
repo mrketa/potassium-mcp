@@ -1,0 +1,69 @@
+{
+  "schema": 1,
+  "date": "2026-09-11",
+  "repository": "mrketa/potassium-mcp",
+  "release": "v1.0.0",
+  "kind": "Windows-only ACL diagnostics maintenance rebuild",
+  "sourceCommit": "9b20e52fab1a5f624574d43723d710f66fa92b1d",
+  "originalTagCommit": "09e44385251f7eac48627b58dd0a3e675fe75afa",
+  "versionId": "9e1fc0afc3a2d0b8a13080a0dae105eb9445fe472b41c725c612063854f4a10b",
+  "artifacts": {
+    "Setup.exe": {
+      "bytes": 260001329,
+      "sha256": "682ebdd4e70b5ab252424bffcb76f05a176d1ad54f5ebc1c3976aa17e4eb2f35"
+    },
+    "potassium-mcp-v1.0.0-windows-setup.zip": {
+      "bytes": 162539707,
+      "sha256": "fe93cc4720bec40b7a203315ad4e9d3e45e6e55790231cb420f1f19d3eb16692"
+    },
+    "SHA256SUMS.txt": {
+      "bytes": 181,
+      "sha256": "f3ad8a9894f77d2491952860841641eec10361cf33b099ddf5f02670c6f7b830"
+    }
+  },
+  "embeddedNpmArtifact": {
+    "filename": "mrketa-potassium-mcp-1.0.0.tgz",
+    "sha256": "d4753fcd2daaac8236a365f909d272654e153584582897456bf5a2e30c3cb224",
+    "integrity": "sha512-ihLJPOyJPk1WLN3bRZTjJnNmIcm8868A+tGta0OCDo4M0JmyufQ3q3WER3bgPiCyoOVH/TOnwXk1XNQAbmy7CA=="
+  },
+  "npmRegistry": {
+    "version": "1.0.0",
+    "integrity": "sha512-WeuK/IAlMZRqlS5yKeyZ/idQdHkvvb34VZF8zgoB1e31QTtz7WpFue1CdNx6BbauaO3lJhq1t2WBsooYD+kmug==",
+    "republished": false
+  },
+  "sourceVerification": {
+    "node22Passed": 78,
+    "node24Passed": 78,
+    "nativeTestsPassed": 63,
+    "receiptSha256": "6da21ce343d84a26092db7a0c057b648ad1f9a12a107166bc4b99e61b5bc80ae"
+  },
+  "artifactVerification": {
+    "nativeSourceSealsVerified": true,
+    "windowsPackagingTestsPassed": 12,
+    "sealedExeEmbeddedBundleAndZipVerified": true,
+    "exactPackedRuntimeSmokePassed": true,
+    "actualOldToNewGuiUpgradePassed": true,
+    "configTokenScriptsUserProjectBytesAndFiveAclsPreserved": true,
+    "packagedAclDeniedGuidanceVerified": true,
+    "packagedUnknownErrorNoElevationAdviceVerified": true,
+    "repairAfterRemovedFaultPassed": true,
+    "confirmedGuiRemovalRetainsPrivateData": true
+  },
+  "faultInjectionBoundary": "A fixture-scoped PowerShell wrapper deliberately threw an UnauthorizedAccessException or returned an unclassified helper error. Setup.exe and its installed package bytes were not modified. This is not a reproduction of the colleague machine permission policy.",
+  "sourceCI": {
+    "windowsSetup": {
+      "id": 34614412895,
+      "conclusion": "success"
+    },
+    "mcpQuality": {
+      "id": 34614412892,
+      "conclusion": "success"
+    }
+  },
+  "signing": "unsigned",
+  "publication": {
+    "npm": false,
+    "tagMoved": false,
+    "windowsAssetsPending": true
+  }
+}

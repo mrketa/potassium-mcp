@@ -1,0 +1,14 @@
+{
+  "Setup.exe": {
+    "sha256": "7423038a9521292342dc44409c066a7ec21acd0f5a861c64039c71e4e8778b21",
+    "bytes": 259993137
+  },
+  "potassium-mcp-v1.0.0-windows-setup.zip": {
+    "sha256": "d1dc43997c2c180b3f57e78df3e0f956239884ee432314831dacd266f078cd30",
+    "bytes": 162531558
+  },
+  "SHA256SUMS.txt": {
+    "sha256": "be0cdaef3fd95c86610589c7bb020668eed320c641c18d0dadfee6f41480cb0e",
+    "bytes": 181
+  }
+}

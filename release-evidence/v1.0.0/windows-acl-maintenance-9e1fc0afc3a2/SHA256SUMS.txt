@@ -1,0 +1,2 @@
+fe93cc4720bec40b7a203315ad4e9d3e45e6e55790231cb420f1f19d3eb16692  potassium-mcp-v1.0.0-windows-setup.zip
+682ebdd4e70b5ab252424bffcb76f05a176d1ad54f5ebc1c3976aa17e4eb2f35  Setup.exe

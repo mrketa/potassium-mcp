@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "sourceCommit": "9b20e52fab1a5f624574d43723d710f66fa92b1d",
+  "originalTagCommit": "09e44385251f7eac48627b58dd0a3e675fe75afa",
+  "windowsVersionId": "9e1fc0afc3a2d0b8a13080a0dae105eb9445fe472b41c725c612063854f4a10b",
+  "scope": "Windows maintenance build manifests and pre-publication qualification; no npm publication or tag move",
+  "files": [
+    {
+      "path": "WINDOWS-SETUP.json",
+      "bytes": 52920,
+      "sha256": "dcef25680ce475fe33d982355bd0527becbd6568111175b5c66b43e113a3b40a"
+    },
+    {
+      "path": "BUNDLE-INVENTORY.json",
+      "bytes": 33451,
+      "sha256": "c1fb05b2572b3a6f4295747653e712b8541ec4e990f80d1d13bdd420cfb535ee"
+    },
+    {
+      "path": "runtime-bundle.manifest.json",
+      "bytes": 693042,
+      "sha256": "9e1fc0afc3a2d0b8a13080a0dae105eb9445fe472b41c725c612063854f4a10b"
+    },
+    {
+      "path": "SEALED-SHA256SUMS.txt",
+      "bytes": 11467,
+      "sha256": "a55bff263c520bf0d36a46d5900eccc374b1ba819036ea635a5e8ba2527522a4"
+    },
+    {
+      "path": "NPM-ARTIFACT.json",
+      "bytes": 302,
+      "sha256": "f87fb2115a88cf5e4bdadcc2fdbd9f00f8407bbafd171818103fa480587bf762"
+    },
+    {
+      "path": "PREVIOUS-ASSETS.json",
+      "bytes": 412,
+      "sha256": "6d7cc70f578979f983ed049d7267bea439a0a89d9f4a923fd0a3f81162083623"
+    },
+    {
+      "path": "SHA256SUMS.txt",
+      "bytes": 181,
+      "sha256": "f3ad8a9894f77d2491952860841641eec10361cf33b099ddf5f02670c6f7b830"
+    },
+    {
+      "path": "QUALIFICATION.json",
+      "bytes": 2613,
+      "sha256": "8ad57857b368362dfa6b031f028d6061f601616191f1526ab8d3bc5ffbd9b9f3"
+    }
+  ]
+}
