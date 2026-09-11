@@ -12,13 +12,13 @@ import { acquireInstallLock } from "../src/install.js";
 
 const token = "detached-state-regression-token-at-least-thirty-two-characters";
 const brokerPath = fileURLToPath(new URL("../src/broker.js", import.meta.url));
-const waitFor = async (read, predicate, diagnostics = () => "") => {
+const waitFor = async (read, predicate, diagnostics = () => "", pollMs = 10) => {
   const deadline = Date.now() + 5000;
   let last;
   while (Date.now() < deadline) {
     last = await read();
     if (predicate(last)) return last;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
   }
   throw new Error(`Detached broker state did not reach the expected transition; last=${JSON.stringify(last)}; ${diagnostics()}`);
 };
@@ -148,7 +148,8 @@ test("detached broker startup persistence failure closes listeners and exits ins
 
 test("detached state retains all concurrent RPCs and the correct final idle snapshot", { timeout: 15000 }, async (t) => {
   const fixture = await detachedFixture(t);
-  const state = await waitFor(fixture.readState, (value) => value?.readiness === "ready");
+  // Aggressive Windows readers can deny atomic replacement; observe without creating that fault.
+  const state = await waitFor(fixture.readState, (value) => value?.readiness === "ready", undefined, 100);
   const endpoint = /Potassium listening on (ws:\/\/[^; ]+)/;
   const banner = await waitFor(() => fixture.stderr(), (value) => endpoint.test(value));
   const socket = await executor(t, banner.match(endpoint)[1]);
@@ -160,19 +161,19 @@ test("detached state retains all concurrent RPCs and the correct final idle snap
   const first = toolCall(state.streamableHttp.endpoint, 1, "potassium_client_state");
   const second = toolCall(state.streamableHttp.endpoint, 2, "potassium_diagnostic_snapshot");
   await waitFor(() => frames, (value) => value.length === 2);
-  const busy = await waitFor(fixture.readState, (value) => value?.activeRequests?.length === 2);
+  const busy = await waitFor(fixture.readState, (value) => value?.activeRequests?.length === 2, undefined, 100);
   assert.deepEqual(busy.activeRequests.map(({ method }) => method).sort(), ["client_state", "diagnostic_snapshot"]);
   const short = frames.find(({ method }) => method === "diagnostic_snapshot");
   socket.send(JSON.stringify({ type: "response", id: short.id, ok: true, result: {} }));
   const shortResult = await second;
   assert.equal(shortResult.status, 200);
   assert.equal(shortResult.payload.result.isError ?? false, false, JSON.stringify(shortResult.payload));
-  const remaining = await waitFor(fixture.readState, (value) => value?.activeRequests?.length === 1, fixture.stderr);
+  const remaining = await waitFor(fixture.readState, (value) => value?.activeRequests?.length === 1, fixture.stderr, 100);
   assert.equal(remaining.active.method, "client_state");
   const long = frames.find(({ method }) => method === "client_state");
   socket.send(JSON.stringify({ type: "response", id: long.id, ok: true, result: {} }));
   assert.equal((await first).status, 200);
-  const idle = await waitFor(fixture.readState, (value) => value?.activeRequests?.length === 0 && value.active === null);
+  const idle = await waitFor(fixture.readState, (value) => value?.activeRequests?.length === 0 && value.active === null, undefined, 100);
   assert.equal(idle.recovering, false);
   fixture.child.send("finish");
   assert.equal((await fixture.exited)[0], 0);

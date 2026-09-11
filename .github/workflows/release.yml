@@ -40,8 +40,9 @@ jobs:
     name: Verify selected immutable draft (no publication)
     runs-on: windows-2022
     timeout-minutes: 45
+    environment: stable-publish
     permissions:
-      contents: read
+      contents: write
     outputs:
       version: ${{ steps.selected.outputs.version }}
     steps:
