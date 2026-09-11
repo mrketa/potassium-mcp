@@ -198,7 +198,17 @@ const emit = (value, json, command) => {
 function diagnostic(error, json) {
   const message = error instanceof Error ? error.message : String(error);
   const code = typeof error?.code === "string" ? error.code : undefined;
-  process.stderr.write(json ? `${JSON.stringify({ ok: false, error: message, ...(code ? { code } : {}) })}\n` : `potassium-mcp: ${message}\n`);
+  let acl;
+  const seen = new Set();
+  for (let cause = error; cause instanceof Error && !seen.has(cause); cause = cause.cause) {
+    seen.add(cause);
+    if (cause.code === "MCP_ACL_PRESERVE_FAILED" && cause.acl) { acl = cause.acl; break; }
+  }
+  const advice = acl?.requiresElevation
+    ? "\nClose Setup, run the same installer as administrator, and retry. This does not require running MCP clients as administrator."
+    : "";
+  const detail = acl ? `\nAffected path: ${acl.path}\nWindows ACL error (${acl.operation}): ${acl.message}${advice}` : "";
+  process.stderr.write(json ? `${JSON.stringify({ ok: false, error: message, ...(code ? { code } : {}), ...(acl ? { acl } : {}) })}\n` : `potassium-mcp: ${message}${detail}\n`);
   process.exitCode = 1;
 }
 

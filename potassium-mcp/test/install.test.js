@@ -366,12 +366,59 @@ test("failed host ACL commit restores unrelated bytes and all shared setup files
   const options = hostOptions(value, "omp", path.join(value.root, "host.json"));
   await writeFile(options.mcpConfigPath, '{"mcpServers":{"other":{"command":"keep"}}}');
   const before = await filesBelow(value.root);
-  await assert.rejects(registerHost({ ...options, copyAcl: () => { throw new Error("ACL copy failed"); } }), /ACL copy failed/);
+  await assert.rejects(registerHost({
+    ...options, copyAcl: ({ source }) => {
+      if (source.startsWith(`${options.mcpConfigPath}.`)) throw new Error("ACL copy failed");
+    },
+  }), (error) => {
+    assert.equal(error.code, "MCP_ACL_PRESERVE_FAILED");
+    assert.equal(error.acl.path, options.mcpConfigPath);
+    assert.equal(error.acl.message, "ACL copy failed");
+    assert.equal(error.acl.requiresElevation, false);
+    return true;
+  });
   assert.deepEqual(await filesBelow(value.root), before);
   await registerHost(options);
   const registered = await filesBelow(value.root);
-  await assert.rejects(uninstall({ ...value, all: true, copyAcl: () => { throw new Error("ACL copy failed"); } }), /ACL copy failed/);
+  await assert.rejects(uninstall({ ...value, all: true, copyAcl: () => { throw new Error("ACL copy failed"); } }), (error) => {
+    assert.equal(error.acl.path, `${value.installRoot}.transaction.json`);
+    assert.equal(error.acl.message, "ACL copy failed");
+    assert.equal(error.acl.requiresElevation, false);
+    return true;
+  });
   assert.deepEqual(await filesBelow(value.root), registered);
+});
+
+test("ACL failure during rollback retains the original failure and recoverable journal", async (t) => {
+  const value = await fixture(t);
+  await setup(value);
+  const before = await filesBelow(value.root);
+  let activationFailed = false;
+  const original = new Error("deployment activation failed");
+  await assert.rejects(repair({
+    ...value, allowUnsafeExecute: true,
+    brokerLifecycle: {
+      brokerStatus: async () => ({ status: "running" }), stopBroker: async () => {},
+      restartBroker: async () => { throw new Error("must not restart without recorded rollback"); },
+    },
+    onDeploymentActivation: () => { activationFailed = true; throw original; },
+    copyAcl: ({ source }) => {
+      if (activationFailed && source === `${value.installRoot}.transaction.json`) throw new Error("rollback journal ACL unavailable");
+    },
+  }), (error) => {
+    assert.equal(error.cause, original);
+    assert.equal(error.acl.path, `${value.installRoot}.transaction.json`);
+    assert.equal(error.acl.message, "rollback journal ACL unavailable");
+    assert.equal(error.acl.requiresElevation, false);
+    assert.match(error.message, /deployment activation failed/);
+    assert.match(error.message, /recovery required/);
+    return true;
+  });
+  const after = await filesBelow(value.root);
+  const journalPath = `${value.installRoot}.transaction.json`;
+  assert.equal(Object.hasOwn(after, journalPath), true);
+  delete after[journalPath];
+  assert.deepEqual(after, before);
 });
 
 test("host compare-and-swap preserves concurrent foreign edits", async (t) => {

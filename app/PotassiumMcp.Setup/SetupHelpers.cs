@@ -34,7 +34,7 @@ public sealed record SetupOptions(string ApplicationRoot, string InstallRoot, st
 }
 
 public sealed record CliRequest(string Command, string? WorkspaceRoot, string InstallRoot, string ApplicationRoot);
-public sealed record CliResult(bool Ok, string Summary, string Details, ConnectionInfo? Connection = null, bool CleanupPending = false, bool RestartRequired = false, bool? McpConnected = null, bool? ExecutorConnected = null);
+public sealed record CliResult(bool Ok, string Summary, string Details, ConnectionInfo? Connection = null, bool CleanupPending = false, bool RestartRequired = false, bool? McpConnected = null, bool? ExecutorConnected = null, string? RecoveryAdvice = null);
 public sealed record InstallationState(bool Installed, string Summary, ConnectionInfo? Connection = null);
 
 public static class CliArguments
@@ -104,18 +104,117 @@ public static class UserFacingText
 
     public static CliResult Render(string stdout, string stderr, int exitCode)
     {
+        if (TryRenderJson(stderr, exitCode, true, out var failure))
+            return failure with { Details = string.IsNullOrWhiteSpace(stdout) ? failure.Details : string.Join(Environment.NewLine, failure.Details, "Command output:", Redact(stdout)) };
+        if (TryRenderJson(stdout, exitCode, false, out var result)) return result;
+        if (exitCode != 0 && TryRenderJson(stderr, exitCode, false, out result)) return result;
+        var output = string.IsNullOrWhiteSpace(stdout) ? stderr : string.IsNullOrWhiteSpace(stderr) ? stdout : string.Join(Environment.NewLine, stdout, stderr);
+        return new(false, "The setup command did not return a complete result.", Redact(output));
+    }
+
+    private static bool TryRenderJson(string output, int exitCode, bool failureOnly, out CliResult result)
+    {
+        result = null!;
         try
         {
-            using var json = JsonDocument.Parse(stdout);
+            using var json = JsonDocument.Parse(output);
             var root = json.RootElement;
-            var ok = exitCode == 0 && (!root.TryGetProperty("ok", out var value) || value.ValueKind != JsonValueKind.False);
+            if (root.ValueKind != JsonValueKind.Object) return false;
+            var failed = root.TryGetProperty("ok", out var value) && value.ValueKind == JsonValueKind.False;
+            if (failureOnly && !failed) return false;
+            var ok = exitCode == 0 && !failed;
             var summary = new[] { "message", "summary", "status" }.Select(name => root.TryGetProperty(name, out var item) && item.ValueKind == JsonValueKind.String ? item.GetString() : null).FirstOrDefault(item => !string.IsNullOrWhiteSpace(item)) ?? (ok ? "Finished." : "Setup could not finish.");
-            return new(ok, Redact(summary), Redact(root.GetRawText()),
+            var details = Redact(root.GetRawText());
+            string? recoveryAdvice = null;
+            if (failed && TryFormatAclFailure(root, out var aclDetails, out recoveryAdvice))
+            {
+                details = string.Join(Environment.NewLine, aclDetails, "", "Failure context:", Redact(summary), details);
+                summary = "Setup could not preserve existing file permissions.";
+            }
+            result = new(ok, Redact(summary), details,
                 CleanupPending: root.TryGetProperty("cleanupPending", out var cleanup) && cleanup.ValueKind == JsonValueKind.True,
-                RestartRequired: root.TryGetProperty("restartRequired", out var restart) && restart.ValueKind == JsonValueKind.True);
+                RestartRequired: root.TryGetProperty("restartRequired", out var restart) && restart.ValueKind == JsonValueKind.True,
+                RecoveryAdvice: recoveryAdvice);
+            return true;
         }
-        catch (JsonException) { return new(false, "The setup command did not return a complete result.", Redact(string.IsNullOrWhiteSpace(stdout) ? stderr : stdout)); }
+        catch (JsonException) { return false; }
     }
+
+    private static bool TryFormatAclFailure(JsonElement root, out string details, out string? recoveryAdvice)
+    {
+        details = "";
+        recoveryAdvice = null;
+        if (!root.TryGetProperty("acl", out var acl) || acl.ValueKind != JsonValueKind.Object
+            || HasDuplicateProperties(root) || HasDuplicateProperties(acl)
+            || !TryText(acl, "path", 32767, false, out var path) || path is null || !Path.IsPathFullyQualified(path) || path.Any(char.IsControl)
+            || !TryText(acl, "operation", 16, false, out var operation) || operation is not ("initialize" or "read" or "write" or "launch" or "unknown")
+            || !TryText(acl, "message", 2048, false, out var message)
+            || !TryText(acl, "exceptionType", 256, true, out var exceptionType)
+            || !TryText(acl, "processCode", 128, true, out var processCode)
+            || !TryNumber(acl, "hresult", int.MinValue, uint.MaxValue, out var hresult)
+            || !TryNumber(acl, "nativeErrorCode", 0, int.MaxValue, out var nativeErrorCode)
+            || !TryNumber(acl, "exitCode", int.MinValue, int.MaxValue, out var exitCode)
+            || !acl.TryGetProperty("requiresElevation", out var elevation) || elevation.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+            return false;
+
+        var operationText = operation switch
+        {
+            "initialize" => "Initialize Windows permission tools",
+            "read" => "Read existing file permissions",
+            "write" => "Preserve file permissions",
+            "launch" => "Start Windows permission tools",
+            _ => "Preserve file permissions (operation not identified)"
+        };
+        var text = new StringBuilder();
+        // Only the validated, explicitly supplied target may bypass personal-path redaction.
+        text.Append("Affected file: ").AppendLine(Secret.Replace(path, "$1\"[hidden]\""));
+        text.Append("Operation: ").AppendLine(operationText);
+        text.Append("Windows error: ").AppendLine(Redact(message!));
+        if (nativeErrorCode is not null) text.Append("Windows error code: ").AppendLine(nativeErrorCode.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (hresult is not null) text.Append("HRESULT: 0x").AppendLine(unchecked((uint)hresult.Value).ToString("X8", System.Globalization.CultureInfo.InvariantCulture));
+        if (exceptionType is not null) text.Append("Exception: ").AppendLine(Redact(exceptionType));
+        if (processCode is not null) text.Append("Process error code: ").AppendLine(Redact(processCode));
+        if (exitCode is not null) text.Append("Process exit code: ").AppendLine(exitCode.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        details = text.ToString().TrimEnd();
+        if (elevation.ValueKind == JsonValueKind.True && operation is "read" or "write" && processCode is null
+            && (exceptionType is "System.UnauthorizedAccessException" or "System.Security.AccessControl.PrivilegeNotHeldException"
+                || nativeErrorCode is 5 or 1314 or 740
+                || hresult is not null && unchecked((uint)hresult.Value) is 0x80070005 or 0x80070522 or 0x800702E4))
+            recoveryAdvice = "Close Setup, right-click the same installer and choose Run as administrator, then retry. MCP clients do not need administrator rights. Administrator access may not resolve every permissions restriction.";
+        return true;
+    }
+
+    private static bool TryText(JsonElement root, string name, int limit, bool nullable, out string? value)
+    {
+        value = null;
+        if (!root.TryGetProperty(name, out var item)) return false;
+        if (nullable && item.ValueKind == JsonValueKind.Null) return true;
+        if (item.ValueKind != JsonValueKind.String) return false;
+        value = item.GetString();
+        return !string.IsNullOrWhiteSpace(value) && value.Length <= limit;
+    }
+
+    private static bool TryNumber(JsonElement root, string name, long minimum, long maximum, out long? value)
+    {
+        value = null;
+        if (!root.TryGetProperty(name, out var item)) return false;
+        if (item.ValueKind == JsonValueKind.Null) return true;
+        if (item.ValueKind != JsonValueKind.Number || !item.TryGetInt64(out var number) || number < minimum || number > maximum) return false;
+        value = number;
+        return true;
+    }
+
+    private static bool HasDuplicateProperties(JsonElement root)
+    {
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        return root.EnumerateObject().Any(property => !names.Add(property.Name));
+    }
+
+    public static CliResult WithProvisioningFailureContext(CliResult result, bool cleanupPending) => result with
+    {
+        Details = string.Join(Environment.NewLine, result.Details, "", "Verified application files were retained for repair; no previous runtime was deleted."),
+        CleanupPending = result.CleanupPending || cleanupPending
+    };
 
     public static string Redact(string value) => HomePath.Replace(WindowsPath.Replace(Secret.Replace(value ?? "", "$1\"[hidden]\""), "[path]"), "[path]");
 }
@@ -191,7 +290,7 @@ public sealed class SetupRunner
             progress?.Report("Configuring the durable runtime and preserving existing access settings…");
             var result = await RunCli(node, cli, root, CliArguments.Build(request with { Command = command }, runtimeRoot, CliArguments.NeedsReadIdentity(request.InstallRoot)));
             var cleanupPending = result.CleanupPending || provisioned.CleanupPending;
-            if (!result.Ok) return result with { Summary = "Setup did not finish. Verified application files were retained for repair; no previous runtime was deleted.", CleanupPending = cleanupPending };
+            if (!result.Ok) return UserFacingText.WithProvisioningFailureContext(result, cleanupPending);
             if (result.CleanupPending) return result with { Summary = "Configuration was committed, but recovery cleanup is still required. Run Repair before connecting.", Connection = null, CleanupPending = true };
             WindowsInstallation.ResolveActive(request.ApplicationRoot, receipt);
             return result with { Summary = request.Command == "repair" ? "Potassium MCP was repaired." : "Potassium MCP was installed.", Details = result.Details + "\nThe connection uses one durable local launcher. Fresh setup grants the agent read, admin, and execute access. Existing access settings were preserved. Executor availability has not been checked. Autoexec is derived from the workspace parent." + (provisioned.CleanupPending ? "\nUnrecognized or incomplete staging content was preserved; cleanup is pending." : ""), Connection = cleanupPending ? null : WindowsInstallation.Connection(request.ApplicationRoot), CleanupPending = cleanupPending };
@@ -336,6 +435,7 @@ public sealed class SetupRunner
     {
         var start = WindowsInstallation.StartInfo(node, workingDirectory);
         start.RedirectStandardOutput = start.RedirectStandardError = true;
+        start.StandardOutputEncoding = start.StandardErrorEncoding = Encoding.UTF8;
         start.RedirectStandardInput = true;
         start.ArgumentList.Add(cli);
         foreach (var argument in args) start.ArgumentList.Add(argument);

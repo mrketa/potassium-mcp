@@ -305,6 +305,197 @@ public sealed class SetupHelpersTests
         Assert.DoesNotContain("Ada", result.Details);
     }
 
+    [Fact]
+    public void Stderr_acl_failure_exposes_original_file_and_native_reason_without_exposing_other_paths_or_secrets()
+    {
+        var failure = AclFailure();
+        var acl = failure["acl"]!.AsObject();
+        var originalPath = acl["path"]!.GetValue<string>();
+        acl["message"] = "Security descriptor access denied; token=native-secret";
+        failure["message"] = @"Rollback could not finish; password=context-secret; backup C:\Users\Bea\backup.json";
+        failure["token"] = "json-secret";
+        var result = UserFacingText.Render(@"Staging C:\Users\Cy\staged.json secret=stdout-secret", failure.ToJsonString(), 1);
+
+        Assert.False(result.Ok);
+        Assert.Contains(originalPath, result.Details, StringComparison.Ordinal);
+        Assert.Contains("Security descriptor access denied", result.Details, StringComparison.Ordinal);
+        Assert.Contains("80070005", result.Details, StringComparison.Ordinal);
+        Assert.Contains("Rollback could not finish", result.Details, StringComparison.Ordinal);
+        Assert.Contains("administrator", result.RecoveryAdvice!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("retry", result.RecoveryAdvice!, StringComparison.OrdinalIgnoreCase);
+        foreach (var hidden in new[] { "native-secret", "context-secret", "json-secret", "stdout-secret", "Bea", "Cy" })
+        {
+            Assert.DoesNotContain(hidden, result.Summary, StringComparison.Ordinal);
+            Assert.DoesNotContain(hidden, result.Details, StringComparison.Ordinal);
+        }
+        var fileLine = Assert.Single(result.Details.Split('\n'), line => line.Contains(originalPath, StringComparison.Ordinal));
+        Assert.DoesNotContain(originalPath, result.Details.Replace(fileLine, "", StringComparison.Ordinal), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("read", "System.UnauthorizedAccessException", null, null)]
+    [InlineData("write", "System.Security.AccessControl.PrivilegeNotHeldException", null, null)]
+    [InlineData("read", "System.ComponentModel.Win32Exception", 5L, null)]
+    [InlineData("write", "System.ComponentModel.Win32Exception", 1314L, null)]
+    [InlineData("write", "System.ComponentModel.Win32Exception", 740L, null)]
+    [InlineData("write", "System.IO.IOException", null, -2147024891L)]
+    [InlineData("read", "System.IO.IOException", null, 2147943714L)]
+    [InlineData("read", "System.IO.IOException", null, 2147943140L)]
+    public void Typed_acl_privilege_evidence_offers_setup_only_admin_recovery(string operation, string exceptionType, long? nativeCode, long? hresult)
+    {
+        var failure = AclFailure(operation, exceptionType, hresult, nativeCode);
+        failure["acl"]!["message"] = "Une restriction Windows empêche cette opération.";
+        var result = UserFacingText.Render("", failure.ToJsonString(), 1);
+
+        Assert.False(result.Ok);
+        Assert.Contains("administrator", result.RecoveryAdvice!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Setup", result.RecoveryAdvice!, StringComparison.Ordinal);
+        Assert.Contains("retry", result.RecoveryAdvice!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("initialize", "System.UnauthorizedAccessException", 5L, null, null, true)]
+    [InlineData("launch", "System.UnauthorizedAccessException", 5L, null, null, true)]
+    [InlineData("unknown", "System.UnauthorizedAccessException", 5L, null, null, true)]
+    [InlineData("read", null, null, null, null, true)]
+    [InlineData("write", "System.IO.FileNotFoundException", 2L, -2147024894L, null, true)]
+    [InlineData("read", "System.Management.Automation.CommandNotFoundException", null, null, null, true)]
+    [InlineData("read", "Other.UnauthorizedAccessException", null, null, null, true)]
+    [InlineData("write", "System.UnauthorizedAccessException", 5L, null, "EPERM", true)]
+    [InlineData("write", null, null, null, "EACCES", true)]
+    [InlineData("write", "System.UnauthorizedAccessException", 5L, null, null, false)]
+    public void Unrelated_or_unconfirmed_errors_never_offer_admin_recovery(string operation, string? exceptionType, long? nativeCode, long? hresult, string? processCode, bool requiresElevation)
+    {
+        var failure = AclFailure(operation, exceptionType, hresult, nativeCode, processCode, requiresElevation);
+        failure["acl"]!["message"] = "Access is denied; a required privilege is not held.";
+        var result = UserFacingText.Render("", failure.ToJsonString(), 1);
+
+        Assert.False(result.Ok);
+        Assert.Null(result.RecoveryAdvice);
+        Assert.Contains("Access is denied", result.Details, StringComparison.Ordinal);
+        if (processCode is not null) Assert.Contains(processCode, result.Details, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("path", "\"relative.json\"")]
+    [InlineData("message", "7")]
+    [InlineData("operation", "\"remove\"")]
+    [InlineData("requiresElevation", "\"true\"")]
+    [InlineData("exceptionType", "{}")]
+    [InlineData("nativeErrorCode", "\"5\"")]
+    [InlineData("hresult", "4294967296")]
+    [InlineData("exitCode", "1.5")]
+    [InlineData("processCode", "false")]
+    public void Malformed_acl_details_remain_redacted_without_admin_recovery(string property, string value)
+    {
+        var failure = AclFailure();
+        failure["acl"]![property] = JsonNode.Parse(value);
+        failure["password"] = "malformed-secret";
+        var result = UserFacingText.Render("", failure.ToJsonString(), 1);
+
+        Assert.False(result.Ok);
+        Assert.Null(result.RecoveryAdvice);
+        Assert.DoesNotContain("Ada", result.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("malformed-secret", result.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Incomplete_duplicate_or_oversized_acl_details_do_not_unlock_path_display_or_admin_recovery()
+    {
+        var incomplete = AclFailure();
+        incomplete["acl"]!.AsObject().Remove("exceptionType");
+        var oversized = AclFailure();
+        oversized["acl"]!["message"] = new string('x', 2049);
+        var complete = AclFailure().ToJsonString();
+        var duplicate = complete.Replace("\"requiresElevation\":true", "\"requiresElevation\":false,\"requiresElevation\":true", StringComparison.Ordinal);
+        foreach (var output in new[] { incomplete.ToJsonString(), oversized.ToJsonString(), duplicate })
+        {
+            var result = UserFacingText.Render("", output, 1);
+            Assert.False(result.Ok);
+            Assert.Null(result.RecoveryAdvice);
+            Assert.DoesNotContain("Ada", result.Details, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Successful_stdout_is_not_replaced_by_unstructured_stderr_and_acl_data_cannot_turn_success_into_admin_advice()
+    {
+        var output = AclFailure();
+        output["ok"] = true;
+        var result = UserFacingText.Render(output.ToJsonString(), "A diagnostic notice", 0);
+
+        Assert.True(result.Ok);
+        Assert.Null(result.RecoveryAdvice);
+        Assert.DoesNotContain("Ada", result.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Stdout_acl_failure_remains_actionable_and_stderr_failure_takes_precedence_over_stdout()
+    {
+        var failure = AclFailure().ToJsonString();
+        var stdout = UserFacingText.Render(failure, "", 1);
+        var stderr = UserFacingText.Render("{\"ok\":true,\"message\":\"Earlier operation finished\"}", failure, 1);
+        foreach (var result in new[] { stdout, stderr })
+        {
+            Assert.False(result.Ok);
+            Assert.Contains(@"C:\Users\Ada", result.Details, StringComparison.Ordinal);
+            Assert.Contains("administrator", result.RecoveryAdvice!, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("{\"ok\":false,\"message\":\"Access is denied\",")]
+    [InlineData("Access is denied; token=raw-secret")]
+    public void Nonobject_or_partial_output_falls_back_without_dropping_stderr_or_classifying_error_text(string stderr)
+    {
+        var result = UserFacingText.Render(@"Started C:\Users\Ada\staged.json", stderr, 1);
+
+        Assert.False(result.Ok);
+        Assert.Null(result.RecoveryAdvice);
+        Assert.DoesNotContain("Ada", result.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("raw-secret", result.Details, StringComparison.Ordinal);
+        Assert.Contains(UserFacingText.Redact(stderr), result.Details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Provisioning_failure_preserves_actionable_acl_error_and_rollback_context()
+    {
+        var failure = AclFailure();
+        failure["code"] = "MCP_ROLLBACK_FAILED";
+        failure["message"] = "Rollback remains incomplete.";
+        var result = UserFacingText.WithProvisioningFailureContext(UserFacingText.Render("", failure.ToJsonString(), 1), true);
+
+        Assert.False(result.Ok);
+        Assert.True(result.CleanupPending);
+        Assert.Null(result.Connection);
+        Assert.Contains(@"C:\Users\Ada", result.Details, StringComparison.Ordinal);
+        Assert.Contains("Rollback remains incomplete", result.Details, StringComparison.Ordinal);
+        Assert.Contains("retained", result.Details, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("administrator", result.RecoveryAdvice!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("retry", result.RecoveryAdvice!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static JsonObject AclFailure(string operation = "write", string? exceptionType = "System.UnauthorizedAccessException",
+        long? hresult = -2147024891, long? nativeErrorCode = 5, string? processCode = null, bool requiresElevation = true) => new()
+    {
+        ["ok"] = false,
+        ["code"] = "MCP_ACL_PRESERVE_FAILED",
+        ["message"] = "Windows file permissions could not be preserved.",
+        ["acl"] = new JsonObject
+        {
+            ["path"] = @"C:\Users\Ada\AppData\Local\PotassiumMcp.transaction.json",
+            ["operation"] = operation,
+            ["message"] = "Access to the security descriptor was denied.",
+            ["exceptionType"] = exceptionType,
+            ["hresult"] = hresult,
+            ["nativeErrorCode"] = nativeErrorCode,
+            ["processCode"] = processCode,
+            ["exitCode"] = 1,
+            ["requiresElevation"] = requiresElevation
+        }
+    };
+
     private sealed class InstallationFixture : IDisposable
     {
         public string Root { get; } = Path.Combine(Path.GetTempPath(), "PotassiumMcp.Setup.Tests", Guid.NewGuid().ToString("N"));

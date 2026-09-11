@@ -290,15 +290,101 @@ export async function restrictTokenAcl(tokenPath, run = spawnSync) {
   if (result.error || result.status !== 0) throw new Error("Unable to restrict token-file ACL");
 }
 
-async function applyFileAcl(target, source, options) {
-  if (source && options.copyAcl) return options.copyAcl({ source, target });
+const ACL_FAILURE_CODE = "MCP_ACL_PRESERVE_FAILED";
+const ACL_MESSAGE_LIMIT = 2048;
+const ACL_OUTPUT_LIMIT = 256 * 1024;
+const boundedAclText = (value, limit = ACL_MESSAGE_LIMIT) => typeof value === "string" ? value.trim().slice(0, limit) : "";
+const aclInteger = (value, minimum = -2147483648, maximum = 2147483647) => Number.isInteger(value) && value >= minimum && value <= maximum;
+const aclPrivilegeEvidence = (exception) => exception.exceptionType === "System.UnauthorizedAccessException"
+  || exception.exceptionType === "System.Security.AccessControl.PrivilegeNotHeldException"
+  || [5, 1314, 740].includes(exception.nativeErrorCode)
+  || aclInteger(exception.hresult, -2147483648, 4294967295) && [0x80070005, 0x80070522, 0x800702e4].includes(exception.hresult >>> 0);
+
+// Keep initialization in the same catch, but never interpret an import failure as an ACL denial.
+const preserveAclCommand = [
+  "$operation = 'initialize'",
+  "try {",
+  "  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)",
+  "  $OutputEncoding = [Console]::OutputEncoding",
+  "  $ErrorActionPreference = 'Stop'",
+  `  ${WINDOWS_POWERSHELL_SECURITY_PRELUDE}`,
+  "  $operation = 'read'",
+  "  $acl = Get-Acl -LiteralPath $env:POTASSIUM_ACL_SOURCE -ErrorAction Stop",
+  "  $operation = 'write'",
+  "  Set-Acl -LiteralPath $env:POTASSIUM_ACL_TARGET -AclObject $acl -ErrorAction Stop",
+  "} catch {",
+  "  $exceptions = @()",
+  "  $exception = $_.Exception",
+  "  for ($index = 0; $null -ne $exception -and $index -lt 16; $index++) {",
+  "    $message = [string]$exception.Message",
+  `    if ($message.Length -gt ${ACL_MESSAGE_LIMIT}) { $message = $message.Substring(0, ${ACL_MESSAGE_LIMIT}) }`,
+  "    $nativeCode = $null",
+  "    if ($exception -is [System.ComponentModel.Win32Exception]) { $nativeCode = $exception.NativeErrorCode }",
+  "    $exceptions += [pscustomobject]@{ message = $message; exceptionType = $exception.GetType().FullName; hresult = [long]$exception.HResult; nativeErrorCode = $nativeCode }",
+  "    $exception = $exception.InnerException",
+  "  }",
+  `  $failure = [pscustomobject]@{ code = '${ACL_FAILURE_CODE}'; operation = $operation; exceptions = $exceptions }`,
+  "  [Console]::Error.WriteLine((ConvertTo-Json -InputObject $failure -Depth 4 -Compress))",
+  "  exit 1",
+  "}",
+].join("\n");
+
+function aclNativeFailure(result) {
+  if (result.error) return null;
+  for (const output of [result.stderr, result.stdout]) {
+    if (typeof output !== "string" || output.length > ACL_OUTPUT_LIMIT) continue;
+    try {
+      const record = JSON.parse(output.trim());
+      if (record?.code !== ACL_FAILURE_CODE || !["initialize", "read", "write"].includes(record.operation)
+        || !Array.isArray(record.exceptions) || record.exceptions.length < 1 || record.exceptions.length > 16
+        || !record.exceptions.every((exception) => exception && typeof exception.message === "string"
+          && typeof exception.exceptionType === "string" && exception.exceptionType.length > 0 && exception.exceptionType.length <= 256
+          && (exception.hresult === null || aclInteger(exception.hresult, -2147483648, 4294967295))
+          && (exception.nativeErrorCode === null || aclInteger(exception.nativeErrorCode, 0)))) continue;
+      const canElevate = record.operation === "read" || record.operation === "write";
+      const evidence = canElevate && record.exceptions.findLast(aclPrivilegeEvidence) || record.exceptions.at(-1);
+      return {
+        operation: record.operation, message: boundedAclText(evidence.message),
+        exceptionType: evidence.exceptionType, hresult: evidence.hresult, nativeErrorCode: evidence.nativeErrorCode,
+        requiresElevation: canElevate && aclPrivilegeEvidence(evidence),
+      };
+    } catch {}
+  }
+  return null;
+}
+
+function aclPreservationError(logicalTarget, result, operation = result.error ? "launch" : "unknown") {
+  const native = aclNativeFailure(result);
+  const processCode = boundedAclText(result.error?.code, 128) || null;
+  const exitCode = aclInteger(result.status) ? result.status : null;
+  const fallback = boundedAclText(result.error?.message) || boundedAclText(result.stderr) || boundedAclText(result.stdout)
+    || (exitCode === null ? "PowerShell did not complete the ACL operation." : `PowerShell exited with code ${exitCode}.`);
+  const acl = {
+    path: logicalTarget, operation: native?.operation ?? operation, message: native?.message || fallback,
+    exceptionType: native?.exceptionType ?? null, hresult: native?.hresult ?? null, nativeErrorCode: native?.nativeErrorCode ?? null,
+    processCode, exitCode, requiresElevation: native?.requiresElevation ?? false,
+  };
+  const failure = new Error(`Unable to preserve file ACL for ${JSON.stringify(logicalTarget)} (${acl.operation}): ${acl.message}`, result.error ? { cause: result.error } : undefined);
+  failure.code = ACL_FAILURE_CODE;
+  failure.acl = acl;
+  return failure;
+}
+
+async function applyFileAcl(target, source, options, logicalTarget) {
+  if (source && options.copyAcl) {
+    try { return await options.copyAcl({ source, target }); }
+    catch (error) { throw aclPreservationError(logicalTarget, { error }, "unknown"); }
+  }
   if (process.platform !== "win32") return;
   if (!source) return restrictTokenAcl(target, options.run ?? spawnSync);
-  const command = WINDOWS_POWERSHELL_SECURITY_PRELUDE + "$acl = Get-Acl -LiteralPath $env:POTASSIUM_ACL_SOURCE; Set-Acl -LiteralPath $env:POTASSIUM_ACL_TARGET -AclObject $acl";
-  const result = (options.run ?? spawnSync)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
-    encoding: "utf8", windowsHide: true, env: windowsPowerShellEnvironment({ POTASSIUM_ACL_SOURCE: source, POTASSIUM_ACL_TARGET: target }),
-  });
-  if (result.error || result.status !== 0) throw new Error("Unable to preserve MCP-config ACL");
+  let result;
+  try {
+    result = (options.run ?? spawnSync)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", preserveAclCommand], {
+      encoding: "utf8", windowsHide: true, maxBuffer: ACL_OUTPUT_LIMIT,
+      env: windowsPowerShellEnvironment({ POTASSIUM_ACL_SOURCE: source, POTASSIUM_ACL_TARGET: target }),
+    });
+  } catch (error) { throw aclPreservationError(logicalTarget, { error }); }
+  if (result.error || result.status !== 0) throw aclPreservationError(logicalTarget, result);
 }
 
 async function writeProtectedAtomic(target, value, options = {}, aclSource) {
@@ -307,7 +393,7 @@ async function writeProtectedAtomic(target, value, options = {}, aclSource) {
   try {
     await writeFile(staged, "", { mode: 0o600, flag: "wx" });
     if (aclSource && process.platform !== "win32") await chmod(staged, (await stat(aclSource)).mode & 0o777);
-    await applyFileAcl(staged, aclSource, options);
+    await applyFileAcl(staged, aclSource, options, target);
     await writeFile(staged, encode(value));
     if (options.durable) {
       const handle = await open(staged, "r+");
@@ -798,9 +884,13 @@ async function transaction(value, options, action) {
       throw failure;
     }
     const failures = [];
+    let rollbackAcl;
     if (journalCreated && journal.phase !== "applying") {
       journal.phase = "applying";
-      try { await persist(); } catch (failure) { failures.push(`rollback intent could not be recorded: ${failure.message}`); }
+      try { await persist(); } catch (failure) {
+        if (failure.code === ACL_FAILURE_CODE) rollbackAcl = failure.acl;
+        failures.push(`rollback intent could not be recorded: ${failure.message}`);
+      }
     }
     if (failures.length === 0) {
       for (const change of [...journal.cli].reverse()) {
@@ -824,9 +914,16 @@ async function transaction(value, options, action) {
         await persist();
         if (value.repairContext) failures.push("the original running configuration bytes are unavailable; user-edited configuration and committed recovery metadata were retained for verified repair to resume");
         else await (await brokerLifecycle(options)).restartBroker({ ...options, installRoot: value.installRoot, installLease: release.lease });
-      } catch (failure) { failures.push(`rollback finalization: ${failure.message}`); }
+      } catch (failure) {
+        if (failure.code === ACL_FAILURE_CODE) rollbackAcl = failure.acl;
+        failures.push(`rollback finalization: ${failure.message}`);
+      }
     }
-    if (failures.length) throw new Error(`${error.message}; recovery required: ${failures.join("; ")}; preserve ${value.journalPath}`, { cause: error });
+    if (failures.length) {
+      const failure = new Error(`${error.message}; recovery required: ${failures.join("; ")}; preserve ${value.journalPath}`, { cause: error });
+      if (rollbackAcl && !error.acl) { failure.code = ACL_FAILURE_CODE; failure.acl = rollbackAcl; }
+      throw failure;
+    }
     if (journalCreated) await rm(value.journalPath, { force: true });
     throw error;
   } finally { await release(); }

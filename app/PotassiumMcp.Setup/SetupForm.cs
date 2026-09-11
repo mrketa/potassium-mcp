@@ -176,6 +176,8 @@ public sealed class SetupForm : Form
             details.Text = response.Details;
             showDetails.Visible = !string.IsNullOrWhiteSpace(response.Details);
             var notices = new List<string>();
+            if (!string.IsNullOrWhiteSpace(response.RecoveryAdvice))
+                notices.Add(response.RecoveryAdvice);
             if (response.CleanupPending)
                 notices.Add("Cleanup is pending. Some files may still be in use. Close MCP sessions, then retry the operation; see details before making further changes.");
             if (response.RestartRequired)

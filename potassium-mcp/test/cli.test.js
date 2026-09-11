@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveConfigPath, resolveConfigSelection, resolveInstallRoot } from "../src/paths.js";
 import { WINDOWS_POWERSHELL_PRELUDE, WINDOWS_POWERSHELL_SECURITY_PRELUDE, windowsPowerShellEnvironment } from "../src/windows-powershell.js";
 
@@ -142,6 +142,126 @@ test("config print returns runnable public entries without changing private stat
   assert.equal(unknown.status, 1);
   assert.equal(unknown.stdout, "");
   assert.deepEqual(await snapshot(value.root), before);
+});
+
+test("Windows CLI ACL failures expose the original path and native evidence without changing files", {
+  skip: process.platform !== "win32" && "requires the actual Windows PowerShell ACL boundary",
+}, async (t) => {
+  const value = await fixture(t);
+  const initial = invoke(["setup", "--workspace", value.workspaceRoot, "--install-root", value.installRoot, "--json"], value);
+  assert.equal(initial.status, 0, initial.stderr);
+  const journalPath = `${value.installRoot}.transaction.json`;
+  const configFile = path.join(value.installRoot, "config.json");
+  const preload = path.join(value.root, "acl-failure.mjs");
+  // Interpose only at the native ACL boundary; actual PowerShell catches typed exceptions.
+  await writeFile(preload, `
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
+import { writeFileSync } from "node:fs";
+const run = childProcess.spawnSync;
+childProcess.spawnSync = (command, args, options) => {
+  const source = options?.env?.POTASSIUM_ACL_SOURCE;
+  const logicalPath = process.env.POTASSIUM_TEST_ACL_PATH;
+  if (!source || source !== logicalPath && !source.startsWith(logicalPath + ".")) return run(command, args, options);
+  const mode = process.env.POTASSIUM_TEST_ACL_FAILURE;
+  if (mode === "launch-missing") return run(process.env.POTASSIUM_TEST_MISSING_EXE, args, options);
+  if (mode === "launch-eperm") return { status: null, error: Object.assign(new Error("PowerShell process creation denied"), { code: "EPERM" }) };
+  if (mode === "unknown") return { status: 5, stderr: "Access is denied, but no ACL exception was reported." };
+  if (mode === "bounded") return { status: 23, stderr: "Unrecognized native failure. ".repeat(500) };
+  if (mode === "malformed") return { status: 1, stderr: JSON.stringify({ code: "MCP_ACL_PRESERVE_FAILED", operation: "write", exceptions: [{ exceptionType: "System.UnauthorizedAccessException", message: "Access denied" }] }) };
+  const injections = {
+    read: "function Get-Acl { throw [System.UnauthorizedAccessException]::new('Accès refusé 雪') }",
+    write: "function Set-Acl { throw [System.ComponentModel.Win32Exception]::new(1314, 'Required ACL privilege is not held') }",
+    hresult: "function Set-Acl { throw [System.Runtime.InteropServices.COMException]::new('ACL operation requires elevation', -2147024156) }",
+    privilege: "function Set-Acl { throw [System.Security.AccessControl.PrivilegeNotHeldException]::new('SeSecurityPrivilege') }",
+    initialize: "function Import-Module { throw [System.UnauthorizedAccessException]::new('Security module initialization denied') }",
+    missing: "function Get-Acl { throw [System.IO.FileNotFoundException]::new('ACL source no longer exists') }",
+    wrapped: "function Set-Acl { throw [System.UnauthorizedAccessException]::new('Concrete config ACL denial') }",
+  };
+  if (mode === "wrapped") writeFileSync(logicalPath, "concurrent foreign config bytes");
+  const script = mode === "syntax" ? "if (" : injections[mode] + "\\n" + args.at(-1);
+  return run(command, [...args.slice(0, -1), script], options);
+};
+syncBuiltinESMExports();
+`);
+  const managedSnapshot = async () => ({
+    privateData: await snapshot(value.installRoot),
+    workspace: await snapshot(value.workspaceRoot),
+    autoexec: await snapshot(path.join(value.workspaceRoot, "..", "autoexec")),
+    transactionFiles: (await readdir(path.dirname(value.installRoot)))
+      .filter((name) => name.startsWith(`${path.basename(value.installRoot)}.`)).sort(),
+  });
+  const before = await managedSnapshot();
+  const fail = (mode, logicalPath = journalPath, json = true) => {
+    const result = spawnSync(process.execPath, ["--import", pathToFileURL(preload).href, cliPath, "repair", "--install-root", value.installRoot,
+      "--read-host", "acl-regression", ...(json ? ["--json"] : [])], {
+      encoding: "utf8", windowsHide: true, timeout: 30000, cwd: value.cwd,
+      env: { ...value.env, POTASSIUM_TEST_ACL_FAILURE: mode, POTASSIUM_TEST_ACL_PATH: logicalPath,
+        POTASSIUM_TEST_MISSING_EXE: path.join(value.root, "missing-powershell.exe") },
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stdout, "");
+    return json ? JSON.parse(result.stderr) : result.stderr;
+  };
+  const cases = [
+    { mode: "read", operation: "read", message: "Accès refusé 雪", exceptionType: "System.UnauthorizedAccessException", elevation: true },
+    { mode: "write", operation: "write", message: "Required ACL privilege is not held", nativeErrorCode: 1314, elevation: true },
+    { mode: "hresult", operation: "write", message: "ACL operation requires elevation", hresult: -2147024156, elevation: true },
+    { mode: "privilege", operation: "write", exceptionType: "System.Security.AccessControl.PrivilegeNotHeldException", elevation: true },
+    { mode: "initialize", operation: "initialize", message: "Security module initialization denied", elevation: false },
+    { mode: "missing", operation: "read", message: "ACL source no longer exists", elevation: false },
+    { mode: "launch-missing", operation: "launch", processCode: "ENOENT", elevation: false },
+    { mode: "launch-eperm", operation: "launch", message: "PowerShell process creation denied", processCode: "EPERM", elevation: false },
+    { mode: "unknown", operation: "unknown", message: "Access is denied, but no ACL exception was reported.", exitCode: 5, elevation: false },
+    { mode: "malformed", operation: "unknown", elevation: false },
+    { mode: "syntax", operation: "unknown", elevation: false },
+    { mode: "bounded", operation: "unknown", exitCode: 23, elevation: false },
+  ];
+  for (const expected of cases) await t.test(expected.mode, async () => {
+    const result = fail(expected.mode);
+    assert.equal(result.ok, false);
+    assert.equal(result.code, "MCP_ACL_PRESERVE_FAILED");
+    assert.equal(result.acl.path, journalPath);
+    assert.equal(result.acl.operation, expected.operation);
+    assert.equal(result.acl.requiresElevation, expected.elevation);
+    for (const key of ["message", "exceptionType", "hresult", "nativeErrorCode", "processCode", "exitCode"]) {
+      if (Object.hasOwn(expected, key)) assert.equal(result.acl[key], expected[key]);
+    }
+    if (expected.mode === "bounded") assert.equal(result.acl.message.length, 2048);
+    assert.deepEqual(await managedSnapshot(), before);
+  });
+
+  await t.test("staged config errors identify the original config and restore its backup", async () => {
+    const result = fail("write", configFile);
+    assert.equal(result.acl.path, configFile);
+    assert.equal(result.acl.message, "Required ACL privilege is not held");
+    assert.equal(result.acl.requiresElevation, true);
+    assert.deepEqual(await managedSnapshot(), before);
+    const text = fail("read", configFile, false);
+    assert.ok(text.includes(configFile));
+    assert.ok(text.includes("Accès refusé 雪"));
+    assert.match(text, /same installer as administrator/);
+    assert.deepEqual(await managedSnapshot(), before);
+    const unknown = fail("unknown", journalPath, false);
+    assert.doesNotMatch(unknown, /as administrator/);
+    assert.deepEqual(await managedSnapshot(), before);
+  });
+
+  await t.test("rollback conflicts retain ACL evidence, foreign output and original backups", async () => {
+    const originalConfig = await readFile(configFile, "utf8");
+    const result = fail("wrapped", configFile);
+    assert.equal(result.ok, false);
+    assert.equal(result.acl.path, configFile);
+    assert.equal(result.acl.message, "Concrete config ACL denial");
+    assert.equal(result.acl.requiresElevation, true);
+    assert.match(result.error, /recovery required/);
+    assert.match(result.error, /foreign output bytes must be preserved/);
+    assert.equal(await readFile(configFile, "utf8"), "concurrent foreign config bytes");
+    const journal = JSON.parse(await readFile(journalPath, "utf8"));
+    const configEntry = journal.entries.find((entry) => entry.target === configFile);
+    assert.equal(await readFile(configEntry.backup, "utf8"), originalConfig);
+  });
 });
 
 test("Windows CLI setup preserves private files and ACLs with an incompatible inherited PowerShell Security module", {

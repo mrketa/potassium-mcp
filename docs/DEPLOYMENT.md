@@ -211,6 +211,14 @@ npm uninstall --global @mrketa/potassium-mcp
 
 The old `install` and `--package-source` commands are removed. Legacy copied runtime migration needs exact ownership proof. `--runtime-root` chooses the new package and does not grant deletion authority over an old junction or target. The actual custom OMP wrapper/internal-proxy consumer and junction remain untouched user-managed conflicts. There is no force/recovery bypass: a separately proven standard entry may be restored only by explicit user decision before migration. Follow the [full conflict procedure](../potassium-mcp/README.md#existing-installation-conflicts); never overwrite the actual wrapper, delete its repository target, or discard credentials/evidence to force success.
 
+### Windows ACL preservation failures
+
+An ACL-preservation failure reports the original affected file, the failed operation, and the concrete Windows exception or process-start error. The target can be the transaction journal, not only `config.json`; temporary staging and backup filenames are not substituted for the original target. CLI `--json` includes an `acl` object with `path`, `operation`, `message`, `exceptionType`, `hresult`, `nativeErrorCode`, `processCode`, `exitCode`, and `requiresElevation`. The originating error code is `MCP_ACL_PRESERVE_FAILED`; enclosing rollback/recovery context remains available.
+
+Setup recommends closing it and reopening the same installer with **Run as administrator** only when reading or writing an ACL produced structured access-denied or privilege-required evidence. Use the same Windows account and intended installation/workspace paths. PowerShell launch errors such as `EPERM`, missing executables, module initialization failures, malformed output, and other unclassified failures do not justify that recommendation. Elevation is not guaranteed to resolve every restriction, and MCP clients do not need administrator rights because Setup needed them.
+
+The hint never launches UAC, retries an operation, resets permissions, or bypasses ownership checks. Keep any reported recovery journal/backups; do not delete ownership or credential files to force an upgrade. The native details view retains secret redaction but intentionally shows the explicitly identified local target path, so review that path before sharing diagnostics.
+
 ## Optional Streamable HTTP deployment
 
 Keep stdio as the default. Enable stateless HTTP and, optionally, stateful sessions explicitly:
