@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "sha": "09e44385251f7eac48627b58dd0a3e675fe75afa",
+    "ref": "v1.0.0",
+    "name": "@mrketa/potassium-mcp",
+    "version": "1.0.0"
+  },
+  "signing": {
+    "mode": "unsigned",
+    "approved": true,
+    "setupStatus": "NotSigned"
+  },
+  "artifacts": {
+    "npmSha256": "82e299952b9348c43de3a339523136af3ee1dbc39d4043d5af19b4da0a841be7",
+    "setupSha256": "7423038a9521292342dc44409c066a7ec21acd0f5a861c64039c71e4e8778b21",
+    "windowsZipSha256": "d1dc43997c2c180b3f57e78df3e0f956239884ee432314831dacd266f078cd30",
+    "windowsVersionId": "6cea4a1da266cbf1dc98ca9420df8858e1195b2861ede199f0c7e3001519a52b"
+  },
+  "source": {
+    "proxySha256": "2db227ef9d07ad37da9a5c1fbf87e33f015200a2233f38f86ff84e31b0355119"
+  },
+  "checks": {
+    "source": {
+      "passed": true
+    },
+    "node22": {
+      "passed": true,
+      "nodeVersion": "v22.23.2"
+    },
+    "node24": {
+      "passed": true,
+      "nodeVersion": "v24.15.0"
+    },
+    "windows": {
+      "passed": true,
+      "fresh": true,
+      "restrictedUpgrade": true,
+      "repair": true,
+      "cancelledRemoval": true,
+      "remove": true,
+      "reinstall": true,
+      "coldCheck": true,
+      "nativeParser": true,
+      "clipboard": true,
+      "clipboardScope": "Three actual Setup handlers on a fresh elevated noninteractive private window station; Unicode and confirmations checked; all six synthetic clipboard formats restored. The original user clipboard was never opened."
+    },
+    "preservation": {
+      "passed": true
+    },
+    "rollback": {
+      "passed": true
+    },
+    "recovery": {
+      "passed": true
+    },
+    "maps": {
+      "passed": true
+    },
+    "soak": {
+      "passed": true,
+      "elapsedMs": 1800124,
+      "requests": 75060,
+      "bootstrapCases": 30,
+      "p95Ms": 99.24619999999413,
+      "limits": {
+        "durationMs": 1800000,
+        "heapGrowthBytes": 33554432,
+        "handlesGrowth": 8,
+        "p95Ms": 2000
+      }
+    }
+  },
+  "blockers": [],
+  "evidenceDigests": [
+    {
+      "id": "source-matrix",
+      "sha256": "5f6bcb347972c4c8bacc3cfdd95fc351561acb4734c8e46640c2f4bfdd12a51f"
+    },
+    {
+      "id": "hosted-quality",
+      "sha256": "5eec76d394e39c726aee7910cef706c3b41bb53ff01b6498c781034ae037f905"
+    },
+    {
+      "id": "hosted-windows",
+      "sha256": "8fb0d0f86b55598f7549b7dada66b899e5b9eeb0da600bd8f16d5b4dc660dcba"
+    },
+    {
+      "id": "installed-package",
+      "sha256": "fb0f653e2f12ce9a881439501d474073c98013f403cb0d25511dd3becead4f66"
+    },
+    {
+      "id": "windows-installed",
+      "sha256": "8ef1a9e9c6125f8073052adfbb8f921350b22926b17362cae8b13faa3395ab9b"
+    },
+    {
+      "id": "soak",
+      "sha256": "6bf9fbc61160f4cff73b2a4fbe8c618df88f89959a41b197c8d48244ceddfea6"
+    },
+    {
+      "id": "protected-state",
+      "sha256": "0ea81a3fca86fc36da4a84e8fec9a27ecbce6c6feec175bf5bc1d9f37f6026f6"
+    },
+    {
+      "id": "os-helper-smoke",
+      "sha256": "9cecc214967d2f69bdf03b947090d3220bc59c5f47c19f1560421ec08ef296c6"
+    },
+    {
+      "id": "authenticode",
+      "sha256": "ac03dd1d89912e24ed4d55294dfeed58c00e5b5b733819be6750bdbfd0b1cfef"
+    },
+    {
+      "id": "release-gate-source-delta",
+      "sha256": "3f32c3bed4828eaf18a0ccb9a623af14a9a4a485bec55a782a4a3cbe73785398"
+    },
+    {
+      "id": "release-gate-error-smoke",
+      "sha256": "a26e4cd6dcfe2eb5ebcfbc68e18f533181b4b8003633a0920bedd244d7240371"
+    }
+  ],
+  "limitations": [
+    "Unsigned distribution has no verified Authenticode publisher identity; operating-system warnings remain possible.",
+    "Windows 11 x64 and the selected Node 22.23.2 and 24.15.0 runtimes are the scoped product target. Hosted windows-2022 checks are CI evidence, not a Windows Server product-support claim.",
+    "Hosted quality used independently built npm e7752dc4f94c4e53108cfc3cd5e03bb58c6cafac5f9427bb8ae44c4462bb6ef2. The selected release npm bytes have separate exact installed-package and full-soak acceptance.",
+    "Windows maintenance tested distinct bundles at the same version. Controlled compatible-contract npm version roundtrips are not historical public-beta downgrade support; incompatible old contracts fail closed.",
+    "Rollback evidence covers a controlled invalid-config precommit Update failure and interrupted owned installer recovery, not whole-application atomicity, power loss or arbitrary crash rollback.",
+    "Map, recording, remote and lifecycle fixtures model selected engine behavior. They do not prove every live Roblox signal, native hook, server semantic or gameplay outcome. No new live-game acceptance occurred.",
+    "The soak covers one persistent isolated SDK and broker process with periodic asynchronous Lune subprocesses, each exercising 100 lifecycle cycles. It does not measure a continuously resident Lune heap or universal engine stability.",
+    "The historical unrecorded Node24 stdio closure remains unattributed. Later observed source regressions and passing exact-artifact runs do not retroactively establish its cause.",
+    "Three source-suite platform skips remain explicit. No universal cold Windows PowerShell startup latency is guaranteed; missing timely process identity continues to fail closed.",
+    "Seven protected user-state files, their identities, the source junction and eight ACLs were preserved. Requested source edits are distinct from protected installation state; no user broker or bootstrap management was performed.",
+    "Runtime, test and artifact evidence was collected at a49e3195a50e448ba2bc40798aad8f6ab0060c96. The selected source changes only release-workflow diagnostics, the selected-package permission query and the changelog; runtime/tests and all npm/Windows bytes are unchanged. Actual embedded gate functions passed 22 isolated behavior and privacy cases."
+  ]
+}

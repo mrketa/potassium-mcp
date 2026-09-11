@@ -1,0 +1,1280 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "bytes": 56531,
+      "sha256": "ec11df1e684eed64152cc6f11cdaaa71ae374617e30697d08033e0530fa9e603"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 11366,
+      "sha256": "177266af37ed02245f18f5791ba5ed6faaba68351780ba2b426f95a5e105884b"
+    },
+    {
+      "path": "README.md",
+      "bytes": 20178,
+      "sha256": "26cb8e81965aaa9fa054b60e5eb9664bebe8af7cb499469b1fdc536271e95ee0"
+    },
+    {
+      "path": "SECURITY.md",
+      "bytes": 10771,
+      "sha256": "b3687a44b82ec19e5dc0747692b8dd0dff1a7f3d1e23fade9b2e038a211e50cd"
+    },
+    {
+      "path": "app/PotassiumMcp.Launcher/PotassiumMcp.Launcher.csproj",
+      "bytes": 786,
+      "sha256": "3c1b419857112ff70ccb5724c98f2f5af1b206d1d6f051698d56fec51739a626"
+    },
+    {
+      "path": "app/PotassiumMcp.Launcher/Program.cs",
+      "bytes": 6156,
+      "sha256": "920bb49be627c54430a0920890e199abcaaa2415f7164ebc5aa73af526b3ed69"
+    },
+    {
+      "path": "app/PotassiumMcp.ParserHost/Native.cs",
+      "bytes": 6168,
+      "sha256": "67d5961b1a0e5cd21c5e6f305650886ce938e8f8702c1feebb80cd1e5390a609"
+    },
+    {
+      "path": "app/PotassiumMcp.ParserHost/PotassiumMcp.ParserHost.csproj",
+      "bytes": 1056,
+      "sha256": "9dc7138806c15d869dd290bbb6b2a997cb6c9e5abb489ac8d2c41abee5632589"
+    },
+    {
+      "path": "app/PotassiumMcp.ParserHost/Program.cs",
+      "bytes": 8537,
+      "sha256": "aff0e84321df50fd5d9b637f882a434ffe78feae1b0376d4f13fb7eb91bbcdba"
+    },
+    {
+      "path": "app/PotassiumMcp.ParserHost/Sandbox.cs",
+      "bytes": 12471,
+      "sha256": "ba86b8448c4e438ffc552f1a828c99d1fb733ceb96c43fe19beb78bfc216def6"
+    },
+    {
+      "path": "app/PotassiumMcp.ParserHost/Workspace.cs",
+      "bytes": 12760,
+      "sha256": "b6bb912d95d30691acf315974ab608bf47a9ce46663a7c264157142092f26f91"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup/PotassiumMcp.Setup.csproj",
+      "bytes": 1916,
+      "sha256": "7682abbdd3283b0e97f3048213cb7658224bdc99a099ba3dde2fc14ae5788242"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup/Program.cs",
+      "bytes": 1343,
+      "sha256": "705143650dafa6fb5186e7aa2cc09b4b81c7310023eeeea217cecd8f32bb43c4"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup/SetupForm.cs",
+      "bytes": 18955,
+      "sha256": "c29af9fa94657029744e000fd4c3b1ac1339fbcd7ce35f50b23b4eced5a39fca"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup/SetupHelpers.cs",
+      "bytes": 41259,
+      "sha256": "16bd41fe59d0275553474986315dfb2698ee9d8db00d4b5e241fa41d6577151a"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup/WindowsInstallation.cs",
+      "bytes": 28786,
+      "sha256": "3659ef4b612e2e327b974b5a4bc0a2eaa9e28cecda49f2e8ec379e0504929468"
+    },
+    {
+      "path": "app/PotassiumMcp.Setup/app.manifest",
+      "bytes": 545,
+      "sha256": "4f60b596ceda51321a2c74ce7f631297b0ccd0e68d91b9aa7b5a3d25294d549e"
+    },
+    {
+      "path": "docs/AGENT-INSTALL.md",
+      "bytes": 4639,
+      "sha256": "0d73c6846ab2a9010020fea53982d0f9baf6e648a2671d05c7c96bab84c10230"
+    },
+    {
+      "path": "docs/API.md",
+      "bytes": 101816,
+      "sha256": "0c7498179ef6bdd5d85e4cb79d3ecc5f40238281731c9300b0d07f1a9fef8c4d"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "bytes": 5520,
+      "sha256": "f0d65e9de43b98f26f84eeb0b72bd94e29d575fa3765901f9a1f11244d4bc035"
+    },
+    {
+      "path": "docs/CONFIGURATION.md",
+      "bytes": 26954,
+      "sha256": "4439dbf4fae2a4172b0238d43bb409b17ffef741d1ea3ab77941f984cf39196c"
+    },
+    {
+      "path": "docs/DEPLOYMENT.md",
+      "bytes": 35614,
+      "sha256": "78e20258f521e737c817691d3d88afd9f56382d8699f01745ae513669d9e3d50"
+    },
+    {
+      "path": "docs/DEVELOPMENT.md",
+      "bytes": 1704,
+      "sha256": "8d272e07ef5b98ae3069835250bcce5ab04fbff842647a96956faf34c99698af"
+    },
+    {
+      "path": "docs/GETTING-STARTED.md",
+      "bytes": 19979,
+      "sha256": "729a31d125e9e2101c3795d1ed02b3f1a86795fa1a8ef276221eb1729e49a5ad"
+    },
+    {
+      "path": "docs/TESTING.md",
+      "bytes": 76798,
+      "sha256": "fc789e944115f6e5ffbc7243fdd19f6c96298935bc44a393e435958ad047e0fc"
+    },
+    {
+      "path": "global.json",
+      "bytes": 104,
+      "sha256": "613d8088b6ee7dc9df930863d12b2434ce927363431d863b1bef09a726f8833d"
+    },
+    {
+      "path": "native/luau-parser/LICENSE-tree-sitter-lua.txt",
+      "bytes": 1079,
+      "sha256": "9a32b02e4c917b1ce6b5e79d8ea81e25cefd7f27d89c7235f2afb262c06cf32e"
+    },
+    {
+      "path": "native/luau-parser/allocator.h",
+      "bytes": 525,
+      "sha256": "2ed8e7788f14ef099fb0d86c4cefb7d09e856c81852b9c51534e0fb5bd3be33e"
+    },
+    {
+      "path": "native/luau-parser/runtime.c",
+      "bytes": 180,
+      "sha256": "244be93c4982b7ebe4c14fd35a3f35eec3277077ff82ab62492c8c468b23d597"
+    },
+    {
+      "path": "native/luau-parser/scanner.c",
+      "bytes": 191,
+      "sha256": "ed1341a3d8fb469671f0e61cb828528843523c8b2280fbf1f1aceaa1fb32d326"
+    },
+    {
+      "path": "native/luau-parser/source-provenance.json",
+      "bytes": 14227,
+      "sha256": "5aea1f230ee876c5672dddd18bb62201aacf99c6b92c4573a4add124d8b5f935"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter-luau/LICENSE",
+      "bytes": 1101,
+      "sha256": "099c44248f8cf353123211318680e93465587c005a4b3730ce8cb5334de043d6"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter-luau/src/parser.c",
+      "bytes": 674031,
+      "sha256": "8f25bc1779400fa93d5492310e291fb895363ec051d44753444e724e99a08250"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter-luau/src/scanner.c",
+      "bytes": 6082,
+      "sha256": "a157bb5210454add058a08ce53eabcccad41aab6dac7006def2554e5cfebd376"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter-luau/src/tree_sitter/alloc.h",
+      "bytes": 985,
+      "sha256": "b29c1c9fb7cc82f58c84b376df1297d6e2737a1d655fd356db0859e3c29c2fea"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter-luau/src/tree_sitter/array.h",
+      "bytes": 10431,
+      "sha256": "5bdf6ed1a78e3409fd443e085ca967a64c188a5d082aaf7f819bccd53a471c94"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter-luau/src/tree_sitter/parser.h",
+      "bytes": 7039,
+      "sha256": "a1f6ef161fbaf48a0e10fca90ef5290a062462b307b3898aa562993853b9f80a"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/LICENSE",
+      "bytes": 1078,
+      "sha256": "d39420a108609f487bece31800015cccabdb531fee4d543d66595459b3812d9a"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/include/tree_sitter/api.h",
+      "bytes": 47452,
+      "sha256": "937c5389713f99318ac7adbdb3a95e9976bbd211e35e37ed5df878f29aa86c30"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/alloc.c",
+      "bytes": 1542,
+      "sha256": "c7d15b9015568f439af4adf28ead9e2bd14901221819276727c11227a29576da"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/alloc.h",
+      "bytes": 919,
+      "sha256": "2ad7cc5391be8043ffdcc111b9b21b7767f592790fc8389acb6fcee7fd1acb61"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/array.h",
+      "bytes": 10445,
+      "sha256": "2ee1350009660a2dd5d116f9e9644d280f1703ef1c7b460d9d46a7f3dee1c816"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/atomic.h",
+      "bytes": 1384,
+      "sha256": "bbc630cb913ac64274ce4412bc9d504174220323993f306ded74abe502867e74"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/clock.h",
+      "bytes": 3543,
+      "sha256": "abd8fa83a805900f8e03b8b2b1abd47f9c7b8252f4401485c060348c407f5448"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/error_costs.h",
+      "bytes": 294,
+      "sha256": "0e8d1a21e0d60981e762989108231df6610d95591892f631c6c78a9ef831a2ab"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/get_changed_ranges.c",
+      "bytes": 16537,
+      "sha256": "d9095e0f36cebe4e6d29ec9cd1b53416968dc7424058ce019fb8242c3b7e3203"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/get_changed_ranges.h",
+      "bytes": 836,
+      "sha256": "f394bd0b6fce006be460fd16cbea3cc96e248c810a4d97e8830463c29c85e4a5"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/host.h",
+      "bytes": 520,
+      "sha256": "e1982b9795b9c52b5ab564d8b9876189d65a97ca02f78351e1740b0985992fd2"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/language.c",
+      "bytes": 8514,
+      "sha256": "52bc642d7a5e944c30daa9e4e5a78150105ebde5bde90167adb64b8928bbe37d"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/language.h",
+      "bytes": 8339,
+      "sha256": "56e32fb53672609be6e8bfa7e6d0f92ef463fd53d2be910d169a07ee5f03df1b"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/length.h",
+      "bytes": 1275,
+      "sha256": "7fc186fb4bf50233059e8be9ca68efe95e66d34ced4b8a8f38f14497352faeb1"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/lexer.c",
+      "bytes": 15124,
+      "sha256": "56a418eb47351b85d8f73729fa756765e2d9b3c6873d6be8f240a2e7fad22431"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/lexer.h",
+      "bytes": 1263,
+      "sha256": "7d76308f7a2d3246a3e28fb27698be928f848130d1bfacc39f9f623127671b74"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/lib.c",
+      "bytes": 280,
+      "sha256": "6bca070a6a70740c8e8af244af8a7311dbea09fbb60372376f5260facaf785f0"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/node.c",
+      "bytes": 25429,
+      "sha256": "bfe9c7867881142600ad48570ef345dbb2b25319e61e1e08c7a15cc519dcb6a6"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/parser.c",
+      "bytes": 78856,
+      "sha256": "280da7a951dd13f45a6bb97f8629c28398a77dd2936a44b239b10bc89ce2eafd"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/parser.h",
+      "bytes": 7624,
+      "sha256": "180b893c8734778fd32f372dfbc27bd6ad1cd2221f26150b31256ff6716320d2"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/point.h",
+      "bytes": 1307,
+      "sha256": "0929027be2ff54627be560f3bafc1af59e81ac6d5a8d5864455601a0dbee50ff"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/portable/endian.h",
+      "bytes": 6801,
+      "sha256": "0c54a3b28461d59fad2f199e355bb2c8c8f22bdeffe62b21f77881c521b276b2"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/query.c",
+      "bytes": 149211,
+      "sha256": "8febd1af580ad500e70b9808a479bca205dfb9e7787ffe12ab3002928254bd21"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/reduce_action.h",
+      "bytes": 772,
+      "sha256": "8f40396e431d7ff558694ca248eed1332b6cf6f7e6255f06cddfde78020bd308"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/reusable_node.h",
+      "bytes": 2747,
+      "sha256": "10be747ea4c733ca181dc43d55d155ac8e5b8caa247079621cca0ce633347bfb"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/stack.c",
+      "bytes": 28493,
+      "sha256": "6c82df33cdf4bd197e9ec83334ae64d5c40a6692806fa01331a5dda4913979c6"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/stack.h",
+      "bytes": 4872,
+      "sha256": "13a2fb028036cf889fa92d55c3d7c0b57ba368a274f20a1961e695207cf3b91c"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/subtree.c",
+      "bytes": 34522,
+      "sha256": "d64b107feeb5aafbac42a4ee13fa8ce385740bbe776b635ae74521f8cab5b864"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/subtree.h",
+      "bytes": 12518,
+      "sha256": "9380a9984a3a071d6a32ed05f7fad8b8853afa991f0a36cc29ccb90f1e3a1a0f"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/tree.c",
+      "bytes": 5272,
+      "sha256": "ef55fd2d34daad7e43605ba0469f6c67a9afb31963077e9c73f2fb0478e254bb"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/tree.h",
+      "bytes": 663,
+      "sha256": "60591fb35ca078a8bb323004ece0377ac4f4c6cdbd3c4473af6e2b97186e024b"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/tree_cursor.c",
+      "bytes": 22933,
+      "sha256": "226a7df588cbfcb69b0ef69c1afaec58e2194d9fb495f8601d25a4d90c20035e"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/tree_cursor.h",
+      "bytes": 1285,
+      "sha256": "3e8d9671ab1397bcaeb3e0cbf153a61a99e214782b43c09e5cde5a01e8283a1a"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/ts_assert.h",
+      "bytes": 205,
+      "sha256": "ac1ec4b7ba388a9d8708feeb6c5c766b2927cecfd6db644b939772e1dc086526"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode.h",
+      "bytes": 1634,
+      "sha256": "6cf0ec5a54e72644e506cca20b854dc7c49249cb1cff0d806635a10c8efba340"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode/ICU_SHA",
+      "bytes": 41,
+      "sha256": "2879b4cf5a2c625c6509c26e341b9c8b0c50fde284113b449e00567bdf4e593c"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode/LICENSE",
+      "bytes": 21001,
+      "sha256": "6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode/ptypes.h",
+      "bytes": 72,
+      "sha256": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode/umachine.h",
+      "bytes": 14865,
+      "sha256": "2d79c0903d9e73e247b948bc0a12b6a785257ca0273bddab56fb59561f8d7391"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode/urename.h",
+      "bytes": 72,
+      "sha256": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode/utf.h",
+      "bytes": 72,
+      "sha256": "a87e9710c9cad7b08a945f4fb8b9d4629189897cc535f8ac927640c210a94b69"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode/utf16.h",
+      "bytes": 23878,
+      "sha256": "c370d9069f37fad2b53981c06dc648bbc21923db1655517a31bb237df4fba041"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/unicode/utf8.h",
+      "bytes": 31698,
+      "sha256": "39651224b2ca2452359c7f3339f3cc0a841fe7db64f8a00c9c5ec19c0389645c"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/wasm_store.c",
+      "bytes": 62248,
+      "sha256": "1e737648689763de0294acc753ba22166365a8786a900d846856887aabd7772c"
+    },
+    {
+      "path": "native/luau-parser/vendor/tree-sitter/src/wasm_store.h",
+      "bytes": 1137,
+      "sha256": "4f70d0500b0775e5d862a8e7d191b3853d73378c65e020e01767838a18debe0e"
+    },
+    {
+      "path": "native/luau-parser/worker.c",
+      "bytes": 25242,
+      "sha256": "af470f3bdea8cf3533ef77a6aff426f5dc646f93257f6a3799b6a16bf87a8554"
+    },
+    {
+      "path": "potassium-mcp/.npmrc",
+      "bytes": 37,
+      "sha256": "3a951f66e7e0f3e2dd1832473a871357c4a507b51100636b73bcf6ff0dd78b6c"
+    },
+    {
+      "path": "potassium-mcp/LICENSE",
+      "bytes": 11366,
+      "sha256": "177266af37ed02245f18f5791ba5ed6faaba68351780ba2b426f95a5e105884b"
+    },
+    {
+      "path": "potassium-mcp/README.md",
+      "bytes": 57016,
+      "sha256": "9200dff75fd151a3afc273167e995030ad50a16d27fa6c5e33198e11c377a746"
+    },
+    {
+      "path": "potassium-mcp/assets/game-context-images.ps1",
+      "bytes": 30705,
+      "sha256": "22fe5542291740318620620ee3fcbe5866f6fc7eda63fad1d3ea8e3148a6f224"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/LICENSE-ICU.txt",
+      "bytes": 21001,
+      "sha256": "6a18c5fac70d7860b57f5b72b4e2c9a1ba6b3d2741eef7ff9767c5379364f10d"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/LICENSE-MINGW.txt",
+      "bytes": 2326,
+      "sha256": "99a69660981156c21336fdb5661f89341b013c94e4bf9e1c7467b4745718397f"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/LICENSE-ZIG.txt",
+      "bytes": 1080,
+      "sha256": "5c537d6853e005298a285d508cff9ac7192cea23576c840d485b2b586a7ff177"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/LICENSE-tree-sitter-lua.txt",
+      "bytes": 1079,
+      "sha256": "9a32b02e4c917b1ce6b5e79d8ea81e25cefd7f27d89c7235f2afb262c06cf32e"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/LICENSE-tree-sitter-luau.txt",
+      "bytes": 1101,
+      "sha256": "099c44248f8cf353123211318680e93465587c005a4b3730ce8cb5334de043d6"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/LICENSE-tree-sitter.txt",
+      "bytes": 1078,
+      "sha256": "d39420a108609f487bece31800015cccabdb531fee4d543d66595459b3812d9a"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/PotassiumMcp.LuauParser.exe",
+      "bytes": 211456,
+      "sha256": "ebec7ff49e845cee5809b22c80ad90920176c6457e61f5e1f9f20266e5e61409"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/THIRD-PARTY-NOTICES-MINGW.txt",
+      "bytes": 89171,
+      "sha256": "dda28372ee4971f2e98648ce6fff4276a51a2b98e8c754765d9c1b03217b1345"
+    },
+    {
+      "path": "potassium-mcp/assets/native-parser/win32-x64/native-parser-manifest.json",
+      "bytes": 28016,
+      "sha256": "e8df83723428623a7c09c2de56e7b4601dbf8f48ef6c354966db83af7be18407"
+    },
+    {
+      "path": "potassium-mcp/assets/parser-host/win32-x64/LICENSE-DOTNET.txt",
+      "bytes": 1139,
+      "sha256": "d7a68596ab69b06f51ca278a6545148e4269a9381c26d597c13df5d88e08cf5b"
+    },
+    {
+      "path": "potassium-mcp/assets/parser-host/win32-x64/PotassiumMcp.ParserHost.exe",
+      "bytes": 67523708,
+      "sha256": "dc03889e37be6704ba5354897b363552c7cba258d08222299f69caffdfbb5eab"
+    },
+    {
+      "path": "potassium-mcp/assets/parser-host/win32-x64/THIRD-PARTY-NOTICES-DOTNET.txt",
+      "bytes": 68910,
+      "sha256": "b60b2912da28eaa6518593c9e2efb5334ee062d3c42e80d8fdfa806b3dc52977"
+    },
+    {
+      "path": "potassium-mcp/assets/parser-host/win32-x64/parser-host-manifest.json",
+      "bytes": 5356,
+      "sha256": "a7d60439e2d7dac49881f56f4176dc3f49bcf69b4dfeaad6e92f346036f5a726"
+    },
+    {
+      "path": "potassium-mcp/assets/potassium_mcp_autoexec.lua",
+      "bytes": 2746,
+      "sha256": "45108dd2d102bcbe034354ed595386934d6895cecb725f5d74082096cf5d132f"
+    },
+    {
+      "path": "potassium-mcp/assets/potassium_mcp_bootstrap.lua",
+      "bytes": 260817,
+      "sha256": "7ef3845caf6aa86ad5656566ca8ddadd70e8ed1ca5c96242daeb39042313c468"
+    },
+    {
+      "path": "potassium-mcp/bin/potassium-mcp.js",
+      "bytes": 14435,
+      "sha256": "9a90b0213728acca2ccb79540ad8335125a0c968464174cb97b64f083757b82e"
+    },
+    {
+      "path": "potassium-mcp/config.example.json",
+      "bytes": 1150,
+      "sha256": "522290a820c29f067eb63e3086f3f1c715db8a7e9002b6c4be7ddf731a9ac5ac"
+    },
+    {
+      "path": "potassium-mcp/package-lock.json",
+      "bytes": 43272,
+      "sha256": "2b2522797c6db1a680f99e188bc1107f5c0db47bbd0ca75f93077ab89d9d3ed3"
+    },
+    {
+      "path": "potassium-mcp/package.json",
+      "bytes": 1277,
+      "sha256": "2eb627835bce05b606a26eb3f028fcdd724b70bbead305ccc4870f6fa62f54e3"
+    },
+    {
+      "path": "potassium-mcp/release-publish.js",
+      "bytes": 9585,
+      "sha256": "87e25edbdb0b63848a2007cb0ff12cc451baf82d985893602a96984bd8e39ed9"
+    },
+    {
+      "path": "potassium-mcp/src/admin-audit.js",
+      "bytes": 6165,
+      "sha256": "531086cbb79ca5e0c1940095a0a71bb0aeb2919664c58a49c1cc0fe1ef5778fa"
+    },
+    {
+      "path": "potassium-mcp/src/async-artifact-store.js",
+      "bytes": 9854,
+      "sha256": "ccef740bf8379512058245ad912e93784ba11f4899340af5e58b007bc9396b98"
+    },
+    {
+      "path": "potassium-mcp/src/bridge.js",
+      "bytes": 25712,
+      "sha256": "1647069a0b683453496477415ebc9cf2ad142b36d01dc6baf46d013dea7a155a"
+    },
+    {
+      "path": "potassium-mcp/src/broker.js",
+      "bytes": 64140,
+      "sha256": "c45ed74152e3ffbb1926300378ec846729b9efaca167b63c453c5fb343a93928"
+    },
+    {
+      "path": "potassium-mcp/src/builtin-fallback.js",
+      "bytes": 11112,
+      "sha256": "717ab93681b61e9c88faa71b8a34499776987a155f4a2514c93bb71bb44eb4b9"
+    },
+    {
+      "path": "potassium-mcp/src/code-analysis.js",
+      "bytes": 27122,
+      "sha256": "022a9e8d356ec145d4a00e975e17414f2f9daceba6009793631f2208b974c89b"
+    },
+    {
+      "path": "potassium-mcp/src/code-index.js",
+      "bytes": 31408,
+      "sha256": "3d829a13ec402b09e7b2dd85eb7cbd663fc9cb29c65ea97cef5e619aa0a76ddb"
+    },
+    {
+      "path": "potassium-mcp/src/code-tree-adapter.js",
+      "bytes": 10193,
+      "sha256": "e4fc46e053054dedb97b05e6a2dd0246d2e88d3359db43d2b728c66792e20a66"
+    },
+    {
+      "path": "potassium-mcp/src/compact-results.js",
+      "bytes": 16323,
+      "sha256": "80ec734695a4851b828189d1f4db87ebd3dbadcc6f3232717ae06c96850784be"
+    },
+    {
+      "path": "potassium-mcp/src/context-store.js",
+      "bytes": 13805,
+      "sha256": "e156b47d02082a250de4615d21716fb56051992b490a98ceb2643efae76d8800"
+    },
+    {
+      "path": "potassium-mcp/src/deploy.js",
+      "bytes": 7264,
+      "sha256": "40e1e5a9becdd7c552af0a979e498b6f33a0db786f22fdb878d62dade94d4223"
+    },
+    {
+      "path": "potassium-mcp/src/doctor.js",
+      "bytes": 30229,
+      "sha256": "b50a05aebd349f374c3a8e92b27e9120837c420127c7a5dae18c82cf95bc007c"
+    },
+    {
+      "path": "potassium-mcp/src/game-context-images.js",
+      "bytes": 21589,
+      "sha256": "ee7a476fc52080e32bd37aed6b5e058d33ecf784dd4eb87fb3eb0e180687146f"
+    },
+    {
+      "path": "potassium-mcp/src/game-context.js",
+      "bytes": 31957,
+      "sha256": "3862242d1d4c8ddd5ab6862371360f38f195c44929a5c83c9d159a989edfab46"
+    },
+    {
+      "path": "potassium-mcp/src/host-policy.js",
+      "bytes": 6570,
+      "sha256": "c599e6eca5a39de4d398a2b4e410b8962bb75421ed8f23189aaf5fffb93c3fe0"
+    },
+    {
+      "path": "potassium-mcp/src/hosts.js",
+      "bytes": 15088,
+      "sha256": "3566c7a938479e40e2828084ec3179af354dac283d47c68e27d8e68f9b99a45e"
+    },
+    {
+      "path": "potassium-mcp/src/install.js",
+      "bytes": 79564,
+      "sha256": "a4cf0a57fb23a1fe4da11254b1a84a1e754ab22bc62cd82487ff62afffc44a67"
+    },
+    {
+      "path": "potassium-mcp/src/map-context.js",
+      "bytes": 41216,
+      "sha256": "38e049a6a37a07dab384a506beaa1dc1fa54727e3d5180f9d7dc5920692d3b11"
+    },
+    {
+      "path": "potassium-mcp/src/map-geometry.js",
+      "bytes": 16683,
+      "sha256": "87d1ba09fee59466145a7994318263d757cf344522074a2cc1672e1cc925fd1e"
+    },
+    {
+      "path": "potassium-mcp/src/map-motion.js",
+      "bytes": 36198,
+      "sha256": "364a15cc9532d5835be2ee9e1808a5e7213b5ed06117a7a72d50feef68476357"
+    },
+    {
+      "path": "potassium-mcp/src/map-navigation.js",
+      "bytes": 45655,
+      "sha256": "9b3f6b4d30e11b69b5250c11330712996c0463d772c71928d87058d785e608bb"
+    },
+    {
+      "path": "potassium-mcp/src/map-recording-schemas.js",
+      "bytes": 21719,
+      "sha256": "c76fe287182c5c91432fc92171ad055c0a20e5a856f1db74551b9e8b2a822baa"
+    },
+    {
+      "path": "potassium-mcp/src/map-recording.js",
+      "bytes": 14165,
+      "sha256": "9a963983506cc018ff82ce567c53d94ccbb53c4955384301e0e0f9a2c4810e95"
+    },
+    {
+      "path": "potassium-mcp/src/map-schemas.js",
+      "bytes": 57530,
+      "sha256": "0ceec6307f3c49bf321268f7524f9a038c716cde623661ca4d418a4190e8092a"
+    },
+    {
+      "path": "potassium-mcp/src/parser-process.js",
+      "bytes": 8342,
+      "sha256": "19cbda7e36c62355b8b2a762703de00c7b3074bd4029029272df7f3a2b25dd9a"
+    },
+    {
+      "path": "potassium-mcp/src/paths.js",
+      "bytes": 2197,
+      "sha256": "f309ae34d11524e42ef7eb81600aabe44d84cde292d882e9cf38c173423c2c8b"
+    },
+    {
+      "path": "potassium-mcp/src/proxy.js",
+      "bytes": 12443,
+      "sha256": "2db227ef9d07ad37da9a5c1fbf87e33f015200a2233f38f86ff84e31b0355119"
+    },
+    {
+      "path": "potassium-mcp/src/request-id-transport.js",
+      "bytes": 6086,
+      "sha256": "0a8c877ed791a7ae6b2894072b427d8e09f6c101af81067511bc8fbcf10bc08b"
+    },
+    {
+      "path": "potassium-mcp/src/safe-read.js",
+      "bytes": 28552,
+      "sha256": "0431c40c1ef4cd6c69597e1f78154ed93f624f841ea6719ee1b0df2112150edc"
+    },
+    {
+      "path": "potassium-mcp/src/server.js",
+      "bytes": 161686,
+      "sha256": "a29a645f1ad865711df7928d626c1a3e45a30c95cb9c41be14fe2a54f1edc921"
+    },
+    {
+      "path": "potassium-mcp/src/session-stats.js",
+      "bytes": 8690,
+      "sha256": "9c8b7f1bbccb30512ca3dac93f3ba64660f297e2762d94f0df9be0821f360aae"
+    },
+    {
+      "path": "potassium-mcp/src/stateful-http.js",
+      "bytes": 7786,
+      "sha256": "bcdac8f8b45517afe100cd764b6490ea49990395444a908b474a2b0810f424e3"
+    },
+    {
+      "path": "potassium-mcp/src/windows-powershell.js",
+      "bytes": 851,
+      "sha256": "a120d9122508f0be105eb3b4e63bf1ba03ec655b446d0207230659bcefc92204"
+    },
+    {
+      "path": "potassium-mcp/test/bootstrap-audit.smoke.luau",
+      "bytes": 256618,
+      "sha256": "3b48c6a657587a5f6440f1d20bf1130150533d16762078ecf1d6a67a2acd429e"
+    },
+    {
+      "path": "potassium-mcp/test/helpers/list-tools.js",
+      "bytes": 1049,
+      "sha256": "e97857f455158c94d9fe5475ed6a8b7966250f740c86889214afdd18364770b5"
+    },
+    {
+      "path": "release-manifest.json",
+      "bytes": 7824,
+      "sha256": "a577f72faf35afe53e22619205b86f377bde2f23b752990facc4aa0e65b98908"
+    },
+    {
+      "path": "tools/bootstrap-runner.luau",
+      "bytes": 3126,
+      "sha256": "df110b90071e4c08fb4004da499ae561de7fef2fd35a690ffc349602aff03e6b"
+    },
+    {
+      "path": "tools/bootstrap-runner.mjs",
+      "bytes": 5030,
+      "sha256": "ecb930281bf4261da92ee70fc17dead9e108b70a9067e49e24d1c04c2292f193"
+    },
+    {
+      "path": "tools/github-release.mjs",
+      "bytes": 37310,
+      "sha256": "16bce9d0b4d1936a519b792952bd008b4ffdbc5544fd824115ccd929b1cab92f"
+    },
+    {
+      "path": "tools/mcp-benchmark.mjs",
+      "bytes": 48534,
+      "sha256": "5e5ab4520e41d918ef0fccb70da9cec1199f5b2ed4e540d6f26ca268bdfd985e"
+    },
+    {
+      "path": "tools/native-parser.mjs",
+      "bytes": 32110,
+      "sha256": "cfb75ec38bd4ac97050ed1a7e6fae00575cc8021fdd801485043828c542d0d5d"
+    },
+    {
+      "path": "tools/package-smoke.mjs",
+      "bytes": 33701,
+      "sha256": "93812e59d0e6c5942652099f1c03c915e643c33fccac5fd5ec9f18b44a1aa156"
+    },
+    {
+      "path": "tools/package-version-smoke.mjs",
+      "bytes": 20962,
+      "sha256": "9c251fdba3571072a619e3928d6fe8f610be8bab7b62e28708743821b34ed035"
+    },
+    {
+      "path": "tools/parser-host.mjs",
+      "bytes": 10533,
+      "sha256": "5f921fcb5c1eb23808261d22c299e5973aaa876a3e662ca5e99162c02b3f7f1c"
+    },
+    {
+      "path": "tools/prepare-ci-npm.mjs",
+      "bytes": 1535,
+      "sha256": "32cc3fe9984ccb3768941af0ae4e042b701980eef1fb4499ea3710fe5de1aba0"
+    },
+    {
+      "path": "tools/release.mjs",
+      "bytes": 15183,
+      "sha256": "72be3b036b30cb752cc463be65be890fc96ac07968ef4917284ed0b2aeaecb05"
+    },
+    {
+      "path": "tools/sdk-retention-probe.mjs",
+      "bytes": 4762,
+      "sha256": "00fdd036f573a558c799ff6dd7f4d4f991e11849b7c3bb2d9131393988334ab1"
+    },
+    {
+      "path": "tools/sdk-smoke.mjs",
+      "bytes": 25260,
+      "sha256": "5de30b943b4d39724663defcdcfa2c6ffa2d85f626d3a94be16ced20a529930d"
+    },
+    {
+      "path": "tools/windows-release.mjs",
+      "bytes": 41265,
+      "sha256": "ffbac0ef07fb7f52440594c92706b33e33068b1f4a967d2b123439be27f1c5c9"
+    },
+    {
+      "path": "version.txt",
+      "bytes": 6,
+      "sha256": "59854984853104df5c353e2f681a15fc7924742f9a2e468c29af248dce45ce03"
+    }
+  ],
+  "sbom": {
+    "lockfileVersion": 3,
+    "packages": [
+      {
+        "name": "",
+        "version": "1.0.0",
+        "integrity": null
+      },
+      {
+        "name": "node_modules/@hono/node-server",
+        "version": "2.1.1",
+        "integrity": "sha512-ELuehkj5VCBdgEw9zs+ivkKwyzzUCSQuE96YmiPvn1ECBoZCczbFXJLeEGMTYjphP6gydh4pHMqEYPVMYUVgQg=="
+      },
+      {
+        "name": "node_modules/@modelcontextprotocol/sdk",
+        "version": "1.30.0",
+        "integrity": "sha512-xKd8OIzlqNzcqcNumGAa6g+PW2kjD5vrpcKOnfldAUPP3j7lnqMPwlTXQm8gF+UwH72z0lqaRbjr9hqGz0eITA=="
+      },
+      {
+        "name": "node_modules/accepts",
+        "version": "2.0.0",
+        "integrity": "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="
+      },
+      {
+        "name": "node_modules/ajv",
+        "version": "8.20.0",
+        "integrity": "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA=="
+      },
+      {
+        "name": "node_modules/ajv-formats",
+        "version": "3.0.1",
+        "integrity": "sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ=="
+      },
+      {
+        "name": "node_modules/body-parser",
+        "version": "2.3.0",
+        "integrity": "sha512-2cGmJupaNgg+QUwVLAucDuWuoMZ6EX9iHDRswZ5lsNYEmwPaRknMPCLZz07yTzVq/83p4o/wzbDZbBrTvGGTIw=="
+      },
+      {
+        "name": "node_modules/body-parser/node_modules/content-type",
+        "version": "2.1.0",
+        "integrity": "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="
+      },
+      {
+        "name": "node_modules/bytes",
+        "version": "3.1.2",
+        "integrity": "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg=="
+      },
+      {
+        "name": "node_modules/call-bind-apply-helpers",
+        "version": "1.0.2",
+        "integrity": "sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ=="
+      },
+      {
+        "name": "node_modules/call-bound",
+        "version": "1.0.4",
+        "integrity": "sha512-+ys997U96po4Kx/ABpBCqhA9EuxJaQWDQg7295H4hBphv3IZg0boBKuwYpt4YXp6MZ5AmZQnU/tyMTlRpaSejg=="
+      },
+      {
+        "name": "node_modules/content-disposition",
+        "version": "1.1.0",
+        "integrity": "sha512-5jRCH9Z/+DRP7rkvY83B+yGIGX96OYdJmzngqnw2SBSxqCFPd0w2km3s5iawpGX8krnwSGmF0FW5Nhr0Hfai3g=="
+      },
+      {
+        "name": "node_modules/content-type",
+        "version": "1.0.5",
+        "integrity": "sha512-nTjqfcBFEipKdXCv4YDQWCfmcLZKm81ldF0pAopTvyrFGVbcR6P/VAAd5G7N+0tTr8QqiU0tFadD6FK4NtJwOA=="
+      },
+      {
+        "name": "node_modules/cookie",
+        "version": "0.7.2",
+        "integrity": "sha512-yki5XnKuf750l50uGTllt6kKILY4nQ1eNIQatoXEByZ5dWgnKqbnqmTrBE5B4N7lrMJKQ2ytWMiTO2o0v6Ew/w=="
+      },
+      {
+        "name": "node_modules/cookie-signature",
+        "version": "1.2.2",
+        "integrity": "sha512-D76uU73ulSXrD1UXF4KE2TMxVVwhsnCgfAyTg9k8P6KGZjlXKrOLe4dJQKI3Bxi5wjesZoFXJWElNWBjPZMbhg=="
+      },
+      {
+        "name": "node_modules/cors",
+        "version": "2.8.6",
+        "integrity": "sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw=="
+      },
+      {
+        "name": "node_modules/cross-spawn",
+        "version": "7.0.6",
+        "integrity": "sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA=="
+      },
+      {
+        "name": "node_modules/debug",
+        "version": "4.4.3",
+        "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="
+      },
+      {
+        "name": "node_modules/depd",
+        "version": "2.0.0",
+        "integrity": "sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw=="
+      },
+      {
+        "name": "node_modules/dunder-proto",
+        "version": "1.0.1",
+        "integrity": "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A=="
+      },
+      {
+        "name": "node_modules/ee-first",
+        "version": "1.1.1",
+        "integrity": "sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow=="
+      },
+      {
+        "name": "node_modules/encodeurl",
+        "version": "2.0.0",
+        "integrity": "sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg=="
+      },
+      {
+        "name": "node_modules/es-define-property",
+        "version": "1.0.1",
+        "integrity": "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g=="
+      },
+      {
+        "name": "node_modules/es-errors",
+        "version": "1.3.0",
+        "integrity": "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw=="
+      },
+      {
+        "name": "node_modules/es-object-atoms",
+        "version": "1.1.2",
+        "integrity": "sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw=="
+      },
+      {
+        "name": "node_modules/escape-html",
+        "version": "1.0.3",
+        "integrity": "sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow=="
+      },
+      {
+        "name": "node_modules/etag",
+        "version": "1.8.1",
+        "integrity": "sha512-aIL5Fx7mawVa300al2BnEE4iNvo1qETxLrPI/o05L7z6go7fCw1J6EQmbK4FmJ2AS7kgVF/KEZWufBfdClMcPg=="
+      },
+      {
+        "name": "node_modules/eventsource",
+        "version": "3.0.7",
+        "integrity": "sha512-CRT1WTyuQoD771GW56XEZFQ/ZoSfWid1alKGDYMmkt2yl8UXrVR4pspqWNEcqKvVIzg6PAltWjxcSSPrboA4iA=="
+      },
+      {
+        "name": "node_modules/eventsource-parser",
+        "version": "3.1.1",
+        "integrity": "sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ=="
+      },
+      {
+        "name": "node_modules/express",
+        "version": "5.2.1",
+        "integrity": "sha512-hIS4idWWai69NezIdRt2xFVofaF4j+6INOpJlVOLDO8zXGpUVEVzIYk12UUi2JzjEzWL3IOAxcTubgz9Po0yXw=="
+      },
+      {
+        "name": "node_modules/express-rate-limit",
+        "version": "8.6.2",
+        "integrity": "sha512-YH4ru+eOJxQABscKFfRCy9R7x9QFGdezclVMwwgFFndzS2Xnm0uo6B0ABZsLhcpeptGv2qvuJVWlQr9gQZoC3A=="
+      },
+      {
+        "name": "node_modules/fast-deep-equal",
+        "version": "3.1.3",
+        "integrity": "sha512-f3qQ9oQy9j2AhBe/H9VC91wLmKBCCU/gDOnKNAYG5hswO7BLKj09Hc5HYNz9cGI++xlpDCIgDaitVs03ATR84Q=="
+      },
+      {
+        "name": "node_modules/fast-uri",
+        "version": "3.1.7",
+        "integrity": "sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg=="
+      },
+      {
+        "name": "node_modules/finalhandler",
+        "version": "2.1.1",
+        "integrity": "sha512-S8KoZgRZN+a5rNwqTxlZZePjT/4cnm0ROV70LedRHZ0p8u9fRID0hJUZQpkKLzro8LfmC8sx23bY6tVNxv8pQA=="
+      },
+      {
+        "name": "node_modules/forwarded",
+        "version": "0.2.0",
+        "integrity": "sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow=="
+      },
+      {
+        "name": "node_modules/fresh",
+        "version": "2.0.0",
+        "integrity": "sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A=="
+      },
+      {
+        "name": "node_modules/function-bind",
+        "version": "1.1.2",
+        "integrity": "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA=="
+      },
+      {
+        "name": "node_modules/get-intrinsic",
+        "version": "1.3.0",
+        "integrity": "sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ=="
+      },
+      {
+        "name": "node_modules/get-proto",
+        "version": "1.0.1",
+        "integrity": "sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g=="
+      },
+      {
+        "name": "node_modules/gopd",
+        "version": "1.2.0",
+        "integrity": "sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg=="
+      },
+      {
+        "name": "node_modules/has-symbols",
+        "version": "1.1.0",
+        "integrity": "sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ=="
+      },
+      {
+        "name": "node_modules/hasown",
+        "version": "2.0.4",
+        "integrity": "sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A=="
+      },
+      {
+        "name": "node_modules/hono",
+        "version": "4.13.7",
+        "integrity": "sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ=="
+      },
+      {
+        "name": "node_modules/http-errors",
+        "version": "2.0.1",
+        "integrity": "sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ=="
+      },
+      {
+        "name": "node_modules/iconv-lite",
+        "version": "0.7.3",
+        "integrity": "sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ=="
+      },
+      {
+        "name": "node_modules/inherits",
+        "version": "2.0.4",
+        "integrity": "sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ=="
+      },
+      {
+        "name": "node_modules/ip-address",
+        "version": "10.5.0",
+        "integrity": "sha512-R5SnVLJmgYYvf2F2ZgwSBnelz5G4q5AxIC277GDfUaNbrZKNANcBC7RHqYYePlszf4kBolVkJauG0ZjHHFh55g=="
+      },
+      {
+        "name": "node_modules/ipaddr.js",
+        "version": "1.9.1",
+        "integrity": "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g=="
+      },
+      {
+        "name": "node_modules/is-promise",
+        "version": "4.0.0",
+        "integrity": "sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ=="
+      },
+      {
+        "name": "node_modules/isexe",
+        "version": "2.0.0",
+        "integrity": "sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw=="
+      },
+      {
+        "name": "node_modules/jose",
+        "version": "6.2.8",
+        "integrity": "sha512-Bsdjwm3Qsd/P0jR+BHDe3LytDfY7WBq2HmCCLIwuVRHMuEC9ae7/R474GIUdF1NgCyZjzVo/A9DOiOBtXq8ZoQ=="
+      },
+      {
+        "name": "node_modules/json-schema-traverse",
+        "version": "1.0.0",
+        "integrity": "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="
+      },
+      {
+        "name": "node_modules/json-schema-typed",
+        "version": "8.0.2",
+        "integrity": "sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA=="
+      },
+      {
+        "name": "node_modules/jsonc-parser",
+        "version": "3.3.1",
+        "integrity": "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ=="
+      },
+      {
+        "name": "node_modules/math-intrinsics",
+        "version": "1.1.0",
+        "integrity": "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g=="
+      },
+      {
+        "name": "node_modules/media-typer",
+        "version": "1.1.1",
+        "integrity": "sha512-yz3xRaG20c6/BOzvYoDaGtPmGscs7YivItZEEqe6GbwNfHuxu9YNmvnEkMzKldAGY4/80pRcQRZSEnhquk9XuQ=="
+      },
+      {
+        "name": "node_modules/merge-descriptors",
+        "version": "2.0.0",
+        "integrity": "sha512-Snk314V5ayFLhp3fkUREub6WtjBfPdCPY1Ln8/8munuLuiYhsABgBVWsozAG+MWMbVEvcdcpbi9R7ww22l9Q3g=="
+      },
+      {
+        "name": "node_modules/mime-db",
+        "version": "1.54.0",
+        "integrity": "sha512-aU5EJuIN2WDemCcAp2vFBfp/m4EAhWJnUNSSw0ixs7/kXbd6Pg64EmwJkNdFhB8aWt1sH2CTXrLxo/iAGV3oPQ=="
+      },
+      {
+        "name": "node_modules/mime-types",
+        "version": "3.0.2",
+        "integrity": "sha512-Lbgzdk0h4juoQ9fCKXW4by0UJqj+nOOrI9MJ1sSj4nI8aI2eo1qmvQEie4VD1glsS250n15LsWsYtCugiStS5A=="
+      },
+      {
+        "name": "node_modules/ms",
+        "version": "2.1.3",
+        "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA=="
+      },
+      {
+        "name": "node_modules/negotiator",
+        "version": "1.0.0",
+        "integrity": "sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg=="
+      },
+      {
+        "name": "node_modules/object-assign",
+        "version": "4.1.1",
+        "integrity": "sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg=="
+      },
+      {
+        "name": "node_modules/object-inspect",
+        "version": "1.13.4",
+        "integrity": "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew=="
+      },
+      {
+        "name": "node_modules/on-finished",
+        "version": "2.4.1",
+        "integrity": "sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg=="
+      },
+      {
+        "name": "node_modules/once",
+        "version": "1.4.0",
+        "integrity": "sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w=="
+      },
+      {
+        "name": "node_modules/parseurl",
+        "version": "1.3.3",
+        "integrity": "sha512-CiyeOxFT/JZyN5m0z9PfXw4SCBJ6Sygz1Dpl0wqjlhDEGGBP1GnsUVEL0p63hoG1fcj3fHynXi9NYO4nWOL+qQ=="
+      },
+      {
+        "name": "node_modules/path-key",
+        "version": "3.1.1",
+        "integrity": "sha512-ojmeN0qd+y0jszEtoY48r0Peq5dwMEkIlCOu6Q5f41lfkswXuKtYrhgoTpLnyIcHm24Uhqx+5Tqm2InSwLhE6Q=="
+      },
+      {
+        "name": "node_modules/path-to-regexp",
+        "version": "8.4.2",
+        "integrity": "sha512-qRcuIdP69NPm4qbACK+aDogI5CBDMi1jKe0ry5rSQJz8JVLsC7jV8XpiJjGRLLol3N+R5ihGYcrPLTno6pAdBA=="
+      },
+      {
+        "name": "node_modules/pkce-challenge",
+        "version": "5.0.1",
+        "integrity": "sha512-wQ0b/W4Fr01qtpHlqSqspcj3EhBvimsdh0KlHhH8HRZnMsEa0ea2fTULOXOS9ccQr3om+GcGRk4e+isrZWV8qQ=="
+      },
+      {
+        "name": "node_modules/proxy-addr",
+        "version": "2.0.7",
+        "integrity": "sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg=="
+      },
+      {
+        "name": "node_modules/qs",
+        "version": "6.16.0",
+        "integrity": "sha512-h6fhOIaRrID2CbEY2fqs+7t+UXZo+MLAnU5gRIq85uFtdiUPCdsApMlHhXogKVM4HM2DVbIjGNTTYH2OcmP1vA=="
+      },
+      {
+        "name": "node_modules/range-parser",
+        "version": "1.3.0",
+        "integrity": "sha512-hek2mFQpPuI4E1BBKrSto+BU3e3x4xuarsbiwr3+lf7p44juvFMV0XFWQAP3xUyqXA4RrXLIoaSUGbSt056ZMw=="
+      },
+      {
+        "name": "node_modules/raw-body",
+        "version": "3.0.2",
+        "integrity": "sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA=="
+      },
+      {
+        "name": "node_modules/require-from-string",
+        "version": "2.0.2",
+        "integrity": "sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw=="
+      },
+      {
+        "name": "node_modules/router",
+        "version": "2.2.0",
+        "integrity": "sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ=="
+      },
+      {
+        "name": "node_modules/safer-buffer",
+        "version": "2.1.2",
+        "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="
+      },
+      {
+        "name": "node_modules/send",
+        "version": "1.2.1",
+        "integrity": "sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ=="
+      },
+      {
+        "name": "node_modules/serve-static",
+        "version": "2.2.1",
+        "integrity": "sha512-xRXBn0pPqQTVQiC8wyQrKs2MOlX24zQ0POGaj0kultvoOCstBQM5yvOhAVSUwOMjQtTvsPWoNCHfPGwaaQJhTw=="
+      },
+      {
+        "name": "node_modules/setprototypeof",
+        "version": "1.2.0",
+        "integrity": "sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw=="
+      },
+      {
+        "name": "node_modules/shebang-command",
+        "version": "2.0.0",
+        "integrity": "sha512-kHxr2zZpYtdmrN1qDjrrX/Z1rR1kG8Dx+gkpK1G4eXmvXswmcE1hTWBWYUzlraYw1/yZp6YuDY77YtvbN0dmDA=="
+      },
+      {
+        "name": "node_modules/shebang-regex",
+        "version": "3.0.0",
+        "integrity": "sha512-7++dFhtcx3353uBaq8DDR4NuxBetBzC7ZQOhmTQInHEd6bSrXdiEyzCvG07Z44UYdLShWUyXt5M/yhz8ekcb1A=="
+      },
+      {
+        "name": "node_modules/side-channel",
+        "version": "1.1.1",
+        "integrity": "sha512-6x6dK6zJdpTzF4sQeNYxwtvBzf6Eg4GtlesS94HOvTudUeyK2WXAaIfmDgsyslYrRBeFIlsi54AYsFGUuhmvrQ=="
+      },
+      {
+        "name": "node_modules/side-channel-list",
+        "version": "1.0.1",
+        "integrity": "sha512-mjn/0bi/oUURjc5Xl7IaWi/OJJJumuoJFQJfDDyO46+hBWsfaVM65TBHq2eoZBhzl9EchxOijpkbRC8SVBQU0w=="
+      },
+      {
+        "name": "node_modules/side-channel-map",
+        "version": "1.0.1",
+        "integrity": "sha512-VCjCNfgMsby3tTdo02nbjtM/ewra6jPHmpThenkTYh8pG9ucZ/1P8So4u4FGBek/BjpOVsDCMoLA/iuBKIFXRA=="
+      },
+      {
+        "name": "node_modules/side-channel-weakmap",
+        "version": "1.0.2",
+        "integrity": "sha512-WPS/HvHQTYnHisLo9McqBHOJk2FkHO/tlpvldyrnem4aeQp4hai3gythswg6p01oSoTl58rcpiFAjF2br2Ak2A=="
+      },
+      {
+        "name": "node_modules/statuses",
+        "version": "2.0.2",
+        "integrity": "sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw=="
+      },
+      {
+        "name": "node_modules/toidentifier",
+        "version": "1.0.1",
+        "integrity": "sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA=="
+      },
+      {
+        "name": "node_modules/type-is",
+        "version": "2.1.0",
+        "integrity": "sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA=="
+      },
+      {
+        "name": "node_modules/type-is/node_modules/content-type",
+        "version": "2.1.0",
+        "integrity": "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="
+      },
+      {
+        "name": "node_modules/unpipe",
+        "version": "1.0.0",
+        "integrity": "sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ=="
+      },
+      {
+        "name": "node_modules/vary",
+        "version": "1.1.2",
+        "integrity": "sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg=="
+      },
+      {
+        "name": "node_modules/web-tree-sitter",
+        "version": "0.25.10",
+        "integrity": "sha512-Y09sF44/13XvgVKgO2cNDw5rGk6s26MgoZPXLESvMXeefBf7i6/73eFurre0IsTW6E14Y0ArIzhUMmjoc7xyzA=="
+      },
+      {
+        "name": "node_modules/which",
+        "version": "2.0.2",
+        "integrity": "sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA=="
+      },
+      {
+        "name": "node_modules/wrappy",
+        "version": "1.0.2",
+        "integrity": "sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ=="
+      },
+      {
+        "name": "node_modules/ws",
+        "version": "8.21.3",
+        "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw=="
+      },
+      {
+        "name": "node_modules/zod",
+        "version": "4.1.12",
+        "integrity": "sha512-JInaHOamG8pt5+Ey8kGmdcAcg3OL9reK8ltczgHTAwNhMys/6ThXHityHxVV2p3fkw/c+MAvBHFVYHFZDmjMCQ=="
+      },
+      {
+        "name": "node_modules/zod-to-json-schema",
+        "version": "3.25.2",
+        "integrity": "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="
+      }
+    ]
+  }
+}

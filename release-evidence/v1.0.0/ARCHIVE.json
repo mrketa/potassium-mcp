@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "release": "v1.0.0",
+  "releaseId": 386877246,
+  "sourceCommit": "09e44385251f7eac48627b58dd0a3e675fe75afa",
+  "originalReleaseSetSha256": "79fbebc4af2781cd539b32b923bc3955a676fcc93c87cf59ddab814d8ffe736f",
+  "purpose": "Historical qualification/publication evidence archived separately after explicit user-requested download-list cleanup",
+  "originalQualifiedFiles": [
+    {
+      "name": "NPM-ARTIFACT.json",
+      "bytes": 302,
+      "sha256": "dd912d7c81dca54207a4c455f4db5b1940ad944a32c07623c60bef3ee9146a89"
+    },
+    {
+      "name": "QUALIFICATION.json",
+      "bytes": 5807,
+      "sha256": "890feae3ae0ba4166c52dfc17347e8ef622d69095fb8948ba82d30d5b6f3ffee"
+    },
+    {
+      "name": "RELEASE-EVIDENCE.json",
+      "bytes": 47861,
+      "sha256": "6c3bc9d0a6fcd9efb5e20d22738c079b137a511ef0653a272aa09eba0ecca1c0"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 1008,
+      "sha256": "9b5e2537e8011db53bb65874eb2fd97315fb5af44e9126fb9abee478139595a5"
+    },
+    {
+      "name": "Setup.exe",
+      "bytes": 259993137,
+      "sha256": "7423038a9521292342dc44409c066a7ec21acd0f5a861c64039c71e4e8778b21"
+    },
+    {
+      "name": "Setup.exe.sha256",
+      "bytes": 76,
+      "sha256": "91ddbeef7786196bcea4d59866563780675e93a94db689de29feb6e73956820d"
+    },
+    {
+      "name": "WINDOWS-SETUP.json",
+      "bytes": 52920,
+      "sha256": "d99c9835765667238ee7e09bbec4d5586c0c4a8478e9ef9b473f4349ce9cfc88"
+    },
+    {
+      "name": "WINDOWS-SHA256SUMS.txt",
+      "bytes": 11467,
+      "sha256": "6d9fd8265136105e3f8cf9060d3c9453b0e3f83c5e6e1264e8a52d6143037093"
+    },
+    {
+      "name": "mrketa-potassium-mcp-1.0.0.tgz",
+      "bytes": 30844850,
+      "sha256": "82e299952b9348c43de3a339523136af3ee1dbc39d4043d5af19b4da0a841be7"
+    },
+    {
+      "name": "mrketa-potassium-mcp-1.0.0.tgz.sha256",
+      "bytes": 97,
+      "sha256": "e5cabb4c3c23a6202f939b65b77a73f663d0e7b3ab8557c40169155cdd88c197"
+    },
+    {
+      "name": "potassium-mcp-v1.0.0-windows-setup.zip",
+      "bytes": 162531558,
+      "sha256": "d1dc43997c2c180b3f57e78df3e0f956239884ee432314831dacd266f078cd30"
+    },
+    {
+      "name": "potassium-mcp-v1.0.0-windows-setup.zip.sha256",
+      "bytes": 105,
+      "sha256": "c7f97495d357f97a2daf4a68f4c3a27366148a52c30a1c57e7f001e7be5cbff4"
+    },
+    {
+      "name": "RELEASE-SET.json",
+      "bytes": 2115,
+      "sha256": "79fbebc4af2781cd539b32b923bc3955a676fcc93c87cf59ddab814d8ffe736f"
+    }
+  ],
+  "archivedMetadata": [
+    {
+      "name": "NPM-ARTIFACT.json",
+      "bytes": 302,
+      "sha256": "dd912d7c81dca54207a4c455f4db5b1940ad944a32c07623c60bef3ee9146a89"
+    },
+    {
+      "name": "QUALIFICATION.json",
+      "bytes": 5807,
+      "sha256": "890feae3ae0ba4166c52dfc17347e8ef622d69095fb8948ba82d30d5b6f3ffee"
+    },
+    {
+      "name": "RELEASE-EVIDENCE.json",
+      "bytes": 47861,
+      "sha256": "6c3bc9d0a6fcd9efb5e20d22738c079b137a511ef0653a272aa09eba0ecca1c0"
+    },
+    {
+      "name": "SHA256SUMS.txt",
+      "bytes": 1008,
+      "sha256": "9b5e2537e8011db53bb65874eb2fd97315fb5af44e9126fb9abee478139595a5"
+    },
+    {
+      "name": "Setup.exe.sha256",
+      "bytes": 76,
+      "sha256": "91ddbeef7786196bcea4d59866563780675e93a94db689de29feb6e73956820d"
+    },
+    {
+      "name": "WINDOWS-SETUP.json",
+      "bytes": 52920,
+      "sha256": "d99c9835765667238ee7e09bbec4d5586c0c4a8478e9ef9b473f4349ce9cfc88"
+    },
+    {
+      "name": "WINDOWS-SHA256SUMS.txt",
+      "bytes": 11467,
+      "sha256": "6d9fd8265136105e3f8cf9060d3c9453b0e3f83c5e6e1264e8a52d6143037093"
+    },
+    {
+      "name": "mrketa-potassium-mcp-1.0.0.tgz.sha256",
+      "bytes": 97,
+      "sha256": "e5cabb4c3c23a6202f939b65b77a73f663d0e7b3ab8557c40169155cdd88c197"
+    },
+    {
+      "name": "potassium-mcp-v1.0.0-windows-setup.zip.sha256",
+      "bytes": 105,
+      "sha256": "c7f97495d357f97a2daf4a68f4c3a27366148a52c30a1c57e7f001e7be5cbff4"
+    },
+    {
+      "name": "RELEASE-SET.json",
+      "bytes": 2115,
+      "sha256": "79fbebc4af2781cd539b32b923bc3955a676fcc93c87cf59ddab814d8ffe736f"
+    }
+  ],
+  "artifactSources": {
+    "setup": "https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/Setup.exe",
+    "windowsZip": "https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/potassium-mcp-v1.0.0-windows-setup.zip",
+    "npmTarball": "https://registry.npmjs.org/@mrketa/potassium-mcp/-/potassium-mcp-1.0.0.tgz",
+    "npmIntegrity": "sha512-WeuK/IAlMZRqlS5yKeyZ/idQdHkvvb34VZF8zgoB1e31QTtz7WpFue1CdNx6BbauaO3lJhq1t2WBsooYD+kmug=="
+  },
+  "publicDownloadLayout": [
+    "Setup.exe",
+    "potassium-mcp-v1.0.0-windows-setup.zip",
+    "SHA256SUMS.txt"
+  ],
+  "automaticSourceArchives": "GitHub creates its two source-code archive links independently of uploaded release assets",
+  "recoveryBoundary": "The original full qualified set and publication receipts remain historical and are not rewritten. The old release workflow intentionally fails closed when the published download list lacks RELEASE-SET.json; do not rerun it to restore clutter or republish1.0.0. Operators can reconstruct the original full set offline from archived metadata and the unchanged binaries/npm tarball, checking every original hash. This cleanup does not change runtime, npm, git tag or publication identity."
+}
