@@ -269,7 +269,10 @@ async function packedInstallerRoundtrip({ directory, env, snapshot, packageRoot,
   assert.notDeepEqual(oldMetadata.potassiumMcpRuntime, { ownershipSchema: 3, launcherProtocol: 1 }, "historical rejection fixture must remain a genuinely incompatible published package");
   const protectedFiles = [configPath, statePath, tokenPath, path.join(runtime, "deploy-state.json"), hostPath, manualPath, ...restored.scripts.map((script) => script.target)];
   const beforeRejection = await Promise.all(protectedFiles.map((target) => readFile(target)));
-  assert.throws(() => invoke(["repair", "--install-root", runtime, "--runtime-root", oldRoot, "--json"]), /external runtime is incompatible/);
+  assert.throws(() => invoke(["repair", "--install-root", runtime, "--runtime-root", oldRoot, "--json"]), (error) => {
+    if (error.preserveDirectory === true) throw error;
+    return /external runtime is incompatible/.test(error.message);
+  });
   for (const [index, target] of protectedFiles.entries()) assert.deepEqual(await readFile(target), beforeRejection[index], "incompatible package rejection must leave deployment unchanged");
   invoke(["host", "remove", ...hostArgs]);
   assert.deepEqual(await json(hostPath), { mcpServers: { unrelated } });
