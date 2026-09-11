@@ -76,17 +76,20 @@ async function ownedLease(controllerPid, workers, root = workspaceRoot) {
 
 async function newLease(child) {
   assert.ok(Number.isSafeInteger(child.pid) && child.pid > 0, "Parser controller did not spawn");
+  const deadline = performance.now() + 8000;
   for (let attempt = 0; attempt < 10; attempt += 1) {
+    const remaining = Math.floor(deadline - performance.now());
+    if (remaining <= 0) break;
     assert.equal(child.exitCode, null, "Parser controller exited before lease discovery");
     assert.equal(child.signalCode, null, "Parser controller was killed before lease discovery");
     const { stdout } = await execFileAsync("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command",
       `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); @(Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${child.pid}' | Select-Object ParentProcessId, ExecutablePath) | ConvertTo-Json -Compress`,
-    ], { encoding: "utf8", windowsHide: true, timeout: 2000, maxBuffer: 65536 });
+    ], { encoding: "utf8", windowsHide: true, timeout: Math.min(5000, remaining), maxBuffer: 65536 });
     const workers = stdout.trim() ? JSON.parse(stdout) : [];
     const lease = await ownedLease(child.pid, Array.isArray(workers) ? workers : [workers]);
     if (lease) return lease;
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    if (attempt < 9) await new Promise((resolve) => setTimeout(resolve, Math.min(50, Math.max(0, deadline - performance.now()))));
   }
   throw new Error("Parser host did not create an owned lease");
 }
@@ -220,27 +223,39 @@ test("parent-channel cancellation removes the owned runtime and profile lease", 
   let child, markReady;
   const ready = new Promise((resolve) => { markReady = resolve; });
   const pending = probe({ mode: "wall" }, { onSpawn: (value) => { child = value; }, onReady: markReady });
-  await Promise.race([ready, pending.then((result) => { throw new Error(`Parser did not start: ${JSON.stringify(result)}`); })]);
-  const lease = await newLease(child);
-  child.stdin.end();
-  const result = await pending;
-  assert.equal(result.error?.code, "PARSER_CANCELLED");
-  await assertLeaseRemoved(lease);
+  try {
+    await Promise.race([ready, pending.then((result) => { throw new Error(`Parser did not start: ${JSON.stringify(result)}`); })]);
+    const lease = await newLease(child);
+    child.stdin.end();
+    const result = await pending;
+    assert.equal(result.error?.code, "PARSER_CANCELLED");
+    await assertLeaseRemoved(lease);
+  } finally {
+    child?.stdin.end();
+    await pending.catch(() => {});
+  }
 });
 
 test("a subsequent host recovers only an abandoned owned parser lease", { skip: !windows, timeout: 40000 }, async () => {
   let child, markReady;
   const ready = new Promise((resolve) => { markReady = resolve; });
   const pending = probe({ mode: "wall" }, { onSpawn: (value) => { child = value; }, onReady: markReady });
-  await Promise.race([ready, pending.then((result) => { throw new Error(`Parser did not start: ${JSON.stringify(result)}`); })]);
-  const rejected = assert.rejects(pending, /Parser probe host exited/);
-  const lease = await newLease(child);
-  child.kill(); await rejected;
-  const foreign = await mkdtemp(path.join(workspaceRoot, "foreign-"));
-  await writeFile(path.join(foreign, "keep.txt"), "foreign");
   try {
-    const result = await probe({ mode: "stdout" }); assert.equal(result.childReady, true); assert.equal(result.error?.code, "PARSER_OUTPUT_LIMIT");
-    await assertLeaseRemoved(lease);
-    assert.equal(await readFile(path.join(foreign, "keep.txt"), "utf8"), "foreign");
-  } finally { await rm(foreign, { recursive: true }); }
+    await Promise.race([ready, pending.then((result) => { throw new Error(`Parser did not start: ${JSON.stringify(result)}`); })]);
+    const lease = await newLease(child);
+    await assert.rejects(async () => {
+      child.kill();
+      await pending;
+    }, /Parser probe host exited/);
+    const foreign = await mkdtemp(path.join(workspaceRoot, "foreign-"));
+    try {
+      await writeFile(path.join(foreign, "keep.txt"), "foreign");
+      const result = await probe({ mode: "stdout" }); assert.equal(result.childReady, true); assert.equal(result.error?.code, "PARSER_OUTPUT_LIMIT");
+      await assertLeaseRemoved(lease);
+      assert.equal(await readFile(path.join(foreign, "keep.txt"), "utf8"), "foreign");
+    } finally { await rm(foreign, { recursive: true }); }
+  } finally {
+    child?.stdin.end();
+    await pending.catch(() => {});
+  }
 });
