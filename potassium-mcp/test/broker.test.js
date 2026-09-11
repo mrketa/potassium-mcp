@@ -573,9 +573,9 @@ test("broker canonical identity rejects relative, missing, and decoy identities 
   const decoyExecutable = path.join(fixture.installRoot, "node-decoy.exe");
   await Promise.all([decoyBroker, decoyConfig, decoyExecutable].map((file) => writeFile(file, "")));
   for (const overrides of [
-    { brokerPath: path.relative(process.cwd(), original.brokerPath) },
-    { configPath: path.relative(process.cwd(), original.configPath) },
-    { nodeExecutable: path.relative(process.cwd(), original.nodeExecutable) },
+    { brokerPath: path.basename(original.brokerPath) },
+    { configPath: path.basename(original.configPath) },
+    { nodeExecutable: path.basename(original.nodeExecutable) },
     { brokerPath: `${original.brokerPath}.missing` },
     { configPath: `${original.configPath}.missing` },
     { nodeExecutable: `${original.nodeExecutable}.missing` },

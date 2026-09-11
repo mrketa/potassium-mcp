@@ -12,6 +12,7 @@ import { createInstallPlan, launcherTimeout, removeConfig, supportsRuntime, tran
 import { cliRegistrationMatches } from "./doctor.js";
 import { resolveInstallRoot, resolveConfigPath } from "./paths.js";
 import { assertHostId, resolveHostPolicy } from "./host-policy.js";
+import { windowsPowerShellEnvironment } from "./windows-powershell.js";
 import packageMetadata from "../package.json" with { type: "json" };
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -295,7 +296,7 @@ async function applyFileAcl(target, source, options) {
   if (!source) return restrictTokenAcl(target, options.run ?? spawnSync);
   const command = "$acl = Get-Acl -LiteralPath $env:POTASSIUM_ACL_SOURCE; Set-Acl -LiteralPath $env:POTASSIUM_ACL_TARGET -AclObject $acl";
   const result = (options.run ?? spawnSync)("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
-    encoding: "utf8", windowsHide: true, env: { ...process.env, POTASSIUM_ACL_SOURCE: source, POTASSIUM_ACL_TARGET: target },
+    encoding: "utf8", windowsHide: true, env: windowsPowerShellEnvironment({ POTASSIUM_ACL_SOURCE: source, POTASSIUM_ACL_TARGET: target }),
   });
   if (result.error || result.status !== 0) throw new Error("Unable to preserve MCP-config ACL");
 }

@@ -157,6 +157,7 @@
     "potassium-mcp/src/safe-read.js",
     "potassium-mcp/src/proxy.js",
     "potassium-mcp/src/request-id-transport.js",
+    "potassium-mcp/src/windows-powershell.js",
     "potassium-mcp/src/server.js"
   ]
 }

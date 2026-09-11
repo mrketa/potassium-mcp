@@ -18,6 +18,12 @@ async function fixture(t) {
   await mkdir(workspaceRoot);
   await mkdir(cwd);
   const env = { ...process.env, HOME: root, USERPROFILE: root, APPDATA: root, LOCALAPPDATA: root };
+  if (process.platform === "win32") {
+    env.APPDATA = path.join(root, "AppData", "Roaming");
+    env.LOCALAPPDATA = path.join(root, "AppData", "Local");
+    await mkdir(env.APPDATA, { recursive: true });
+    await mkdir(env.LOCALAPPDATA, { recursive: true });
+  }
   delete env.POTASSIUM_MCP_CONFIG;
   delete env.POTASSIUM_MCP_INSTALL_ROOT;
   delete env.POTASSIUM_WORKSPACE;
@@ -135,6 +141,86 @@ test("config print returns runnable public entries without changing private stat
   assert.equal(unknown.status, 1);
   assert.equal(unknown.stdout, "");
   assert.deepEqual(await snapshot(value.root), before);
+});
+
+test("Windows CLI setup preserves private files and ACLs with an incompatible inherited PowerShell Security module", {
+  skip: process.platform !== "win32" && "requires the actual Windows PowerShell ACL boundary",
+}, async (t) => {
+  const value = await fixture(t);
+  const cleanEnv = { ...value.env };
+  for (const key of Object.keys(cleanEnv)) if (key.toLowerCase() === "psmodulepath") delete cleanEnv[key];
+  const setupArgs = [
+    "setup", "--workspace", value.workspaceRoot, "--install-root", value.installRoot,
+    "--read-host", "project-a", "--json",
+  ];
+  const initial = invoke(setupArgs, { ...value, env: cleanEnv });
+  assert.equal(initial.status, 0, initial.stderr);
+
+  const configFile = path.join(value.installRoot, "config.json");
+  const tokenFile = path.join(value.workspaceRoot, ".potassium-mcp-token");
+  const aclPaths = [configFile, tokenFile, path.join(value.workspaceRoot, ".potassium-mcp-bootstrap.lua")];
+  const configBefore = await readFile(configFile, "utf8");
+  const tokenBefore = await readFile(tokenFile, "utf8");
+  const readAcls = () => {
+    const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", [
+      "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)",
+      "$ErrorActionPreference = 'Stop'",
+      "$paths = ConvertFrom-Json $env:POTASSIUM_TEST_ACL_PATHS",
+      "$items = @(foreach ($target in $paths) {",
+      "  $acl = [System.IO.File]::GetAccessControl($target)",
+      "  [pscustomobject]@{",
+      "    path = $target",
+      "    protected = $acl.AreAccessRulesProtected",
+      "    sddl = $acl.GetSecurityDescriptorSddlForm([System.Security.AccessControl.AccessControlSections]::Access)",
+      "    owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value",
+      "    currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
+      "    allowed = @($acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier]) | Where-Object { $_.AccessControlType -eq 'Allow' } | ForEach-Object { $_.IdentityReference.Value })",
+      "  }",
+      "})",
+      "ConvertTo-Json -InputObject $items -Depth 4 -Compress",
+    ].join("\n")], {
+      encoding: "utf8", windowsHide: true, timeout: 15000, cwd: value.cwd,
+      env: { ...cleanEnv, POTASSIUM_TEST_ACL_PATHS: JSON.stringify(aclPaths) },
+    });
+    if (result.error) throw result.error;
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const aclsBefore = readAcls();
+  for (const acl of aclsBefore) {
+    assert.equal(acl.protected, true, acl.path);
+    assert.deepEqual(acl.allowed, [acl.currentUser], acl.path);
+  }
+
+  const moduleRoot = path.join(value.root, "incompatible PS7 modules");
+  const securityModule = path.join(moduleRoot, "Microsoft.PowerShell.Security");
+  await mkdir(securityModule, { recursive: true });
+  await writeFile(path.join(securityModule, "Microsoft.PowerShell.Security.psd1"), [
+    "@{",
+    "  RootModule = 'Microsoft.PowerShell.Security.psm1'",
+    "  ModuleVersion = '99.0.0'",
+    "  GUID = 'a9b920b7-4801-4aa8-a328-0d37392b44b8'",
+    "  FunctionsToExport = @('Get-Acl', 'Set-Acl')",
+    "  CmdletsToExport = @()",
+    "}",
+  ].join("\n"));
+  // Advertise the ACL commands, but fail module loading just like an incompatible PS7 module.
+  await writeFile(path.join(securityModule, "Microsoft.PowerShell.Security.psm1"), [
+    "throw 'Fixture: Microsoft.PowerShell.Security is incompatible with Windows PowerShell'",
+    "function Get-Acl { throw 'The incompatible fixture must never provide ACL access' }",
+    "function Set-Acl { throw 'The incompatible fixture must never change an ACL' }",
+  ].join("\n"));
+  const inheritedModulePath = Object.entries(value.env).find(([key]) => key.toLowerCase() === "psmodulepath")?.[1];
+  const poisoned = {
+    ...value,
+    env: { ...cleanEnv, PSModulePath: [moduleRoot, inheritedModulePath].filter(Boolean).join(path.delimiter) },
+  };
+  const setup = invoke(setupArgs, poisoned);
+  assert.equal(setup.status, 0, setup.stderr);
+  assert.equal(await readFile(configFile, "utf8"), configBefore);
+  assert.equal(await readFile(tokenFile, "utf8"), tokenBefore);
+  assert.deepEqual(readAcls(), aclsBefore);
+
 });
 
 test("configuration selection honors explicit precedence and rejects CWD-dependent environment paths", () => {
