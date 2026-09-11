@@ -57,6 +57,20 @@ jobs:
         name: Select canonical Windows temporary directories
         shell: pwsh
         run: node -e "const fs = require('node:fs'); const root = fs.realpathSync(process.env.RUNNER_TEMP); fs.appendFileSync(process.env.GITHUB_ENV, 'TEMP=' + root + '\nTMP=' + root + '\n');"
+      - &windows-powershell-ready
+        name: Observe Windows PowerShell dependency readiness
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { spawnSync } from 'node:child_process';
+          import { windowsPowerShellEnvironment } from './potassium-mcp/src/windows-powershell.js';
+          const started = performance.now();
+          const command = "$ErrorActionPreference='Stop'; $p=Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $PID) -Property ProcessId; if (!$p -or $p.ProcessId -ne $PID) { throw 'Own process query failed' }; Get-Acl -LiteralPath $env:GITHUB_WORKSPACE | Out-Null; Get-Command Get-AuthenticodeSignature -ErrorAction Stop | Out-Null; 'ready'";
+          const result = spawnSync('powershell.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command], { env: windowsPowerShellEnvironment(), encoding: 'utf8', timeout: 60000, maxBuffer: 65536, windowsHide: true });
+          if (result.error || result.status !== 0 || result.stdout.trim() !== 'ready') throw new Error(`Windows dependency readiness failed: ${result.stderr}`, { cause: result.error });
+          console.log(JSON.stringify({ windowsPowerShellReady: true, coldElapsedMs: Math.round(performance.now() - started), runtimeDeadlinesChanged: false }));
+          NODE
       - name: Download only pinned assets and verify source and qualification
         id: selected
         shell: bash
@@ -464,6 +478,7 @@ jobs:
           node-version: "22.23.2"
           registry-url: https://registry.npmjs.org/
       - *canonical-windows-temp
+      - *windows-powershell-ready
       - name: Reverify selected bytes, then publish only after approval
         id: selected
         shell: bash
