@@ -1,5 +1,8 @@
+// Restrict module discovery to the actual child Windows PowerShell installation.
+export const WINDOWS_POWERSHELL_PRELUDE = "$env:PSModulePath = [IO.Path]::Combine($PSHOME,'Modules'); ";
+
 // Resolve security cmdlets from the OS module without add-on module discovery.
-export const WINDOWS_POWERSHELL_SECURITY_PRELUDE = "Import-Module -Name ([IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Security','Microsoft.PowerShell.Security.psd1')) -ErrorAction Stop; ";
+export const WINDOWS_POWERSHELL_SECURITY_PRELUDE = WINDOWS_POWERSHELL_PRELUDE + "Import-Module -Name ([IO.Path]::Combine($PSHOME,'Modules','Microsoft.PowerShell.Security','Microsoft.PowerShell.Security.psd1')) -ErrorAction Stop; ";
 
 export function windowsPowerShellEnvironment(overrides) {
   const environment = { ...process.env, ...overrides };

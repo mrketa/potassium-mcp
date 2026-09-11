@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import test from "node:test";
 import { parseSourcePackage } from "../src/parser-process.js";
-import { windowsPowerShellEnvironment } from "../src/windows-powershell.js";
+import { WINDOWS_POWERSHELL_PRELUDE, windowsPowerShellEnvironment } from "../src/windows-powershell.js";
 
 const windows = process.platform === "win32" && process.arch === "x64";
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -85,7 +85,7 @@ async function newLease(child) {
     assert.equal(child.signalCode, null, "Parser controller was killed before lease discovery");
     const { stdout } = await execFileAsync("powershell.exe", [
       "-NoProfile", "-NonInteractive", "-Command",
-      `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); @(Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${child.pid}' | Select-Object ParentProcessId, ExecutablePath) | ConvertTo-Json -Compress`,
+      `${WINDOWS_POWERSHELL_PRELUDE}[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); @(Get-CimInstance Win32_Process -Filter 'ParentProcessId = ${child.pid}' | Select-Object ParentProcessId, ExecutablePath) | ConvertTo-Json -Compress`,
     ], { encoding: "utf8", windowsHide: true, timeout: Math.min(5000, remaining), maxBuffer: 65536, env: windowsPowerShellEnvironment() });
     const workers = stdout.trim() ? JSON.parse(stdout) : [];
     const lease = await ownedLease(child.pid, Array.isArray(workers) ? workers : [workers]);

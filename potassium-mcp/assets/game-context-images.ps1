@@ -1,5 +1,6 @@
 # Fixed, source-only helper. JSON stdin is data, never PowerShell source.
 # No desktop capture, focus changes, camera actions, external compiler, or generated executable.
+$env:PSModulePath = [IO.Path]::Combine($PSHOME,'Modules');
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $WarningPreference = 'SilentlyContinue'

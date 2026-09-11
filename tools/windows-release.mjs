@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateNpmArtifact } from "../potassium-mcp/release-publish.js";
-import { windowsPowerShellEnvironment } from "../potassium-mcp/src/windows-powershell.js";
+import { WINDOWS_POWERSHELL_PRELUDE, windowsPowerShellEnvironment } from "../potassium-mcp/src/windows-powershell.js";
 import { selectPublicFiles } from "./release.mjs";
 import { verifyParserHost } from "./parser-host.mjs";
 
@@ -153,7 +153,7 @@ function run(program, args, options = {}) {
 }
 
 function powershell(script, environment = {}) {
-  return run("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Buffer.from(`$ErrorActionPreference = 'Stop'\n${script}`, "utf16le").toString("base64")], { env: windowsPowerShellEnvironment(environment) });
+  return run("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Buffer.from(WINDOWS_POWERSHELL_PRELUDE + `$ErrorActionPreference = 'Stop'\n${script}`, "utf16le").toString("base64")], { env: windowsPowerShellEnvironment(environment) });
 }
 
 // File names are passed as UTF-8 JSON, never through the active ANSI code page.

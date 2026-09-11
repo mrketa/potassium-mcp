@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { WINDOWS_POWERSHELL_PRELUDE, windowsPowerShellEnvironment } from "../potassium-mcp/src/windows-powershell.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -35,7 +36,7 @@ export async function installToolchain() {
   const archive = path.join(cache, filename);
   await writeFile(archive, bytes);
   if (process.platform === "win32") {
-    command("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "Expand-Archive -LiteralPath $env:LUNE_ARCHIVE -DestinationPath $env:LUNE_DESTINATION -Force"], { env: { ...process.env, LUNE_ARCHIVE: archive, LUNE_DESTINATION: cache } });
+    command("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", WINDOWS_POWERSHELL_PRELUDE + "Expand-Archive -LiteralPath $env:LUNE_ARCHIVE -DestinationPath $env:LUNE_DESTINATION -Force"], { env: windowsPowerShellEnvironment({ LUNE_ARCHIVE: archive, LUNE_DESTINATION: cache }) });
   } else {
     command("unzip", ["-o", archive, "-d", cache]);
     await chmod(path.join(cache, "lune"), 0o755);

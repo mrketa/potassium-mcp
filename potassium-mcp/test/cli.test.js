@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveConfigPath, resolveConfigSelection, resolveInstallRoot } from "../src/paths.js";
+import { WINDOWS_POWERSHELL_PRELUDE, WINDOWS_POWERSHELL_SECURITY_PRELUDE, windowsPowerShellEnvironment } from "../src/windows-powershell.js";
 
 const cliPath = fileURLToPath(new URL("../bin/potassium-mcp.js", import.meta.url));
 
@@ -163,6 +164,7 @@ test("Windows CLI setup preserves private files and ACLs with an incompatible in
   const tokenBefore = await readFile(tokenFile, "utf8");
   const readAcls = () => {
     const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", [
+      WINDOWS_POWERSHELL_SECURITY_PRELUDE,
       "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)",
       "$ErrorActionPreference = 'Stop'",
       "$paths = ConvertFrom-Json $env:POTASSIUM_TEST_ACL_PATHS",
@@ -221,6 +223,68 @@ test("Windows CLI setup preserves private files and ACLs with an incompatible in
   assert.equal(await readFile(tokenFile, "utf8"), tokenBefore);
   assert.deepEqual(readAcls(), aclsBefore);
 
+});
+
+test("Windows PowerShell CIM identity ignores an incompatible child-reconstructed addon module path", {
+  skip: process.platform !== "win32" && "requires actual Windows PowerShell CIM module discovery",
+}, async (t) => {
+  const value = await fixture(t);
+  const moduleRoot = path.join(value.root, "reconstructed addon modules");
+  const cimModule = path.join(moduleRoot, "CimCmdlets");
+  await mkdir(cimModule, { recursive: true });
+  await writeFile(path.join(cimModule, "CimCmdlets.psd1"), [
+    "@{",
+    "  RootModule = 'CimCmdlets.psm1'",
+    "  ModuleVersion = '99.0.0'",
+    "  GUID = 'ce02e748-41f9-4d78-a9a5-2c0727e97817'",
+    "  FunctionsToExport = @('Get-CimInstance')",
+    "  CmdletsToExport = @()",
+    "}",
+  ].join("\n"));
+  await writeFile(path.join(cimModule, "CimCmdlets.psm1"), [
+    "[IO.File]::WriteAllText($env:POTASSIUM_TEST_MODULE_MARKER, 'incompatible addon loaded')",
+    "function Get-CimInstance {",
+    "  param([string]$ClassName, [string]$Filter)",
+    "  throw 'Fixture: addon Get-CimInstance is incompatible with Windows PowerShell'",
+    "}",
+    "Export-ModuleMember -Function Get-CimInstance",
+  ].join("\n"));
+
+  // Inherited-path filtering cannot model paths reconstructed during shell startup.
+  // Poison only this owned child's search path, before the production prelude runs.
+  const observe = (prelude, marker) => spawnSync("powershell.exe", [
+    "-NoProfile", "-NonInteractive", "-Command", [
+      "$env:PSModulePath = $env:POTASSIUM_TEST_MODULE_ROOT + [IO.Path]::PathSeparator + [IO.Path]::Combine($PSHOME,'Modules');",
+      prelude,
+      "[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)",
+      "$ErrorActionPreference = 'Stop'",
+      `Get-CimInstance Win32_Process -Filter 'ProcessId = ${process.pid}' | Select-Object ProcessId, ParentProcessId, ExecutablePath, CommandLine | ConvertTo-Json -Compress`,
+    ].join("\n"),
+  ], {
+    encoding: "utf8", windowsHide: true, timeout: 5000, maxBuffer: 65536, cwd: value.cwd,
+    env: windowsPowerShellEnvironment({
+      ...value.env, POTASSIUM_TEST_MODULE_ROOT: moduleRoot, POTASSIUM_TEST_MODULE_MARKER: marker,
+    }),
+  });
+
+  // Prove the fixture intercepts real command discovery when the prelude is lost.
+  const controlMarker = path.join(value.root, "control-module-loaded");
+  const control = observe("", controlMarker);
+  if (control.error) throw control.error;
+  assert.notEqual(control.status, 0, "The incompatible addon must prevent unguarded CIM observation");
+  assert.equal(await readFile(controlMarker, "utf8"), "incompatible addon loaded");
+
+  const protectedMarker = path.join(value.root, "protected-module-loaded");
+  const result = observe(WINDOWS_POWERSHELL_PRELUDE, protectedMarker);
+  if (result.error) throw result.error;
+  assert.equal(result.status, 0, result.stderr);
+  const identity = JSON.parse(result.stdout);
+  assert.equal(identity.ProcessId, process.pid);
+  assert.equal(identity.ParentProcessId, process.ppid);
+  assert.equal(path.normalize(identity.ExecutablePath).toLowerCase(), path.normalize(process.execPath).toLowerCase());
+  assert.equal(typeof identity.CommandLine, "string");
+  assert.ok(identity.CommandLine.toLowerCase().includes(path.basename(process.execPath).toLowerCase()));
+  await assert.rejects(readFile(protectedMarker, "utf8"), { code: "ENOENT" });
 });
 
 test("configuration selection honors explicit precedence and rejects CWD-dependent environment paths", () => {

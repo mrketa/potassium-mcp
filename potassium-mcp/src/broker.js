@@ -28,7 +28,7 @@ import { resolveConfigPath } from "./paths.js";
 import { acquireInstallLock, readRepairDrainCredentials, verifyInstallLease } from "./install.js";
 import { supportsRuntime } from "./hosts.js";
 import { MAX_PENDING_MCP_REQUESTS } from "./request-id-transport.js";
-import { windowsPowerShellEnvironment } from "./windows-powershell.js";
+import { WINDOWS_POWERSHELL_PRELUDE, windowsPowerShellEnvironment } from "./windows-powershell.js";
 
 const PROXY_PROTOCOL = 1;
 const PROXY_DOMAIN = "potassium-mcp/proxy/v1";
@@ -283,7 +283,7 @@ function processInfoForPid(pid) {
       // Allow cold Windows PowerShell/CIM startup for this OS observation, not an RPC deadline.
       const result = spawnSync("powershell.exe", [
         "-NoProfile", "-NonInteractive", "-Command",
-        `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $p = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}'; if ($p) { @{ executable = $p.ExecutablePath; commandLine = $p.CommandLine } | ConvertTo-Json -Compress }`,
+        WINDOWS_POWERSHELL_PRELUDE + `[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $p = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}'; if ($p) { @{ executable = $p.ExecutablePath; commandLine = $p.CommandLine } | ConvertTo-Json -Compress }`,
       ], { encoding: "utf8", windowsHide: true, timeout: 5000, maxBuffer: 65536, env: windowsPowerShellEnvironment() });
       if (result.status === 0 && result.stdout.trim()) info = JSON.parse(result.stdout);
     } else {
