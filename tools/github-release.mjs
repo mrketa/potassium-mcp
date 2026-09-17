@@ -148,8 +148,32 @@ function validateQualification(value, identity, npm, windows, source) {
     assert(node.passed === true && typeof node.nodeVersion === "string" && new RegExp(`^v${major}\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$`).test(node.nodeVersion), `Qualification Node ${major} did not pass on the required runtime`);
   }
   const windowsChecks = ["passed", "fresh", "restrictedUpgrade", "repair", "cancelledRemoval", "remove", "reinstall", "coldCheck", "nativeParser", "clipboard"];
-  keys(value.checks.windows, [...windowsChecks, "clipboardScope"], "Qualification Windows");
-  for (const name of windowsChecks) assert.equal(value.checks.windows[name], true, `Qualification Windows ${name} did not pass`);
+  const windowsResult = value.checks.windows;
+  const hasScope = windowsResult && Object.hasOwn(windowsResult, "scope");
+  assert(!hasScope || ["full", "essential"].includes(windowsResult.scope), "Qualification Windows scope is unknown");
+  const essential = windowsResult?.scope === "essential";
+  keys(windowsResult, [...windowsChecks, "clipboardScope", ...(hasScope ? ["scope"] : []),
+    ...(essential ? ["userApproval", "adminStartup", "normalLauncher", "limitations"] : [])], "Qualification Windows");
+  for (const name of windowsChecks) {
+    assert.equal(typeof windowsResult[name], "boolean", `Qualification Windows ${name} must be boolean`);
+    if (!essential || ["passed", "fresh", "repair", "coldCheck"].includes(name)) {
+      assert.equal(windowsResult[name], true, `Qualification Windows ${name} did not pass`);
+    }
+  }
+  if (essential) {
+    assert(typeof windowsResult.userApproval === "string" && windowsResult.userApproval.trim().length > 0
+      && windowsResult.userApproval.length <= 1024, "Qualification Windows essential scope requires bounded nonempty user approval");
+    for (const name of ["adminStartup", "normalLauncher"]) {
+      assert.equal(windowsResult[name], true, `Qualification Windows ${name} did not pass`);
+    }
+    const omitted = windowsChecks.filter((name) => windowsResult[name] === false);
+    assert(omitted.length > 0, "Qualification Windows essential limitations must identify omitted checks");
+    keys(windowsResult.limitations, omitted, "Qualification Windows essential limitations");
+    for (const reason of Object.values(windowsResult.limitations)) {
+      assert(typeof reason === "string" && reason.trim().length > 0 && reason.length <= 1024,
+        "Qualification Windows essential limitation reasons must be bounded nonempty text");
+    }
+  }
   assert(typeof value.checks.windows.clipboardScope === "string" && value.checks.windows.clipboardScope.trim().length > 0 && value.checks.windows.clipboardScope.length <= 512, "Qualification clipboard scope must be bounded nonempty text");
   const soak = value.checks.soak;
   keys(soak, ["passed", "elapsedMs", "requests", "bootstrapCases", "p95Ms", "limits"], "Qualification soak");

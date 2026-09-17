@@ -353,6 +353,65 @@ test("version.txt and selected canonical package identity must agree", async (t)
   }
 });
 
+function selectEssentialWindows(qualification) {
+  Object.assign(qualification.checks.windows, {
+    scope: "essential",
+    userApproval: "User selected only essential manual installer checks, not the expanded Windows acceptance matrix.",
+    adminStartup: true,
+    normalLauncher: true,
+    clipboardScope: "Not exercised in the user-selected essential scope.",
+    limitations: {
+      restrictedUpgrade: "Restricted upgrade not exercised in the selected manual scope.",
+      cancelledRemoval: "Removal cancellation not exercised in the selected manual scope.",
+      remove: "Confirmed removal not exercised in the selected manual scope.",
+      reinstall: "Retained reinstall not exercised in the selected manual scope.",
+      nativeParser: "Installed Windows native parser path not exercised in the selected manual scope.",
+      clipboard: "GUI clipboard handlers not exercised in the selected manual scope.",
+    },
+  });
+  for (const name of Object.keys(qualification.checks.windows.limitations)) qualification.checks.windows[name] = false;
+}
+
+test("essential Windows scope retains omitted checks and reasons through sealed preparation and verification", async (t) => {
+  const f = await fixture(t);
+  selectEssentialWindows(f.qualification);
+  await f.saveQualification();
+  const original = await readFile(path.join(f.directory, "QUALIFICATION.json"));
+  const result = await prepareReleaseSet(f.directory, identity, f.options);
+  const verified = await verifyReleaseSet(f.directory, identity, { ...f.options, expectedSetSha256: result.setSha256 });
+  assert.deepEqual(verified.qualification.checks.windows, f.qualification.checks.windows);
+  assert.deepEqual(await readFile(path.join(f.directory, "QUALIFICATION.json")), original);
+});
+
+const essentialWindowsFailures = [
+  ...["passed", "fresh", "repair", "coldCheck", "adminStartup", "normalLauncher"].map((name) => [
+    `failed required ${name}`, (q) => { q.checks.windows[name] = false; }, /Windows.*did not pass/,
+  ]),
+  ["missing startup observation", (q) => { delete q.checks.windows.adminStartup; }, /Windows.*missing or unknown fields/],
+  ["missing legacy result", (q) => { delete q.checks.windows.remove; }, /Windows.*missing or unknown fields/],
+  ["nonboolean omitted result", (q) => { q.checks.windows.clipboard = "false"; }, /clipboard must be boolean/],
+  ["missing user approval", (q) => { delete q.checks.windows.userApproval; }, /Windows.*missing or unknown fields/],
+  ["blank user approval", (q) => { q.checks.windows.userApproval = " "; }, /user approval/],
+  ["oversized user approval", (q) => { q.checks.windows.userApproval = "x".repeat(1025); }, /user approval/],
+  ["unlisted omission", (q) => { delete q.checks.windows.limitations.clipboard; }, /limitations/],
+  ["invented omission", (q) => { q.checks.windows.limitations.other = "Not exercised"; }, /limitations/],
+  ["passed check listed as omitted", (q) => { q.checks.windows.clipboard = true; }, /limitations/],
+  ["blank omission reason", (q) => { q.checks.windows.limitations.clipboard = " "; }, /limitation reasons/],
+  ["oversized omission reason", (q) => { q.checks.windows.limitations.clipboard = "x".repeat(1025); }, /limitation reasons/],
+  ["private approval text", (q) => { q.checks.windows.userApproval = "See C:\\Users\\private\\approval.json"; }, /local path/],
+  ["failed non-Windows preservation", (q) => { q.checks.preservation.passed = false; }, /preservation/],
+  ["short essential soak", (q) => { q.checks.soak.elapsedMs--; }, /elapsedMs/],
+];
+for (const [name, mutate, expected] of essentialWindowsFailures) {
+  test(`essential qualification rejects ${name} before Setup execution`, async (t) => {
+    const f = await fixture(t);
+    selectEssentialWindows(f.qualification);
+    mutate(f.qualification);
+    await f.saveQualification();
+    await rejectBeforeExecution(f, expected);
+  });
+}
+
 const qualificationFailures = [
   ["short soak", (q) => { q.checks.soak.elapsedMs--; }, /elapsedMs/],
   ["request minimum", (q) => { q.checks.soak.requests--; }, /requests/],
@@ -365,6 +424,9 @@ const qualificationFailures = [
   ["claimed signature", (q) => { q.signing.setupStatus = "Valid"; }, /unsigned/],
   ["artifact substitution", (q) => { q.artifacts.setupSha256 = "b".repeat(64); }, /artifact digest/],
   ["missing Windows evidence", (q) => { delete q.checks.windows.repair; }, /Windows/],
+  ["failed full Windows clipboard", (q) => { q.checks.windows.clipboard = false; }, /Windows clipboard did not pass/],
+  ["failed explicit full Windows result", (q) => { q.checks.windows.scope = "full"; q.checks.windows.remove = false; }, /Windows remove did not pass/],
+  ["unknown Windows scope", (q) => { q.checks.windows.scope = "minimal"; }, /Windows scope is unknown/],
   ["failed rollback", (q) => { q.checks.rollback.passed = false; }, /rollback/],
   ["wrong Node runtime", (q) => { q.checks.node24.nodeVersion = "v22.23.2"; }, /Node 24/],
   ["unbounded clipboard scope", (q) => { q.checks.windows.clipboardScope = "x".repeat(513); }, /clipboard scope/],
