@@ -1274,6 +1274,68 @@ test("SDK cancellation reaches the active bridge operation", { timeout: 2000 }, 
   await cancellation;
 });
 
+test("overlapping server contexts keep cancellation and authority isolated after another server closes", { timeout: 5000 }, async (t) => {
+  const firstEntered = Promise.withResolvers();
+  const secondEntered = Promise.withResolvers();
+  const releaseFirst = Promise.withResolvers();
+  const releaseSecond = Promise.withResolvers();
+  const dispatched = Promise.withResolvers();
+  const cancelled = Promise.withResolvers();
+  const makeService = (entered, release, beforeCollect) => ({
+    async observe(_args, options) {
+      entered.resolve();
+      await release.promise;
+      await beforeCollect?.();
+      await options.collect("map_observe", { sourceSnapshotId: "d".repeat(32), objectIds: ["e".repeat(32)], durationMs: 100, intervalMs: 50 });
+      return mapSummary("observe");
+    },
+  });
+  const first = await connectToolFixture(t, {
+    clients: [{ clientId: "a".repeat(32), generation: 1, client: { protocol: 2 } }],
+    policy: { read: true, admin: true, execute: true },
+    mapContextService: makeService(firstEntered, releaseFirst, async () => {
+      const nested = await second.client.callTool({ name: "potassium_status", arguments: { clientId: "b".repeat(32) } });
+      assert.equal(nested.structuredContent.connected, true);
+    }),
+    request: (_method, _params, _clientId, signal) => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => { cancelled.resolve(); reject(new Error("Cancelled")); }, { once: true });
+      dispatched.resolve();
+    }),
+  });
+  let secondCollections = 0;
+  const second = await connectToolFixture(t, {
+    clients: [{ clientId: "b".repeat(32), generation: 1, client: { protocol: 2 } }],
+    policy: { read: true, admin: false, execute: false },
+    mapContextService: makeService(secondEntered, releaseSecond),
+    request: async (_method, _params, clientId, signal) => {
+      if (!signal || signal.aborted || clientId !== "b".repeat(32)) throw new Error("Wrong request context");
+      secondCollections++;
+      return {};
+    },
+  });
+  const controller = new AbortController();
+  const args = { view: "observe", mapId: mapSummary().mapId, objectIds: ["part"] };
+  const firstResponse = first.client.callTool({ name: "potassium_map_context", arguments: { ...args, clientId: "a".repeat(32) } }, undefined, { signal: controller.signal });
+  const firstRejected = assert.rejects(firstResponse, /cancel|abort/i);
+  await firstEntered.promise;
+  const secondResponse = second.client.callTool({ name: "potassium_map_context", arguments: { ...args, clientId: "b".repeat(32) } });
+  await secondEntered.promise;
+  const denied = await second.client.callTool({ name: "potassium_admin_recover", arguments: {} });
+  assert.equal(denied.isError, true, "another server's admin grant must not authorize this session");
+  releaseFirst.resolve();
+  await dispatched.promise;
+  controller.abort();
+  await firstRejected;
+  await cancelled.promise;
+  await first.client.close();
+  await first.server.close();
+  releaseSecond.resolve();
+  const result = await secondResponse;
+  assert.equal(result.isError, undefined);
+  assert.equal(result.structuredContent.view, "observe");
+  assert.equal(secondCollections, 1, "closing the cancelled server must not cancel or redirect another server's deferred collection");
+});
+
 test("configured secrets are redacted from structured and text errors", async (t) => {
   const privateRoot = resolve("private-artifacts");
   const { client } = await connectToolFixture(t, {

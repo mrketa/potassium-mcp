@@ -15,6 +15,7 @@
     <RuntimeBundleDirectory Condition="'$(RuntimeBundleDirectory)' == ''">$(MSBuildThisFileDirectory)..\..\release-out\windows-setup\stage</RuntimeBundleDirectory>
   </PropertyGroup>
   <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.StartupHookProvider.IsSupported" Value="false" />
     <EmbeddedResource Include="..\..\LICENSE" Link="assets\Potassium-LICENSE.txt" LogicalName="PotassiumMcp.Setup.assets.Potassium-LICENSE.txt" />
     <EmbeddedResource Include="$(RuntimeBundleDirectory)\runtime-bundle.zip" LogicalName="PotassiumMcp.Setup.runtime-bundle.zip" Condition="Exists('$(RuntimeBundleDirectory)\runtime-bundle.zip')" />
     <EmbeddedResource Include="$(RuntimeBundleDirectory)\runtime-bundle.manifest.json" LogicalName="PotassiumMcp.Setup.runtime-bundle.manifest.json" Condition="Exists('$(RuntimeBundleDirectory)\runtime-bundle.manifest.json')" />

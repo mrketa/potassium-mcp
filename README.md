@@ -37,7 +37,7 @@ You need **Windows 11 x64**, **Potassium**, and an AI app that lets you add a lo
 
 > **Only connect assistants you trust.** A fresh Windows Setup enables reading, administration and Luau execution. Executed code can change the connected client and is not sandboxed. Updates preserve existing permission restrictions. Read the [security guidance](SECURITY.md).
 
-The Windows installer is **unsigned**, so Windows may show a security warning.
+Interactive Setup automatically requests Windows administrator approval through normal **UAC** before opening its window. Approve with the same Windows account; cancellation, denial, or switching to another account stops startup without installation or automatic retry. An already-elevated launch uses its current account. Setup is **unsigned**, so Windows may also show an unverified-publisher warning. This is separate from MCP permissions; no additional MCP permissions prompt is added.
 
 ## Try asking your assistant
 

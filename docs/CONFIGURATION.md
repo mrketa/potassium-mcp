@@ -4,7 +4,7 @@ This describes the 1.1.0 source contract; configuration documentation is not pro
 
 ## Windows Setup defaults
 
-Only a genuinely fresh Windows Setup installation initializes generic `agent` with read/admin/execute access and `allowUnsafeExecute: true`, making synchronous `potassium_execute_luau` and asynchronous `potassium_execute_luau_async` available without an extra Setup warning, consent, or permission prompt. Updates, repairs, and reinstalls with retained configuration preserve explicit existing permissions, including restrictions. A missing `agent` policy in existing configuration may receive a read-only entry, never elevation of admin, execute, or the global gate; absence of that policy alone is not a fresh installation. Missing configuration or a recovery journal defers the helper grant until recovery is resolved. Windows supplies `--initial-full-access-host agent` to the core; it applies only when creating genuinely initial configuration after recovery, not as a prerequisite the user must configure.
+Only a genuinely fresh Windows Setup installation initializes generic `agent` with read/admin/execute access and `allowUnsafeExecute: true`, making synchronous `potassium_execute_luau` and asynchronous `potassium_execute_luau_async` available without an additional MCP permissions prompt. Interactive Setup still requests normal Windows UAC and verifies same-account administrator access before opening its form; see [startup requirements](DEPLOYMENT.md#windows-local-installer). Updates, repairs, and retained reinstalls preserve explicit permissions and restrictions. A missing `agent` policy in existing configuration may receive a read-only entry, never increased admin/execute/global grants.
 
 > **Execution risk:** arbitrary Luau can change the connected client and act with its executor's permissions. Connect only trusted agents; untrusted content or prompt injection may induce unwanted actions. Execution is not sandboxed. See [Security](../SECURITY.md).
 
@@ -42,7 +42,7 @@ Legacy schema-2 compatibility and migration preserve effective denial: `admin: t
 
 ## Offline source roots and parser runtime
 
-`sourceRoots` is separate from `artifactRoots`; code indexing does not relax artifact/trace source or secret blocking. Runtime loading defaults omitted sourceRoots to `[]`. A genuinely fresh core/Windows configuration initializes one `sources` root at `<selected-workspace>/potassium-mcp-sources`, recursive with `.lua`/`.luau`, and creates that directory. Retained configurations are not widened or backfilled with this root. No extra permission UI, Setup prompt, automatic imports, or runtime downloads accompany indexing.
+`sourceRoots` is separate from `artifactRoots`; code indexing does not relax artifact/trace source or secret blocking. Runtime loading defaults omitted sourceRoots to `[]`. A genuinely fresh core/Windows configuration initializes one `sources` root at `<selected-workspace>/potassium-mcp-sources`, recursive with `.lua`/`.luau`, and creates that directory. Retained configurations are not widened or backfilled with this root. No additional MCP permissions UI, automatic imports, or runtime downloads accompany the source root; ordinary interactive Setup UAC still applies.
 
 Configuration shape:
 
@@ -85,7 +85,7 @@ HTTP clients use `Authorization: Bearer <token-from-private-token-file>`. POST r
 
 ## Remote workflow and compact defaults
 
-These workflow defaults do not change authorization: fresh Windows Setup keeps full generic-agent access; retained installations and ordinary npm CLI defaults keep existing rights. No Advanced UI, extra prompt, Safeproxy, automatic host registration, live bootstrap deployment, or user configuration migration is introduced.
+These workflow defaults do not change authorization: fresh Windows Setup keeps full generic-agent access; retained installations and ordinary npm CLI defaults keep existing rights. No Advanced UI, additional MCP permissions prompt, Safeproxy, automatic host registration, live bootstrap deployment, or user configuration migration is introduced. Normal Windows UAC for interactive Setup is separate from these MCP defaults.
 
 | Surface | Default and bound |
 |---|---|

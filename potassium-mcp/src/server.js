@@ -1089,6 +1089,10 @@ const fullAccessPolicy = Object.freeze({ read: true, admin: true, execute: true 
 const discoveryCapability = "potassium/tool-discovery";
 const structuredResultsCapability = "potassium/structured-results";
 const discoveryCoreTools = new Set(["potassium_tool_catalog", "potassium_result_read", "potassium_status"]);
+// Node retains enabled AsyncLocalStorage instances until disable(). Own one for
+// the module lifetime, not one per stateless HTTP server. run() keeps concurrent
+// requests isolated without disabling the context of callbacks still settling.
+const clientContext = new AsyncLocalStorage();
 
 class PotassiumMcpServer extends McpServer {
   toolCatalog = new Map();
@@ -1202,7 +1206,7 @@ class PotassiumMcpServer extends McpServer {
         openWorldHint: openWorldTools.has(name),
         ...config.annotations,
       },
-    }, async (args, extra) => this.clientContext.run({ clientId: args?.clientId, signal: extra?.signal }, async () => {
+    }, async (args, extra) => clientContext.run({ clientId: args?.clientId, signal: extra?.signal }, async () => {
       if (extra?.signal?.aborted) {
         this.sessionStats.recordProtocolError();
         return this.redactToolResult(toolError(Object.assign(new Error("Request cancelled before the tool callback"), {
@@ -1350,7 +1354,6 @@ export function createToolServer(config, bridge, {
   const ownedMapRecordingService = mapRecordingService === undefined && mapContextService !== undefined
     ? createMapRecordingService({ mapContextService }) : undefined;
   mapRecordingService ??= ownedMapRecordingService;
-  const clientContext = new AsyncLocalStorage();
   const rawBridge = bridge;
   const selectedClientId = (clientId) => clientId ?? clientContext.getStore()?.clientId;
   const selectedClient = (clientId) => {
@@ -1444,7 +1447,6 @@ export function createToolServer(config, bridge, {
   };
   server.policy = policy;
   server.allowUnsafeExecute = config.allowUnsafeExecute;
-  server.clientContext = clientContext;
   server.onToolStart = onToolStart;
   server.onRequestCancelled = onRequestCancelled;
   server.onRequestStart = onRequestStart;

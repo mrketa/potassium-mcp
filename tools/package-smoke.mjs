@@ -330,7 +330,14 @@ async function packedInstallerRoundtrip({ directory, env, snapshot, packageRoot,
     }
   }
 }
-export async function soak(harness) {
+export async function soak(harness, evidence = {}) {
+  Object.assign(evidence, {
+    status: "warming",
+    limits,
+    sampledProcess: { pid: process.pid, executable: process.execPath, roles: ["smoke driver", "in-process broker", "three SDK clients"], excluded: ["stdio server child", "Lune children"] },
+    gc: "one explicit global.gc() after 10 warmup probes and before each 20-batch sample",
+    scope: "one persistent isolated SDK/broker process with concurrent asynchronous Lune subprocess every minute; each lifecycle batch keeps one generation for100cycles; not long-lived Lune heap or live engine stability",
+  });
   if (typeof global.gc !== "function") throw new Error("Soak requires node --expose-gc for comparable retained-heap samples");
   for (let index = 0; index < 10; index++) await harness.probe();
   global.gc();
@@ -346,6 +353,9 @@ export async function soak(harness) {
   let lifecyclePending;
   let lifecycleFailure;
   let concurrentProbeBatches = 0;
+  Object.assign(evidence, { status: "running", baselineHeapUsed: baseline, baselineResources: handles, samples, lifecycleBatches });
+  let p95Ms;
+  try {
   try {
   while (performance.now() - started < limits.durationMs) {
     if (lifecycleFailure) throw lifecycleFailure;
@@ -363,7 +373,8 @@ export async function soak(harness) {
     batches++;
     if (batches % 20 === 0) {
       global.gc();
-      const sample = { elapsedMs: performance.now() - started, heapUsed: process.memoryUsage().heapUsed, rss: process.memoryUsage().rss, resources: process.getActiveResourcesInfo().length, lifecycleActive: Boolean(lifecyclePending), latency: observations.map((item) => item.milliseconds) };
+      const memory = process.memoryUsage();
+      const sample = { elapsedMs: performance.now() - started, heapUsed: memory.heapUsed, heapGrowthBytes: memory.heapUsed - baseline, rss: memory.rss, resources: process.getActiveResourcesInfo().length, lifecycleActive: Boolean(lifecyclePending), latency: observations.map((item) => item.milliseconds) };
       samples.push(sample);
       assert(sample.heapUsed - baseline <= limits.heapGrowthBytes, "retained broker/SDK heap exceeded predeclared growth bound");
       assert(sample.resources - handles <= limits.handlesGrowth, "active resource count exceeded predeclared growth bound");
@@ -378,10 +389,21 @@ export async function soak(harness) {
   if (lifecycleFailure) throw lifecycleFailure;
   assert(concurrentProbeBatches > 0, "SDK probes must continue while the bootstrap workload is running");
   const latencies = samples.flatMap((sample) => sample.latency).sort((a, b) => a - b);
-  const p95Ms = latencies[Math.floor((latencies.length - 1) * 0.95)];
+  p95Ms = latencies[Math.floor((latencies.length - 1) * 0.95)];
   assert(p95Ms <= limits.p95Ms, "control latency exceeded predeclared p95 bound");
   assert(requests >= 3000 && bootstrapCases >= 30, "soak workload did not meet minimum actual work");
-  return { elapsedMs: performance.now() - started, limits, requests, batches, concurrentProbeBatches, bootstrapCases, p95Ms, samples, lifecycleBatches, scope: "one persistent isolated SDK/broker process with concurrent asynchronous Lune subprocess every minute; each lifecycle batch keeps one generation for100cycles; not long-lived Lune heap or live engine stability" };
+  evidence.status = "passed";
+  return evidence;
+  } catch (error) {
+    evidence.status = "failed";
+    throw error;
+  } finally {
+    if (p95Ms === undefined && samples.length) {
+      const latencies = samples.flatMap((sample) => sample.latency).sort((a, b) => a - b);
+      p95Ms = latencies[Math.floor((latencies.length - 1) * 0.95)];
+    }
+    Object.assign(evidence, { elapsedMs: performance.now() - started, requests, batches, concurrentProbeBatches, bootstrapCases, p95Ms: p95Ms ?? null });
+  }
 }
 export async function runPackageSmoke(options = {}) {
   if (!options || typeof options !== "object" || Array.isArray(options) || Object.keys(options).some((key) => !["mode", "tarball", "npmArtifact", "output"].includes(key))) throw new Error("Invalid package smoke options");
@@ -434,7 +456,11 @@ export async function runPackageSmoke(options = {}) {
     const transports = (await harness.probe()).map(({ milliseconds, ...observation }) => observation);
     const nativeCode = await harness.nativeCode();
     const cancellation = await harness.cancellation();
-    evidence = { mode, node: process.version, platform: process.platform, package: `${installed.name}@${installed.version}`, artifact, installer, sdkRuntime: harness.nodeRuntime, nativeCode, transports, protocol: harness.protocol, cancellation, setup: "real isolated hostless runtime", skipped: ["Roblox/Potassium engine and real external hosts require manual qualification"], ...(mode === "soak" ? { soak: await soak(harness) } : {}) };
+    evidence = { mode, node: process.version, platform: process.platform, package: `${installed.name}@${installed.version}`, artifact, installer, sdkRuntime: harness.nodeRuntime, nativeCode, transports, protocol: harness.protocol, cancellation, setup: "real isolated hostless runtime", skipped: ["Roblox/Potassium engine and real external hosts require manual qualification"] };
+    if (mode === "soak") {
+      evidence.soak = {};
+      await soak(harness, evidence.soak);
+    }
   } catch (error) {
     failure = error;
     preserveDirectory = error.preserveDirectory === true;

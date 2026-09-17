@@ -180,7 +180,7 @@ public static class UserFacingText
             && (exceptionType is "System.UnauthorizedAccessException" or "System.Security.AccessControl.PrivilegeNotHeldException"
                 || nativeErrorCode is 5 or 1314 or 740
                 || hresult is not null && unchecked((uint)hresult.Value) is 0x80070005 or 0x80070522 or 0x800702E4))
-            recoveryAdvice = "Close Setup, right-click the same installer and choose Run as administrator, then retry. MCP clients do not need administrator rights. Administrator access may not resolve every permissions restriction.";
+            recoveryAdvice = "Setup is already running as administrator. Review the affected file's permissions and ownership and the Windows error above before continuing. Preserve existing files and recovery metadata. MCP clients do not need administrator rights.";
         return true;
     }
 

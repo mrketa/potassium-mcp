@@ -10,6 +10,13 @@ This section describes the selected release source. Availability and exact artif
 - Independent native editor credential configuration through `--native-editor-token-file`, with `--no-native-editor` to disable it. Editor integration remains off by default. List/read require read permission; mutations require the caller's existing execute permission and `allowUnsafeExecute`. Opt-in does not grant execution or change other host/HTTP permissions, diagnostic fallback, or existing synchronous/asynchronous Luau access.
 - Read-gated interaction inventory with summary, rows, detail, and release views for ClickDetectors, ProximityPrompts, and observed TouchTransmitters. Bounded retained snapshots preserve original coverage, observation time, and query-bound pagination. Touch discovery is non-exhaustive; touch actions select explicit host BaseParts.
 - One typed click, prompt, or boolean-touch dispatch through the existing serialized async job lifecycle. Exact queued object identities are rechecked without same-path rebinding. Queued cancellation prevents dispatch; cancellation after dispatch preserves the eventual outcome. Bootstrap build `lifecycle-6` advertises `interactionInventory` v1 and `interactionActions` v1.
+- Interactive Windows Setup now requests administrator approval through normal UAC before opening its form. Automatic relaunch requires an actual administrator token and the originating Windows user SID; cancellation, denial, or another-account credentials stop before installation without retry. Already-elevated direct launches use the current account. Read-only `--verify-bundle` does not request elevation; the PE manifest intentionally remains `asInvoker`.
+
+### Fixed
+
+- Updated typed ACL guidance for already-elevated Setup to identify the actual affected path and request permission/ownership review, rather than repeatedly recommending RunAs. ACL classification, preservation, rollback, and fail-closed ownership checks remain intact.
+- Disabled .NET startup hooks for Setup using the existing runtime setting. Launcher and ParserHost still do not require administrator rights; Setup-launched checks, CLI children, and broker restarts may inherit its elevated context.
+- Bound request-context ownership across repeated stateless HTTP requests by using a module-lifetime async context store, while retaining per-request client selection and cancellation isolation. Earlier failed soak evidence and short diagnostics are not a completed qualification of the new artifact.
 
 ### Boundaries
 
