@@ -43,6 +43,7 @@ function diagnosticFetch({ callResult = { content: [{ type: "text", text: "ok" }
           { name: "list_clients" },
           { name: "read_console" },
           { name: "execute_script" },
+          { name: "tabs" },
         ] };
       } else if (request.method === "tools/call") result = callResult;
       else throw new Error(`unexpected method ${request.method}`);
@@ -74,6 +75,7 @@ test("builtin fallback uses the built-in direct diagnostic surface and never exp
     assert.equal(request.method === "initialize" || request.method === "tools/list" || request.method === "tools/call", true);
     assert.notEqual(request.params?.name, "execute_script");
   }
+  assert.equal(JSON.stringify(await client.status()).includes('"tabs"'), false);
   assert.equal(JSON.stringify(await client.status()).includes("execute_script"), false);
 });
 
@@ -168,4 +170,21 @@ test("builtin fallback preserves timeout classification while a response body st
   await started;
   expire();
   await assert.rejects(pending, /request timed out/);
+});
+
+test("shared native transport bounds fetches that ignore cancellation without replay", async () => {
+  let expire;
+  let complete;
+  let attempts = 0;
+  const client = clientWith(() => {
+    attempts++;
+    return new Promise((resolve) => { complete = resolve; });
+  }, { clock: { setTimeout(callback) { expire = callback; return 1; }, clearTimeout() {} } });
+  const pending = client.status();
+  await new Promise((resolve) => setImmediate(resolve));
+  expire();
+  await assert.rejects(pending, /request timed out/);
+  complete(rpc(1, { protocolVersion: "2025-06-18" }));
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(attempts, 1);
 });

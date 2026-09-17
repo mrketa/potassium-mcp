@@ -52,6 +52,8 @@ Setup/repair options:
   --http-execute                       Requires --allow-unsafe-execute
   --builtin-fallback-token-file <path>  Distinct diagnostic-only built-in credential
   --no-builtin-fallback
+  --native-editor-token-file <path>     Enable desktop editor tools with a separate native credential
+  --no-native-editor                   Disable editor tools without changing execution grants
 
 Host options:
   --host <omp|codex|claude-code|claude-desktop|vscode|cursor|gemini|manual>
@@ -74,6 +76,7 @@ const valueOptions = {
   "--host": "host", "--host-id": "hostId", "--admin-host": "adminHost",
   "--execute-host": "executeHost", "--deny-read-host": "denyReadHost", "--read-host": "readHost",
   "--builtin-fallback-token-file": "builtinFallbackTokenFile", "--wait": "waitMs",
+  "--native-editor-token-file": "nativeEditorTokenFile",
   "--streamable-http-port": "streamableHttpPort",
   "--initial-full-access-host": "initialFullAccessHost",
 };
@@ -85,11 +88,12 @@ const booleanOptions = {
   "--stateful-http": ["statefulHttpEnabled", true], "--no-stateful-http": ["statefulHttpEnabled", false],
   "--http-admin": ["httpAdmin", true], "--http-execute": ["httpExecute", true],
   "--http-no-read": ["httpRead", false], "--no-builtin-fallback": ["builtinFallbackEnabled", false],
+  "--no-native-editor": ["nativeEditorEnabled", false],
 };
 const repeatable = new Set(["readHost", "adminHost", "executeHost", "denyReadHost"]);
 const setupOptions = ["workspaceRoot", "runtimeRoot", "initialFullAccessHost", "allowUnsafeExecute", "readHost", "adminHost", "executeHost", "denyReadHost",
   "streamableHttpEnabled", "statefulHttpEnabled", "streamableHttpPort", "httpAdmin", "httpExecute", "httpRead",
-  "builtinFallbackTokenFile", "builtinFallbackEnabled"];
+  "builtinFallbackTokenFile", "builtinFallbackEnabled", "nativeEditorTokenFile", "nativeEditorEnabled"];
 const commandOptions = {
   serve: ["configFile", "hostId"],
   setup: [...setupOptions, "dryRun"],

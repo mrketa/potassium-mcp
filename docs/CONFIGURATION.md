@@ -1,6 +1,6 @@
 # Configuration
 
-This describes source behavior, not a newly built or deployed first-Stable release. The qualification target is Windows 11 x64 with Node22/24 and Potassium2.4.7; other platform/host/protocol boundaries and historical artifact evidence are separated in the [support matrix](../potassium-mcp/README.md#support-freeze-and-release-status). Current source work does not authorize packaging, installer builds, reinstall, grants or publication.
+This describes the 1.1.0 source contract; configuration documentation is not proof that a candidate is published or installed. The qualification target remains Windows 11 x64 with Node22/24 and Potassium2.4.7. Platform/host/protocol boundaries and artifact evidence are separated in the [support matrix](../potassium-mcp/README.md#support-freeze-and-release-status). Release preparation does not authorize changes to an existing installation or grants.
 
 ## Windows Setup defaults
 
@@ -34,7 +34,7 @@ Use `host add/remove --host <adapter> --host-id <id>` only for optional registra
 
 Policies constrain trusted launchers sharing a token. A malicious token holder can claim a different known `hostId`; HMAC transcript binding prevents tampering, not this impersonation. No adversarial per-host isolation or sandbox is provided. Keep credential readers and unsafe execution trusted.
 
-Repair preserves ports, timeouts, roots/allowlists, HTTP settings, grants, workspace, token identity, and artifacts unless an explicit supported change is requested. Revocations include `--no-unsafe-execute`, `--no-streamable-http`, `--no-stateful-http`, and `--no-builtin-fallback`; disabling execution does not remove independent admin permission. Unknown or invalid configuration conflicts instead of resetting. `rotate-token` rotates only the custom token, restarts the broker, and requires Potassium reattach.
+Repair preserves ports, timeouts, roots/allowlists, HTTP settings, grants, workspace, token identity, and artifacts unless an explicit supported change is requested. Revocations include `--no-unsafe-execute`, `--no-streamable-http`, `--no-stateful-http`, `--no-builtin-fallback`, and `--no-native-editor`; disabling execution does not remove independent admin permission, and disabling editor tools does not revoke execution. Unknown or invalid configuration conflicts instead of resetting. `rotate-token` rotates only the custom token, restarts the broker, and requires Potassium reattach.
 
 Legacy schema-2 compatibility and migration preserve effective denial: `admin: true` remained dormant while `allowUnsafeExecute: false`, for both host and HTTP grants. Loading a verified schema-2 installation retains that effective admin denial until explicit schema-3 migration; migration sets dormant admin false unless explicitly granted with `--admin-host <id>` or `--http-admin`. Schema-3 and manual configurations use the new independent axes. Runtime compatibility requires `potassiumMcpRuntime: { ownershipSchema: 3, launcherProtocol: 1 }` metadata, not just a matching package version string.
 
@@ -98,6 +98,8 @@ These workflow defaults do not change authorization: fresh Windows Setup keeps f
 | Remote capture v2 | Explicit start only,5000ms,100 retained events; at most4 active/8 retained,64KiB shared metadata/profile budget,60-second terminal retention. Value examples remain opt-in. |
 | Action observation v1 | Explicit start/poll/stop, 1–16 state selections/optional 1–16 remotes, 5000 ms default/1000–30000 range; 4 active/8 retained, 128 KiB each/1 MiB total/120-second terminal TTL |
 | Typed remote call v1 | One queued FireServer/InvokeServer, 0–16 typed arguments, depth 6/256 nodes/64 KiB normalized envelope; standard async job limits |
+| Interaction inventory v1 | Workspace,summary,maxVisited5000,references off; rows1–200/default20; snapshots8/512 rows/256KiB each/1MiB total/120s,100000 scan work items. Retained query preserves original coverage/expiry. |
+| Typed interaction call v1 | One queued click/prompt/boolean-touch native helper call in the existing async lifecycle; explicit targets, no property/movement controls, automatic pair or replay |
 | Offline code index | 32 modules/256 KiB each/4 MiB input; 4 retained indexes/8 MiB accounted source/8 MiB metadata/10 minutes; queries 10 rows default, 50 maximum |
 | Session statistics | Metadata-only admitted call/byte/timing/error counters, at most 128 tool rows/64 salted scan keys, no reset tool |
 | Focused diagnostics v2 | Overview unchanged; character, UI (player_gui/10 default), nearby (radius 32/10 default); UI/nearby limit 1–20, nearby radius 1–128; normal stable references |
@@ -106,7 +108,7 @@ These workflow defaults do not change authorization: fresh Windows Setup keeps f
 | Context images | Windows window-only PrintWindow and box schematic; one bounded helper,10s,1MiB IPC. JPEG at most128KiB and reduced further to existing transport budget; no desktop fallback. |
 | Parkour maps | Eight immutable config-owned maps,4MiB each/32MiB total;1024parts/2048surfaces/4096links/256chunks/32sources/eight observation batches. Offline build/update/read/list/image/route/release; explicit parent-linked revisions. |
 | Map observation/probes | Read-only mapObservation1;1–16 bound source objects,100–5000ms/default2000,50–1000ms interval/default100,<=101samples per object. Probe grid2–8 per axis,<=64downward rays. Native sources must remain valid; old paths are not rebound. |
-| Continuous map recording | Source lifecycle-5/mapRecording1;1–4 exact bound targets,1000–60000ms/default30000,50–1000ms interval/default100;4active/8retained,1201frames,2MiB samples,256events/64KiB,32markers;120s terminal retention, never poll-renewed. |
+| Continuous map recording | lifecycle-6/mapRecording1;1–4 exact bound targets,1000–60000ms/default30000,50–1000ms interval/default100;4active/8retained,1201frames,2MiB samples,256events/64KiB,32markers;120s terminal retention, never poll-renewed. |
 | Archived recordings and receipts | Up to4 full recordings per immutable schema3 map within unchanged4MiB/map/32MiB total.128 once-only receipts in the existing map index, no silent eviction; map index64KiB is storage-only, not a discovery/result cap change. |
 | Selective map reads | Offline exact section-compatible query,1–16 IDs, query/presentation-bound cursors and explicit track-summary projection; existing limit1–100/default20 and6KiB soft row-page budget, whole oversized rows retained. |
 | Catalog | Full policy-allowed catalog for ordinary/stateless HTTP clients; standard nextCursor pages only when proxy frame budget requires them |
@@ -117,7 +119,11 @@ Lazy catalog discovery is a client initialization opt-in, not a setup flag: `cap
 
 Ordinary inventory requires remoteInventory v3 and retained query requires v4; new game-context capture requires gameContext v2, while saved-context views and map analysis require no executor. Map observe/probe require mapObservation v1 and matching source client/generation. Capture profiles use remoteCapture v2; temporal action observation uses actionObservation v1; typed remote calls use remoteActions v1/asyncJobs v2; nondefault diagnostic views use diagnosticSnapshot v2/instanceReferences v1. Remote capture/action-observation/calls require execute/global gates; game-context and map tooling, source analysis and focused diagnostics require read policy. Discovery and available APIs do not prove every server semantic. [API](API.md) contains exact contracts.
 
-Recording requires read policy, not admin, execute or `allowUnsafeExecute`. Its source native feature is `mapRecording.version:1`/`lifecycle-5`; tool discovery is not proof of a running compatible sampler. Start takes the ordinary read lane; lifecycle controls remain within the bounded control/global handler/recovery limits. It adds no configuration grant, raw-execution fallback or automatic bootstrap deployment.
+Interaction inventory requires `interactionInventory.version >= 1` and read permission; it uses the ordinary read lane, not reserved controls. Interaction calls require `interactionActions.version >= 1`, `asyncJobs.version >= 2`, execute permission and `allowUnsafeExecute`. Source as well as target instance references require `instanceReferences.version >= 1`. Unsupported/missing methods or a changed client generation reject before dispatch. No new grant axis or configuration knob is introduced: preserve every configured local launcher (including generic agent) and independent HTTP execute grant, raw sync/async tools and all configured editor tools.
+
+Touch calls accept only the documented boolean parameter and forward it unchanged. Owned-fixture observations do not establish begin/end phases, exactly one event, arbitrary target eligibility, or universal side effects. Successful jobs report native dispatch with `serverAcknowledged: false`, not gameplay success. See [interaction API and qualification limits](API.md#one-typed-interaction-job). Source support, modeled tests, native fixtures, and final installed-artifact qualification are distinct.
+
+Recording requires read policy, not admin, execute, or `allowUnsafeExecute`. Its native feature is `mapRecording.version:1`, included in the 1.1.0 `lifecycle-6` bootstrap; tool discovery is not proof of a running compatible sampler. Start takes the ordinary read lane; lifecycle controls remain within bounded control/global handler/recovery limits. It adds no configuration grant, raw-execution fallback, or automatic bootstrap deployment.
 
 Live recorder state belongs to the exact bootstrap client/generation; a disconnect ends active recording with retained partial evidence. Native terminal evidence expires120seconds after stop; reading does not renew it. Saved schema3 archives and accepted import receipts instead belong to the map service's durable configuration namespace and survive broker/session closure. Exact accepted save retries work offline even if the original parent or saved map has been released; released saved maps return their prior identity with released:true rather than being recreated. New saves require terminal native evidence and matching current generation. Receipt capacity is a hard bound, not an eviction queue; do not delete index entries or private ownership files to bypass it.
 
@@ -128,6 +134,30 @@ Geometry/navigation/motion selectors and recording archive reads require no clie
 Agent guidance is Docs-first: start at [Agent quick start](AGENT-INSTALL.md#agent-quick-start), then follow the canonical [Agent workflow](API.md#agent-workflow). Tool schemas and structured errors remain authoritative. No skill is installed by default or required for Stable; documentation does not register MCP, grant access, enable unsafe execution, install a package or certify OMP/Codex integration. Preserve existing host skills, registrations, wrappers and policy; do not overwrite them to follow this guidance.
 
 Structured-result presentation is a separate client initialization opt-in: `capabilities.experimental["potassium/structured-results"] = { version: 1 }`. Only clients that consume structuredContent should enable it; their text block is concise presentation, not the full JSON payload. Ordinary clients keep complete recoverable text. No host policy or configuration file is rewritten to enable either client extension.
+
+## Native desktop editor
+
+`nativeEditorEnabled` is false by default. `nativeEditorTokenFile` is optional while disabled and required when enabled; relative config paths resolve against the configuration file. The native editor credential is separate from the custom broker token and configured independently from `builtinFallbackTokenFile`. The two native features may point to the same native credential file, but neither may use the custom broker credential. Keep it private; setup rejects linked/hard-linked paths, non-files and malformed tokens. The editor token must contain 32–4096 non-whitespace/control characters after trimming. Secret paths and token contents are not editor tool diagnostics.
+
+The commands below assume an npm-managed installation with `potassium-mcp` on PATH. Windows Setup users do **not** need to install global Node/npm: follow [the bundled maintenance procedure](DEPLOYMENT.md#windows-setup-installation-without-global-node-or-npm), using the existing ownership record's Node executable and installed package CLI with the explicit private `--install-root`. Close Setup and affected MCP sessions first; do not run the two management paths concurrently.
+
+```powershell
+potassium-mcp repair --native-editor-token-file <private-native-token-path> --dry-run --json
+potassium-mcp repair --native-editor-token-file <private-native-token-path> --json
+potassium-mcp repair --no-native-editor --json
+```
+
+The token-file option enables editor tools; relative CLI paths use the invocation directory. `--no-native-editor` disables only editor tools and removes their configured token path, not the file or diagnostic fallback settings. `--no-builtin-fallback` leaves editor configuration intact. Neither feature changes `hostPolicies`, `httpPolicy` or `allowUnsafeExecute`. Setup validates the local credential without contacting the native service; a native endpoint outage does not block unrelated setup permissions. Static `doctor` reports the configured editor token file's availability without reading editor content or probing native readiness.
+
+List/read require read permission. Open/write/activate/close require each caller's execute permission and global `allowUnsafeExecute`; no admin-only or agent-exclusive gate is introduced. Existing authorized synchronous/asynchronous Luau execution remains available to all trusted agents. To explicitly opt selected local identities into read and execution, repeat the flags for **every intended identity**, retaining existing admin bits:
+
+```powershell
+potassium-mcp repair --allow-unsafe-execute --read-host omp --execute-host omp --read-host agent --execute-host agent --read-host project-a --execute-host project-a
+```
+
+Replace these example IDs with the actual known/configured identities; there is no implicit grant to all future hosts. HTTP is separate: explicitly add `--http-execute` with `--allow-unsafe-execute` if authorized, and preserve its read/admin policy. Packaged defaults remain unchanged; editor opt-in alone is not an execution grant.
+
+The [six desktop editor tools](API.md#native-desktop-editor-tabs) use fixed `127.0.0.1:8225/mcp`, not the Roblox bridge. Content is bounded to 256 KiB of UTF-8; writes require a lowercase SHA-256 precondition that is not atomic against native UI changes. Prefer new drafts, and do not force-close dirty tabs.
 
 ## Built-in diagnostic fallback and artifacts
 

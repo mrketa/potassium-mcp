@@ -126,6 +126,27 @@ async function brokerRecord(value, changes = {}) {
   });
 }
 
+test("doctor reports optional editor credential availability without exposing or probing native content", async (t) => {
+  const value = await fixture(t);
+  const editorToken = path.join(value.installRoot, "private-editor-credential");
+  const secret = "native-secret-".repeat(4);
+  await writeFile(editorToken, secret);
+  await changeConfig(value, { nativeEditorEnabled: true, nativeEditorTokenFile: "private-editor-credential" });
+  const configured = await doctor(value.options);
+  assert.equal(configured.ok, true);
+  assert.equal(check(configured, "native-editor").ok, true);
+  assert.equal(JSON.stringify(configured).includes(secret), false);
+  assert.equal(JSON.stringify(configured).includes(editorToken), false);
+  await rm(editorToken);
+  const missing = await doctor(value.options);
+  assert.equal(missing.ok, false);
+  assert.equal(check(missing, "native-editor").ok, false);
+  await changeConfig(value, { nativeEditorEnabled: false });
+  const disabled = await doctor(value.options);
+  assert.equal(disabled.ok, true);
+  assert.equal(check(disabled, "native-editor").ok, true);
+});
+
 test("hostless schema-3 setup is ready without claiming host configuration or a live connection", async (t) => {
   const value = await fixture(t);
   const result = await doctor(value.options);

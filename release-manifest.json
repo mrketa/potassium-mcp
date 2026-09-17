@@ -148,6 +148,8 @@
     "potassium-mcp/src/code-tree-adapter.js",
     "potassium-mcp/src/parser-process.js",
     "potassium-mcp/src/builtin-fallback.js",
+    "potassium-mcp/src/native-mcp.js",
+    "potassium-mcp/src/native-editor.js",
     "potassium-mcp/src/host-policy.js",
     "potassium-mcp/src/stateful-http.js",
     "potassium-mcp/src/deploy.js",

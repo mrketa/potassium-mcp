@@ -152,6 +152,158 @@ test("broker enforces independent per-host execute policies", async (t) => {
   assert.equal(readOnlyTools.includes("potassium_status"), true);
 });
 
+test("native editor is shared across authorized agents and HTTP transports without blocking execution", async (t) => {
+  const digest = (text) => createHash("sha256").update(text, "utf8").digest("hex");
+  const tabs = new Map();
+  let nextId = 0, editorUnavailable = false, finishWrite, signalWrite;
+  const writeStarted = new Promise((resolve) => { signalWrite = resolve; });
+  const writeGate = new Promise((resolve) => { finishWrite = resolve; });
+  t.after(() => finishWrite());
+  const nativeEditor = {
+    async listTabs() {
+      if (editorUnavailable) throw new Error("private native response must not escape");
+      return { tabs: [...tabs.values()].map(({ tab }) => ({ ...tab })) };
+    },
+    async readTab({ id }) {
+      const entry = tabs.get(id);
+      return { tab: { ...entry.tab }, content: entry.content, sha256: digest(entry.content) };
+    },
+    async openTab({ title = "", content = "" }) {
+      for (const entry of tabs.values()) entry.tab.active = false;
+      const tab = { id: `desktop-${++nextId}`, title, kind: "script", dirty: content !== "", active: true, pinned: false };
+      tabs.set(tab.id, { tab, content });
+      return { tab: { ...tab } };
+    },
+    async writeTab({ id, content, expectedSha256 }) {
+      const entry = tabs.get(id);
+      assert.equal(expectedSha256, digest(entry.content));
+      signalWrite();
+      await writeGate;
+      entry.content = content;
+      entry.tab.dirty = true;
+      return { tab: { ...entry.tab }, sha256: digest(content), preconditionAtomic: false };
+    },
+    async activateTab({ id }) {
+      for (const entry of tabs.values()) entry.tab.active = entry.tab.id === id;
+      return { tab: { ...tabs.get(id).tab } };
+    },
+    async closeTab({ id }) {
+      assert.equal(tabs.get(id).tab.dirty, false);
+      tabs.delete(id);
+      return { id, closed: true };
+    },
+  };
+  const grants = { read: true, admin: false, execute: true };
+  const broker = await createBroker({
+    ...httpConfig(), statefulHttpEnabled: true, allowUnsafeExecute: true,
+    nativeEditorEnabled: true, nativeEditorTokenFile: "unused-editor-token",
+    hostPolicies: { omp: grants, codex: grants }, httpPolicy: grants,
+  }, { nativeEditor });
+  t.after(() => broker.close());
+  const [first, second] = await Promise.all([session(broker.listener.address().port, "omp"), session(broker.listener.address().port, "codex")]);
+  t.after(() => { first.terminate(); second.terminate(); });
+  await Promise.all([initialize(first, 1), initialize(second, 1)]);
+  const statelessEndpoint = broker.streamableHttp.statelessEndpoint;
+  const statefulEndpoint = broker.streamableHttp.statefulEndpoint;
+  const headers = { authorization: `Bearer ${token}` };
+  const retainedHeaders = await statefulHeaders(statefulEndpoint);
+  const initialized = await httpRequest(statelessEndpoint, "POST", {
+    jsonrpc: "2.0", id: 1, method: "initialize",
+    params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "desktop-test", version: "1" } },
+  }, headers);
+  await mcpJson(initialized);
+  let requestId = 10;
+  const callers = [
+    (name, args = {}) => request(first, ++requestId, "tools/call", { name, arguments: args }).then((response) => response.result),
+    (name, args = {}) => request(second, ++requestId, "tools/call", { name, arguments: args }).then((response) => response.result),
+    async (name, args = {}) => (await mcpJson(await httpRequest(statelessEndpoint, "POST", {
+      jsonrpc: "2.0", id: ++requestId, method: "tools/call", params: { name, arguments: args },
+    }, headers))).result,
+    async (name, args = {}) => (await mcpJson(await httpRequest(statefulEndpoint, "POST", {
+      jsonrpc: "2.0", id: ++requestId, method: "tools/call", params: { name, arguments: args },
+    }, retainedHeaders))).result,
+  ];
+  assert.equal(broker.bridge.status().connected, false);
+  const ids = [];
+  for (const [index, call] of callers.entries()) {
+    const opened = await call("potassium_editor_open_tab", { title: `Agent ${index}`, content: `return ${index}` });
+    assert.equal(opened.isError, undefined);
+    ids.push(opened.structuredContent.tab.id);
+    const read = await call("potassium_editor_read_tab", { id: ids[index] });
+    assert.equal(read.structuredContent.content, `return ${index}`);
+    assert.equal(read.structuredContent.sha256, digest(`return ${index}`));
+    assert.equal((await call("potassium_editor_activate_tab", { id: ids[index] })).structuredContent.tab.active, true);
+    const clean = await call("potassium_editor_open_tab");
+    assert.deepEqual((await call("potassium_editor_close_tab", { id: clean.structuredContent.tab.id })).structuredContent, {
+      id: clean.structuredContent.tab.id, closed: true,
+    });
+  }
+  for (const call of callers) {
+    assert.deepEqual((await call("potassium_editor_list_tabs")).structuredContent.tabs.map(({ id }) => id), ids);
+  }
+  const executor = await executorSession(t, broker);
+  const executions = [];
+  executor.on("message", (raw) => {
+    const frame = JSON.parse(raw.toString());
+    if (frame.type !== "request") return;
+    let result;
+    if (frame.method === "capabilities") result = {
+      methods: ["execute_luau_async", "remote_call", "interaction_call", "interaction_inventory"], asyncJobs: { version: 2 },
+      remoteActions: { version: 1 }, interactionActions: { version: 1 }, interactionInventory: { version: 1 },
+    };
+    else {
+      executions.push(frame.method);
+      result = frame.method === "execute_luau" ? { count: 1, values: [42] }
+        : frame.method === "interaction_inventory" ? {
+          view: "summary", snapshotId: "e".repeat(32), generation: 1,
+          root: { name: "Workspace", className: "Workspace", path: "Workspace" },
+          observedAt: 1, visited: 1, matchedVisited: 0, retained: 0,
+          coverage: "complete", truncated: false, stopReasons: [], expiresInMs: 120000,
+          counts: { click: 0, prompt: 0, touch: 0 }, touchCoverage: "observed-transmitters-not-exhaustive",
+        } : { jobId: "d".repeat(32), state: "queued" };
+    }
+    executor.send(JSON.stringify({ type: "response", id: frame.id, ok: true, result }));
+  });
+  const pendingWrite = callers[3]("potassium_editor_write_tab", { id: ids[0], content: "return 99", expectedSha256: digest("return 0") });
+  await writeStarted;
+  editorUnavailable = true;
+  for (const call of callers) {
+    const unavailable = await call("potassium_editor_list_tabs");
+    assert.equal(unavailable._meta.error.code, "NATIVE_EDITOR_UNAVAILABLE");
+    assert.equal(JSON.stringify(unavailable).includes("private native"), false);
+    const sync = await call("potassium_execute_luau", { code: "return 42" });
+    assert.deepEqual(sync.structuredContent.values, [42]);
+    const inventory = await call("potassium_interaction_inventory");
+    assert.equal(inventory.structuredContent.coverage, "complete");
+    assert.equal(inventory.structuredContent.touchCoverage, "observed-transmitters-not-exhaustive");
+    const invalidTouch = await call("potassium_interaction_call", {
+      kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: 1,
+    });
+    assert.equal(invalidTouch._meta.error.code, "INVALID_INPUT");
+    for (const [name, args] of [
+      ["potassium_execute_luau_async", { code: "return 42" }],
+      ["potassium_remote_call", { target: "workspace.Remote", method: "FireServer", arguments: [] }],
+      ["potassium_interaction_call", { kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: false }],
+    ]) {
+      const response = await call(name, args);
+      assert.equal(response.isError, undefined);
+      assert.equal(response.structuredContent.jobId, "d".repeat(32));
+    }
+  }
+  assert.equal(executions.filter((method) => method === "execute_luau").length, 4);
+  assert.equal(executions.filter((method) => method === "execute_luau_async").length, 4);
+  assert.equal(executions.filter((method) => method === "remote_call").length, 4);
+  assert.equal(executions.filter((method) => method === "interaction_call").length, 4);
+  assert.equal(executions.filter((method) => method === "interaction_inventory").length, 4);
+  finishWrite();
+  const written = await pendingWrite;
+  assert.equal(written.structuredContent.sha256, digest("return 99"));
+  assert.equal(written.structuredContent.preconditionAtomic, false);
+  for (const call of callers.slice(1)) {
+    assert.equal((await call("potassium_editor_read_tab", { id: ids[0] })).structuredContent.content, "return 99");
+  }
+});
+
 
 test("broker rejects invalid proof and oversized proxy frames", async (t) => {
   const broker = await createBroker(config());
@@ -1486,6 +1638,13 @@ test("broker negotiates lazy discovery only for the initialized retained HTTP se
   }, lazy);
   assert.deepEqual((await mcpJson(activated)).result.structuredContent.activated, ["potassium_remote_inventory"]);
   assert.equal((await list(stateful, lazy)).includes("potassium_remote_inventory"), true);
+  const interaction = await httpRequest(stateful, "POST", {
+    jsonrpc: "2.0", id: id++, method: "tools/call",
+    params: { name: "potassium_tool_catalog", arguments: { enable: ["potassium_interaction_inventory"], limit: 1 } },
+  }, lazy);
+  assert.deepEqual((await mcpJson(interaction)).result.structuredContent.activated, ["potassium_interaction_inventory"]);
+  assert.equal((await list(stateful, lazy)).includes("potassium_interaction_inventory"), true);
+  assert.equal((await list(stateless, statelessHeaders)).includes("potassium_interaction_inventory"), true);
 });
 
 test("same-read WebSocket cancel and immediate ID reuse deliver only the successor response", async (t) => {

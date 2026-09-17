@@ -714,12 +714,12 @@ function initialConfig(value, initialFullAccessHost) {
     sourceRoots: [{ name: "sources", path: path.join(value.workspaceRoot, "potassium-mcp-sources"), recursive: true, extensions: [".lua", ".luau"] }],
     httpAllowedHosts: ["apis.roblox.com", "games.roblox.com", "thumbnails.roblox.com", "users.roblox.com"],
     hostPolicies: initialFullAccessHost === undefined ? {} : { [initialFullAccessHost]: { read: true, admin: true, execute: true } },
-    httpPolicy: { read: true, admin: false, execute: false }, statefulHttpEnabled: false, builtinFallbackEnabled: false };
+    httpPolicy: { read: true, admin: false, execute: false }, statefulHttpEnabled: false, builtinFallbackEnabled: false, nativeEditorEnabled: false };
 }
 
 function overlayConfig(previous, options, value) {
   const config = structuredClone(previous);
-  for (const key of ["allowUnsafeExecute", "streamableHttpEnabled", "streamableHttpPort", "statefulHttpEnabled", "builtinFallbackEnabled", "httpPolicy"]) {
+  for (const key of ["allowUnsafeExecute", "streamableHttpEnabled", "streamableHttpPort", "statefulHttpEnabled", "builtinFallbackEnabled", "nativeEditorEnabled", "httpPolicy"]) {
     if (options[key] !== undefined) config[key] = options[key];
   }
   if (options.streamableHttpPort !== undefined && !config.streamableHttpEnabled) throw new Error("--streamable-http-port requires --streamable-http");
@@ -728,6 +728,11 @@ function overlayConfig(previous, options, value) {
     config.builtinFallbackEnabled = options.builtinFallbackEnabled !== false;
   }
   if (options.builtinFallbackEnabled === false) delete config.builtinFallbackTokenFile;
+  if (options.nativeEditorTokenFile !== undefined) {
+    config.nativeEditorTokenFile = path.resolve(options.cwd ?? process.cwd(), options.nativeEditorTokenFile);
+    config.nativeEditorEnabled = options.nativeEditorEnabled !== false;
+  }
+  if (options.nativeEditorEnabled === false) delete config.nativeEditorTokenFile;
   for (const [option, axis] of [["httpRead", "read"], ["httpAdmin", "admin"], ["httpExecute", "execute"]]) {
     if (options[option] !== undefined) config.httpPolicy = { ...(config.httpPolicy ?? { read: true, admin: false, execute: false }), [axis]: options[option] };
   }
@@ -756,6 +761,25 @@ async function verifyFallback(config, value) {
   const content = await readFile(fallback);
   if (fallback === value.tokenPath || (await exists(value.tokenPath) && hash(content) === hash(await readFile(value.tokenPath)))) throw new Error("built-in fallback token must be distinct from the custom broker token");
   if (content.toString("utf8").trim().length < 32 || content.toString("utf8").trim().length > 4096) throw new Error("built-in fallback token must contain between 32 and 4096 characters");
+}
+
+async function verifyNativeEditor(config, value) {
+  if (!config.nativeEditorEnabled) return;
+  const tokenPath = path.resolve(path.dirname(value.configPath), config.nativeEditorTokenFile);
+  let token;
+  try {
+    await rejectLinkedPath(tokenPath);
+    if (!(await lstat(tokenPath)).isFile()) throw new Error("not a regular file");
+    token = (await readFile(tokenPath, "utf8")).trim();
+  } catch {
+    throw new Error("native editor token file must be an existing readable regular file without links");
+  }
+  if (token.length < 32 || token.length > 4096 || /[\s\x00-\x1f\x7f]/.test(token)) {
+    throw new Error("native editor token must contain between 32 and 4096 characters without whitespace or control characters");
+  }
+  if (tokenPath === value.tokenPath || (await exists(value.tokenPath) && token === (await readFile(value.tokenPath, "utf8")).trim())) {
+    throw new Error("native editor token must be distinct from the custom broker token");
+  }
 }
 
 async function brokerLifecycle(options) { return options.brokerLifecycle ?? import("./broker.js"); }
@@ -1021,6 +1045,7 @@ export async function setup(options = {}) {
   }
   const config = overlayConfig(previousConfig, options, value);
   await verifyFallback(config, value);
+  await verifyNativeEditor(config, value);
   const endpoint = { host: config.host, port: config.port };
   const deployment = await prepareDeployment({ scriptSourceRoot: path.join(runtime.root, "assets"), workspaceRoot: value.workspaceRoot, statePath: value.deployStatePath, endpoint });
   value.nextRuntime = runtime;

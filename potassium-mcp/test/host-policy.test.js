@@ -133,4 +133,44 @@ test("result and discovery utilities require some effective capability without g
     assert.equal(allowsTool({ read: true, admin: false, execute: false }, name), true);
   }
   assert.equal(allowsTool({ read: true, admin: false, execute: false }, "potassium_remote_inventory"), true);
+  assert.equal(allowsTool({ read: true, admin: false, execute: false }, "potassium_interaction_inventory"), true);
+});
+
+test("native editor read and mutation permissions use independent existing axes", () => {
+  for (let bits = 0; bits < 8; bits += 1) {
+    const policy = { read: Boolean(bits & 1), admin: Boolean(bits & 2), execute: Boolean(bits & 4) };
+    for (const allowUnsafeExecute of [false, true]) {
+      for (const name of ["potassium_editor_list_tabs", "potassium_editor_read_tab"]) {
+        assert.equal(toolCapability(name), "read");
+        assert.equal(allowsTool(policy, name, { allowUnsafeExecute }), policy.read);
+      }
+      for (const name of ["potassium_editor_open_tab", "potassium_editor_write_tab", "potassium_editor_activate_tab", "potassium_editor_close_tab"]) {
+        assert.equal(toolCapability(name), "execute");
+        assert.equal(allowsTool(policy, name, { allowUnsafeExecute }), policy.execute && allowUnsafeExecute);
+      }
+    }
+  }
+});
+
+test("all trusted launcher identities and independent HTTP grants retain native, raw, and editor execution", () => {
+  const ids = ["omp", "codex", "claude-code", "claude-desktop", "vscode", "cursor", "gemini", "manual", "agent"];
+  const config = parsePolicyConfig({
+    hostPolicies: Object.fromEntries(ids.map((id) => [id, { read: true, admin: true, execute: true }])),
+    httpPolicy: { read: true, admin: false, execute: true },
+  });
+  for (const policy of [...ids.map((id) => config.hosts[id]), config.http]) {
+    for (const name of [
+      "potassium_interaction_call", "potassium_execute_luau", "potassium_execute_luau_async", "potassium_remote_call",
+      "potassium_editor_open_tab", "potassium_editor_write_tab", "potassium_editor_activate_tab", "potassium_editor_close_tab",
+    ]) {
+      assert.equal(allowsTool(policy, name, { allowUnsafeExecute: true }), true);
+      assert.equal(allowsTool(policy, name), false);
+      assert.equal(allowsTool({ ...policy, execute: false }, name, { allowUnsafeExecute: true }), false);
+    }
+    for (const name of ["potassium_interaction_inventory", "potassium_editor_list_tabs", "potassium_editor_read_tab"]) {
+      assert.equal(allowsTool(policy, name), true);
+      assert.equal(allowsTool({ ...policy, read: false }, name, { allowUnsafeExecute: true }), false);
+    }
+  }
+  assert.equal(allowsTool(parseHttpPolicy(), "potassium_interaction_call", { allowUnsafeExecute: true }), false);
 });

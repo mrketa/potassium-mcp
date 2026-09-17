@@ -3,12 +3,12 @@
   "platform": "win32-x64",
   "executable": {
     "bytes": 67523708,
-    "sha256": "dc03889e37be6704ba5354897b363552c7cba258d08222299f69caffdfbb5eab"
+    "sha256": "a16477d43a3078b2f09ec0c249fd484858f8c24d4d079d561593a70bfba758f0"
   },
   "files": {
     "PotassiumMcp.ParserHost.exe": {
       "bytes": 67523708,
-      "sha256": "dc03889e37be6704ba5354897b363552c7cba258d08222299f69caffdfbb5eab"
+      "sha256": "a16477d43a3078b2f09ec0c249fd484858f8c24d4d079d561593a70bfba758f0"
     },
     "LICENSE-DOTNET.txt": {
       "bytes": 1139,

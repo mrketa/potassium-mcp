@@ -112,6 +112,28 @@ test("CLI hostless setup dry-run accepts independent admin without unsafe execut
   assert.deepEqual(await snapshot(value.root), before);
 });
 
+test("CLI native editor flags enable independently and disable without changing execution grants", async (t) => {
+  const value = await fixture(t);
+  const tokenName = "native-editor-token";
+  const token = "editor-credential-".repeat(4);
+  await writeFile(path.join(value.cwd, tokenName), token);
+  const initial = invoke(["setup", "--workspace", value.workspaceRoot, "--install-root", value.installRoot,
+    "--allow-unsafe-execute", "--execute-host", "agent", "--execute-host", "project-a", "--http-execute",
+    "--native-editor-token-file", tokenName, "--json"], value);
+  assert.equal(initial.status, 0, initial.stderr);
+  assert.equal(initial.stdout.includes(token), false);
+  const configFile = path.join(value.installRoot, "config.json");
+  const before = JSON.parse(await readFile(configFile, "utf8"));
+  assert.equal(before.nativeEditorEnabled, true);
+  assert.equal(before.nativeEditorTokenFile, path.join(value.cwd, tokenName));
+  assert.equal(before.builtinFallbackEnabled, false);
+  const disabled = invoke(["repair", "--install-root", value.installRoot, "--no-native-editor", "--json"], value);
+  assert.equal(disabled.status, 0, disabled.stderr);
+  const after = JSON.parse(await readFile(configFile, "utf8"));
+  const { nativeEditorTokenFile, ...expected } = before;
+  assert.deepEqual(after, { ...expected, nativeEditorEnabled: false });
+});
+
 test("config print returns runnable public entries without changing private state or exposing credentials", async (t) => {
   const value = await fixture(t);
   const setup = invoke([

@@ -128,6 +128,19 @@ return function(bootstrapSource, autoexecSource, compile, options)
 				children = {}, attributes = {}, tags = {}, propertySignals = {},
 				AttributeChanged = signal(), ChildAdded = signal(), ChildRemoved = signal(), Destroying = signal(),
 			}
+			if className == "ClickDetector" then
+				node.MaxActivationDistance, node.CursorIcon = 32, ""
+			elseif className == "ProximityPrompt" then
+				node.Enabled, node.ActionText, node.ObjectText = true, "Interact", ""
+				node.HoldDuration, node.MaxActivationDistance, node.RequiresLineOfSight = 0, 10, false
+				node.KeyboardKeyCode, node.GamepadKeyCode = "E", "ButtonX"
+				node.Exclusivity, node.Style = "OnePerButton", "Default"
+			elseif className == "Model" then
+				function node:GetPivot()
+					assert(self.Pivot, "fixture model pivot unavailable")
+					return self.Pivot
+				end
+			end
 			if className == "RemoteEvent" or className == "UnreliableRemoteEvent" then node.OnClientEvent = signal() end
 			function node:GetFullName()
 				return self.Parent and self.Parent:GetFullName() .. "." .. self.Name or self.Name
@@ -342,7 +355,11 @@ return function(bootstrapSource, autoexecSource, compile, options)
 			environment.Vector3 = { new = vector }
 			environment.CFrame = { new = function(...)
 				local components = table.pack(...)
-				return { fixtureType = "CFrame", GetComponents = function() return table.unpack(components, 1, components.n) end }
+				return {
+					fixtureType = "CFrame",
+					Position = vector(components[1] or 0, components[2] or 0, components[3] or 0),
+					GetComponents = function() return table.unpack(components, 1, components.n) end,
+				}
 			end }
 			local originalTypeof = environment.typeof
 			environment.typeof = function(value)
@@ -363,6 +380,19 @@ return function(bootstrapSource, autoexecSource, compile, options)
 			part.Size = environment.Vector3.new(table.unpack(size))
 			part.Anchored, part.CanCollide, part.Transparency = true, false, 0
 			return part
+		end
+		function api.interactionFacilities()
+			local native = { calls = {} }
+			for kind, name in pairs({ click = "fireclickdetector", prompt = "fireproximityprompt", touch = "firetouchinterest" }) do
+				local interactionKind = kind
+				environment[name] = function(...)
+					local arguments = table.pack(...)
+					table.insert(native.calls, { kind = interactionKind, arguments = arguments })
+					if native.onCall then return native.onCall(interactionKind, arguments) end
+					return "fixture helper return is not gameplay acknowledgement"
+				end
+			end
+			return native
 		end
 		function api.connectionCounters()
 			return { active = activeConnections, peak = peakConnections, created = createdConnections, disconnected = disconnectedConnections }
@@ -491,6 +521,7 @@ return function(bootstrapSource, autoexecSource, compile, options)
 		"Executor WebSocket close callbacks and secure crypto availability require an approved live client",
 		"Fixture hash input identities distinguish cursor selectors but do not prove native SHA-256 security",
 		"Simulated raw namecall slots/newcclosure do not prove native ABI, engine namecall context, native yield boundaries, or physical ownership restoration",
+		"Fake interaction helpers record supplied arguments only; they do not prove native signal multiplicity, touch phase meanings, activation eligibility, or server effects",
 	}
 	local function report(mode, metrics)
 		local passed = 0
@@ -1866,6 +1897,690 @@ return function(bootstrapSource, autoexecSource, compile, options)
 			f.teardown()
 		end
 	end)
+	do
+		local function interactionFixture()
+			local f = fixture()
+			f.typedFacilities()
+			return f, f.interactionFacilities()
+		end
+		local function interactionPart(f, name, parent, x, y, z)
+			local part = f.geometryPart(name, parent, { x or 0, y or 0, z or 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 })
+			part.CanTouch, part.CanQuery = true, true
+			return part
+		end
+		local function property(row, name)
+			for _, item in ipairs(row.properties) do if item.name == name then return item end end
+			error("missing interaction property " .. name)
+		end
+		local function reason(result, expected)
+			return table.find(result.stopReasons, expected) ~= nil
+		end
+		local function interactionResources(f, socket)
+			return f.request(socket, "capabilities", {}).resources.interactionWorkflow
+		end
+		local function localCharacter(f)
+			local character = f.instance("Character", "Model", f.workspace)
+			local root = interactionPart(f, "HumanoidRootPart", character)
+			f.services.Players.LocalPlayer = { Character = character }
+			return root
+		end
+		local function assertDispatch(result, kind)
+			assert(result.ready and result.state == "succeeded" and result.kind == "interaction_call" and result.dispatchStarted)
+			assert(result.result.count == 0 and #result.result.values == 0)
+			assert(result.result.dispatchStarted and result.result.dispatched and result.result.serverAcknowledged == false)
+			assert(result.result.interactionKind == kind)
+		end
+
+		check("interaction snapshots page immutable Workspace rows with selector-bound retained queries", function()
+			local f = interactionFixture()
+			local detectors = {}
+			for index = 1, 24 do
+				local host = interactionPart(f, string.format("Station%02d", index), nil, index, 0, 0)
+				detectors[index] = f.instance("Control", "ClickDetector", host)
+			end
+			f.instance("Excluded", "ClickDetector", f.environment.game)
+			localCharacter(f)
+			local reads, children = 0, f.workspace.GetChildren
+			f.workspace.GetChildren = function(self) reads += 1; return children(self) end
+			local socket = f.boot()
+			f.authenticate(socket)
+			f.scheduler.advance(2)
+			local summary = f.request(socket, "interaction_inventory", {})
+			assert(summary.view == "summary" and summary.root.name == "Workspace" and summary.retained == 24)
+			assert(summary.counts.click == 24 and summary.counts.prompt == 0 and summary.counts.touch == 0)
+			assert(summary.coverage == "complete" and not summary.truncated and #summary.stopReasons == 0)
+			assert(type(summary.observedAt) == "number" and summary.observedAt >= 2 and summary.observedAt < 1000000)
+			assert(summary.touchCoverage == "observed-transmitters-not-exhaustive")
+			local first = f.request(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows" })
+			assert(#first.rows == 20 and first.hasMore and type(first.cursor) == "string")
+			local seen = {}
+			for _, row in ipairs(first.rows) do
+				assert(not seen[row.id] and #row.id == 32 and row.kind == "click" and row.reference == nil and row.host.reference == nil)
+				seen[row.id] = true
+			end
+			detectors[1].Name = "Changed"
+			detectors[1].MaxActivationDistance = 99
+			local replay = f.request(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows" })
+			assert(replay.rows[1].name == first.rows[1].name and replay.rows[1].id == first.rows[1].id)
+			assert(property(replay.rows[1], "MaxActivationDistance").value == 32)
+			local second = f.request(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows", cursor = first.cursor })
+			assert(#second.rows == 4 and not second.hasMore)
+			for _, row in ipairs(second.rows) do assert(not seen[row.id]); seen[row.id] = true end
+			local query = { kinds = { "click" }, nameContains = "cOnTrOl", pathContains = "sTaTiOn0" }
+			local narrowed = f.request(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows", query = query, limit = 2 })
+			assert(narrowed.queryScope == "retained-rows" and narrowed.queryMatched == 9 and #narrowed.rows == 2)
+			assert(narrowed.observedAt == summary.observedAt and narrowed.visited == summary.visited and narrowed.coverage == summary.coverage)
+			assert(narrowed.counts.click == 9 and narrowed.matchedVisited == summary.matchedVisited)
+			local nextPage = f.request(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows", query = query, limit = 2, cursor = narrowed.cursor })
+			assert(nextPage.rows[1].id ~= narrowed.rows[1].id and seen[nextPage.rows[1].id])
+			f.reject(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows", cursor = narrowed.cursor })
+			f.reject(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows", query = { kinds = { "prompt" } }, cursor = narrowed.cursor })
+			f.reject(socket, "interaction_inventory", { snapshotId = summary.snapshotId, cursor = first.cursor })
+			f.reject(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows", cursor = first.cursor, limit = 1 })
+			f.reject(socket, "interaction_inventory", { snapshotId = summary.snapshotId, view = "rows", cursor = first.cursor, includeReferences = true })
+			assert(reads == 1 and f.global.PotassiumMcp.instanceReferenceCount == 0)
+			local literal = f.request(socket, "interaction_inventory", { nameContains = ".*" })
+			assert(literal.retained == 0, "fresh names must use literal rather than pattern matching")
+			local filtered = f.request(socket, "interaction_inventory", { kinds = { "click" }, nameContains = "cHaNgEd", pathContains = "STATION01", view = "rows" })
+			assert(#filtered.rows == 1 and filtered.rows[1].name == "Changed")
+			f.reject(socket, "interaction_inventory", { snapshotId = filtered.snapshotId, view = "rows", cursor = first.cursor })
+			f.teardown()
+		end)
+
+		check("interaction views reject irrelevant selectors before allocating snapshots or references", function()
+			local f = interactionFixture()
+			local part = interactionPart(f, "Part")
+			f.instance("Click", "ClickDetector", part)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local snapshot = f.request(socket, "interaction_inventory", { view = "rows" })
+			local rowId = snapshot.rows[1].id
+			for _, invalid in ipairs({
+				{ view = "diff" },
+				{ view = "rows", cursor = "cursor-without-snapshot" },
+				{ view = "summary", limit = 1 },
+				{ kinds = {} }, { kinds = { "click", "click" } }, { kinds = { "other" } },
+				{ nameContains = string.rep("x", 257) }, { maxVisited = 0 }, { maxVisited = 20001 },
+				{ view = "rows", limit = 0 }, { view = "rows", limit = 201 },
+				{ query = {} }, { snapshotId = snapshot.snapshotId, root = "workspace" },
+				{ snapshotId = snapshot.snapshotId, kinds = { "click" } },
+				{ snapshotId = snapshot.snapshotId, maxVisited = 1 },
+				{ snapshotId = snapshot.snapshotId, query = { extra = true } },
+				{ view = "detail" }, { view = "detail", root = "workspace.Part.Click", snapshotId = snapshot.snapshotId, rowId = rowId },
+				{ view = "detail", snapshotId = snapshot.snapshotId },
+				{ view = "detail", root = "workspace.Part.Click", query = {} },
+				{ view = "detail", root = "workspace.Part.Click", kinds = { "click" } },
+				{ view = "detail", root = "workspace.Part.Click", limit = 1 },
+				{ view = "release" }, { view = "release", snapshotId = snapshot.snapshotId, root = "workspace" },
+				{ view = "release", snapshotId = snapshot.snapshotId, query = {} },
+				{ view = "release", snapshotId = snapshot.snapshotId, includeReferences = true },
+				{ rowId = rowId }, { unexpected = true },
+			}) do f.reject(socket, "interaction_inventory", invalid) end
+			assert(interactionResources(f, socket).snapshots == 1 and f.global.PotassiumMcp.instanceReferenceCount == 0)
+			assert(f.request(socket, "interaction_inventory", { view = "release", snapshotId = snapshot.snapshotId }).released)
+			assert(not f.request(socket, "interaction_inventory", { view = "release", snapshotId = snapshot.snapshotId }).released)
+			assert(not f.request(socket, "interaction_inventory", { view = "release", snapshotId = string.rep("f", 32) }).released)
+			f.teardown()
+		end)
+
+		check("interaction metadata preserves property failures false zero and actual position sources", function()
+			local f = interactionFixture()
+			local part = interactionPart(f, "Host", nil, 3, 4, 0)
+			part.CanTouch = false
+			local click = f.instance("Click", "ClickDetector", part)
+			click.MaxActivationDistance, click.CursorIcon = 0, nil
+			local originalIndex = getmetatable(click).__index
+			getmetatable(click).__index = function(self, key)
+				if key == "CursorIcon" then error("fixture cursor unavailable", 0) end
+				return originalIndex(self, key)
+			end
+			local attachment = f.instance("Attachment", "Attachment", part)
+			attachment.WorldPosition = f.environment.Vector3.new(6, 8, 0)
+			local prompt = f.instance("Prompt", "ProximityPrompt", attachment)
+			prompt.ActionText = "Open https://example.test"
+			prompt.Enabled, prompt.HoldDuration = false, 0
+			local model = f.instance("Model", "Model", f.workspace)
+			model.Pivot = f.environment.CFrame.new(9, 12, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+			f.instance("ModelPrompt", "ProximityPrompt", model)
+			f.instance("NoHost", "ClickDetector", f.workspace)
+			f.instance("Transmitter", "TouchTransmitter", part)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local missingCharacter = f.request(socket, "interaction_inventory", { view = "rows" })
+			assert(missingCharacter.coverage == "partial" and missingCharacter.truncated and reason(missingCharacter, "distance-unavailable"))
+			assert(reason(missingCharacter, "property-unavailable") and reason(missingCharacter, "position-unavailable"))
+			for _, row in ipairs(missingCharacter.rows) do
+				assert(not row.distanceStuds.ok and row.distanceStuds.value == nil and type(row.distanceStuds.error) == "string")
+			end
+			localCharacter(f)
+			local rows = byName(f.request(socket, "interaction_inventory", { view = "rows" }).rows)
+			assert(rows.Click.positionSource == "base-part-position" and rows.Click.position.ok)
+			assert(rows.Click.position.value.type == "Vector3" and rows.Click.position.value.x == 3 and rows.Click.position.value.y == 4 and rows.Click.position.value.z == 0)
+			assert(rows.Click.distanceStuds.ok and rows.Click.distanceStuds.value == 5)
+			assert(property(rows.Click, "MaxActivationDistance").ok and property(rows.Click, "MaxActivationDistance").value == 0)
+			assert(not property(rows.Click, "CursorIcon").ok and type(property(rows.Click, "CursorIcon").error) == "string")
+			assert(property(rows.Prompt, "Enabled").ok and property(rows.Prompt, "Enabled").value == false)
+			assert(property(rows.Prompt, "HoldDuration").ok and property(rows.Prompt, "HoldDuration").value == 0)
+			assert(rows.Prompt.positionSource == "attachment-world-position" and rows.Prompt.position.value.x == 6 and rows.Prompt.distanceStuds.value == 10)
+			assert(rows.ModelPrompt.positionSource == "model-pivot" and rows.ModelPrompt.position.value.y == 12 and rows.ModelPrompt.distanceStuds.value == 15)
+			assert(property(rows.Prompt, "ActionText").ok and property(rows.Prompt, "ActionText").redacted == true)
+			assert(property(rows.Prompt, "ActionText").value == "[redacted]")
+			local promptDetail = f.request(socket, "interaction_inventory", { view = "detail", root = "workspace.Host.Attachment.Prompt" })
+			assert(property(promptDetail.instance, "ActionText").ok and property(promptDetail.instance, "ActionText").redacted == true)
+			assert(property(promptDetail.instance, "ActionText").value == "[redacted]")
+			assert(rows.NoHost.positionSource == "unavailable" and not rows.NoHost.position.ok and rows.NoHost.position.value == nil)
+			assert(not rows.NoHost.distanceStuds.ok and rows.NoHost.distanceStuds.value == nil)
+			assert(rows.Transmitter.kind == "touch" and rows.Transmitter.touchEvidence == "transmitter-observed")
+			assert(property(rows.Transmitter, "CanTouch").ok and property(rows.Transmitter, "CanTouch").value == false)
+			local detail = f.request(socket, "interaction_inventory", { view = "detail", root = "workspace.Host", includeReferences = true })
+			assert(detail.view == "detail" and detail.metadataTiming == "live-non-atomic" and detail.instance.kind == "touch")
+			assert(detail.instance.touchEvidence == "explicit-part" and detail.instance.className == "Part" and detail.instance.reference)
+			assert(detail.instance.position.value.type == "Vector3" and detail.instance.distanceStuds.value == 5)
+			local cached = f.request(socket, "interaction_inventory", { view = "rows", snapshotId = missingCharacter.snapshotId })
+			for _, row in ipairs(cached.rows) do assert(not row.distanceStuds.ok, "new character must not rewrite retained distance evidence") end
+			f.teardown()
+		end)
+
+		check("interaction snapshots keep identity through rename reparent replacement and live detail", function()
+			local f = interactionFixture()
+			local left = interactionPart(f, "Left")
+			local right = interactionPart(f, "Right", nil, 10, 0, 0)
+			local click = f.instance("Original", "ClickDetector", left)
+			local transmitter = f.instance("Touch", "TouchTransmitter", left)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local snapshot = f.request(socket, "interaction_inventory", { view = "rows", includeReferences = true })
+			local rows = byName(snapshot.rows)
+			assert(rows.Original.reference ~= rows.Original.host.reference and rows.Touch.reference ~= rows.Touch.host.reference)
+			assert(f.request(socket, "read_properties", { path = rows.Touch.reference, properties = { "ClassName" } }).properties.ClassName.value == "TouchTransmitter")
+			assert(f.request(socket, "read_properties", { path = rows.Touch.host.reference, properties = { "ClassName" } }).properties.ClassName.value == "Part")
+			click.Name, click.Parent, click.MaxActivationDistance = "Renamed", right, 7
+			f.instance("Original", "ClickDetector", left)
+			local detail = f.request(socket, "interaction_inventory", { view = "detail", snapshotId = snapshot.snapshotId, rowId = rows.Original.id, includeReferences = true })
+			assert(detail.rowId == rows.Original.id and detail.snapshotId == snapshot.snapshotId)
+			assert(detail.instance.name == "Renamed" and detail.instance.path == "game.Workspace.Right.Renamed" and detail.instance.reference == rows.Original.reference)
+			assert(property(detail.instance, "MaxActivationDistance").value == 7 and detail.instance.position.value.x == 10)
+			local retained = byName(f.request(socket, "interaction_inventory", { snapshotId = snapshot.snapshotId, view = "rows" }).rows)
+			assert(retained.Original.path == "game.Workspace.Left.Original" and property(retained.Original, "MaxActivationDistance").value == 32)
+			click.Parent = nil
+			local detached = byName(f.request(socket, "interaction_inventory", { snapshotId = snapshot.snapshotId, view = "rows", includeReferences = true }).rows)
+			assert(detached.Original.reference == nil and detached.Original.referenceUnavailable)
+			f.reject(socket, "interaction_inventory", { view = "detail", snapshotId = snapshot.snapshotId, rowId = rows.Original.id })
+			transmitter:Destroy()
+			f.instance("Touch", "TouchTransmitter", left)
+			local removed = byName(f.request(socket, "interaction_inventory", { snapshotId = snapshot.snapshotId, view = "rows", includeReferences = true }).rows)
+			assert(removed.Touch.reference == nil and removed.Touch.referenceUnavailable)
+			local fresh = byName(f.request(socket, "interaction_inventory", { view = "rows", includeReferences = true }).rows)
+			assert(fresh.Original.id ~= rows.Original.id and fresh.Touch.id ~= rows.Touch.id and fresh.Touch.reference ~= rows.Touch.reference)
+			assert(f.request(socket, "interaction_inventory", { view = "release", snapshotId = snapshot.snapshotId }).released)
+			assert(f.request(socket, "read_properties", { path = rows.Touch.host.reference, properties = { "Name" } }).properties.Name.value == "Left")
+			f.teardown()
+		end)
+
+		check("interaction scans honor default visit and retained row bounds without claiming complete absence", function()
+			local f = interactionFixture()
+			local root = f.instance("VisitRoot", "Folder", f.workspace)
+			for group = 1, 100 do
+				local branch = f.instance(string.format("Group%03d", group), "Folder", root)
+				for index = 1, 50 do f.instance(string.format("Node%02d", index), "Folder", branch) end
+			end
+			local socket = f.boot()
+			f.authenticate(socket)
+			local partial = f.request(socket, "interaction_inventory", { root = "workspace.VisitRoot" })
+			assert(partial.visited == 5000 and partial.coverage == "partial" and partial.truncated and reason(partial, "visit-limit"))
+			local narrowed = f.request(socket, "interaction_inventory", { snapshotId = partial.snapshotId, query = { kinds = { "touch" } } })
+			assert(narrowed.queryMatched == 0 and narrowed.coverage == "partial" and reason(narrowed, "visit-limit"))
+			assert(narrowed.observedAt == partial.observedAt and narrowed.visited == partial.visited)
+			local complete = f.request(socket, "interaction_inventory", { root = "workspace.VisitRoot", maxVisited = 5200 })
+			assert(complete.coverage == "complete" and complete.retained == 0)
+			localCharacter(f)
+			local many = interactionPart(f, "p")
+			for _ = 1, 530 do
+				local click = f.instance("c", "ClickDetector", many)
+				click.MaxActivationDistance, click.CursorIcon = 0, ""
+			end
+			local bounded = f.request(socket, "interaction_inventory", { root = "workspace.p" })
+			assert(bounded.retained == 512 and bounded.coverage == "partial" and reason(bounded, "row-limit"))
+			assert(not reason(bounded, "byte-limit") and bounded.counts.click == 512)
+			local count, cursor, seen = 0, nil, {}
+			repeat
+				local page = f.request(socket, "interaction_inventory", { snapshotId = bounded.snapshotId, view = "rows", limit = 200, cursor = cursor })
+				assert(#page.rows <= 200 and page.coverage == bounded.coverage and page.retained == bounded.retained)
+				for _, row in ipairs(page.rows) do assert(not seen[row.id]); seen[row.id] = true; count += 1 end
+				cursor = page.cursor
+				if not page.hasMore then break end
+				assert(cursor)
+			until false
+			assert(count == bounded.retained)
+			f.teardown()
+		end)
+
+		check("interaction detail ancestry and explicit visit bounds report unavailable evidence", function()
+			local f = interactionFixture()
+			local host = interactionPart(f, "Host", nil, 3, 4, 0)
+			localCharacter(f)
+			local parent = host
+			for index = 1, 33 do parent = f.instance("Level" .. index, "Folder", parent) end
+			local click = f.instance("Click", "ClickDetector", parent)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local reference = f.request(socket, "inspect_instance", { path = click:GetFullName(), includeReferences = true }).reference
+			local ancestry = f.request(socket, "interaction_inventory", { view = "detail", root = reference })
+			assert(ancestry.coverage == "partial" and ancestry.truncated and reason(ancestry, "ancestry-limit"))
+			assert(ancestry.visited <= 33 and not ancestry.instance.position.ok and not ancestry.instance.distanceStuds.ok)
+			local bounded = f.request(socket, "interaction_inventory", { view = "detail", root = reference, maxVisited = 1 })
+			assert(bounded.visited == 1 and bounded.coverage == "partial" and reason(bounded, "visit-limit"))
+			assert(not bounded.instance.position.ok and property(bounded.instance, "MaxActivationDistance").value == 32)
+			f.teardown()
+		end)
+
+		check("interaction snapshot churn reconnect expiry and generation teardown remain bounded", function()
+			local f = interactionFixture()
+			local host = interactionPart(f, "Host")
+			f.instance("Click", "ClickDetector", host)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local first
+			for index = 1, 10 do
+				local snapshot = f.request(socket, "interaction_inventory", { view = "rows", includeReferences = true })
+				first = first or snapshot
+				local resources = interactionResources(f, socket)
+				assert(resources.snapshots <= 8 and resources.snapshotBytes <= 1048576)
+			end
+			f.reject(socket, "interaction_inventory", { snapshotId = first.snapshotId })
+			local retained = f.request(socket, "interaction_inventory", { view = "rows", includeReferences = true })
+			socket = f.reconnect(socket)
+			local after = f.request(socket, "interaction_inventory", { snapshotId = retained.snapshotId, view = "rows", includeReferences = true })
+			assert(after.rows[1].id == retained.rows[1].id and after.rows[1].reference == retained.rows[1].reference and after.observedAt == retained.observedAt)
+			f.scheduler.advance(100)
+			local nearExpiry = f.request(socket, "interaction_inventory", { snapshotId = retained.snapshotId })
+			assert(nearExpiry.expiresInMs < 21000 and nearExpiry.observedAt == retained.observedAt)
+			f.scheduler.advance(21)
+			f.reject(socket, "interaction_inventory", { snapshotId = retained.snapshotId })
+			assert(not f.request(socket, "interaction_inventory", { view = "release", snapshotId = retained.snapshotId }).released)
+			assert(interactionResources(f, socket).snapshots == 0)
+			local old = f.request(socket, "interaction_inventory", { view = "rows", includeReferences = true })
+			f.teardown()
+			socket = f.boot()
+			f.authenticate(socket)
+			f.reject(socket, "interaction_inventory", { snapshotId = old.snapshotId })
+			f.reject(socket, "interaction_inventory", { view = "detail", root = old.rows[1].reference })
+			local current = f.request(socket, "interaction_inventory", { view = "rows", includeReferences = true })
+			assert(current.generation ~= old.generation and current.snapshotId ~= old.snapshotId and current.rows[1].reference ~= old.rows[1].reference)
+			f.teardown()
+		end)
+
+		check("interaction reference quota and listener failure roll back snapshots transactionally", function()
+			local f = interactionFixture()
+			local host = interactionPart(f, "Host")
+			local click = f.instance("Click", "ClickDetector", host)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local references, nodes = {}, {}
+			for index = 1, 1023 do
+				local node = f.instance("Ref" .. index, "Folder", f.workspace)
+				nodes[index] = node
+				references[index] = f.request(socket, "inspect_instance", { path = "workspace." .. node.Name, includeReferences = true }).reference
+			end
+			nodes[1]:Destroy()
+			f.reject(socket, "interaction_inventory", { root = "workspace.Host", view = "rows", includeReferences = true })
+			assert(interactionResources(f, socket).snapshots == 0 and f.global.PotassiumMcp.instanceReferenceCount == 1023)
+			assert(host.Destroying:Count() == 0 and click.Destroying:Count() == 0)
+			f.request(socket, "instance_references_release", { references = { references[1], references[2] } })
+			click.Destroying.failConnect = true
+			f.reject(socket, "interaction_inventory", { root = "workspace.Host", view = "rows", includeReferences = true })
+			assert(interactionResources(f, socket).snapshots == 0 and f.global.PotassiumMcp.instanceReferenceCount == 1021)
+			assert(host.Destroying:Count() == 0 and click.Destroying:Count() == 0)
+			click.Destroying.failConnect = false
+			local recovered = f.request(socket, "interaction_inventory", { root = "workspace.Host", view = "rows", includeReferences = true })
+			assert(recovered.root.reference == recovered.rows[1].host.reference and recovered.rows[1].reference)
+			assert(host.Destroying:Count() == 1 and click.Destroying:Count() == 1)
+			f.teardown()
+		end)
+
+		check("interaction send failure rolls back only newly published snapshots and references", function()
+			local f = interactionFixture()
+			local host = interactionPart(f, "Host")
+			local click = f.instance("Click", "ClickDetector", host)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local prior = f.request(socket, "interaction_inventory", { view = "detail", root = "workspace.Host", includeReferences = true }).instance.reference
+			local failedSnapshot, failedReference
+			socket.beforeSend = function(message)
+				if message.ok and message.result and message.result.view == "rows" then
+					failedSnapshot, failedReference = message.result.snapshotId, message.result.rows[1].reference
+					error("fixture lost interaction snapshot response", 0)
+				end
+			end
+			f.begin(socket, "interaction_inventory", { root = "workspace.Host", view = "rows", includeReferences = true })
+			f.scheduler.untilTrue(function() return failedSnapshot ~= nil end)
+			socket.beforeSend = nil
+			if socket.closed or not f.global.PotassiumMcp.acknowledged then
+				f.scheduler.untilTrue(function() return #f.sockets == 2 and #f.sockets[2].sent > 0 end)
+				socket = f.sockets[2]
+				f.authenticate(socket)
+			end
+			assert(interactionResources(f, socket).snapshots == 0 and host.Destroying:Count() == 1 and click.Destroying:Count() == 0)
+			f.reject(socket, "interaction_inventory", { snapshotId = failedSnapshot })
+			f.reject(socket, "interaction_inventory", { view = "detail", root = failedReference })
+			assert(f.request(socket, "interaction_inventory", { view = "detail", root = prior, includeReferences = true }).instance.reference == prior)
+			local recovered = f.request(socket, "interaction_inventory", { root = "workspace.Host", view = "rows", includeReferences = true })
+			assert(recovered.snapshotId ~= failedSnapshot and recovered.rows[1].reference ~= failedReference)
+			f.teardown()
+		end)
+
+		check("interaction scans interrupted by reconnect cannot publish snapshots or references", function()
+			local f = interactionFixture()
+			local host = interactionPart(f, "Host")
+			for index = 1, 200 do f.instance("Click" .. index, "ClickDetector", host) end
+			local socket = f.boot()
+			f.authenticate(socket)
+			local pending = f.begin(socket, "interaction_inventory", { view = "rows", includeReferences = true })
+			assert(not pending(), "wide interaction scan must cross a cooperative checkpoint")
+			socket = f.reconnect(socket)
+			f.scheduler.untilTrue(function() return f.global.PotassiumMcp.inFlightRequests == 0 end)
+			assert(interactionResources(f, socket).snapshots == 0 and f.global.PotassiumMcp.instanceReferenceCount == 0)
+			f.teardown()
+		end)
+
+		if options.jsonEncode then
+			check("interaction aggregate snapshot byte quota evicts old scans without changing remote snapshots", function()
+				local f = interactionFixture()
+				local host = interactionPart(f, "Host")
+				for index = 1, 40 do f.instance(string.rep("n", 3500) .. index, "ClickDetector", host) end
+				f.instance("Remote", "RemoteEvent", f.workspace)
+				local socket = f.boot()
+				f.authenticate(socket)
+				local remote = f.request(socket, "remote_inventory", { root = "workspace" })
+				local first
+				for _ = 1, 8 do
+					f.scheduler.advance(0)
+					local current = f.request(socket, "interaction_inventory", { root = "workspace.Host" })
+					first = first or current.snapshotId
+					local resources = interactionResources(f, socket)
+					assert(resources.snapshotBytes <= 1048576 and resources.snapshots <= 8)
+				end
+				assert(interactionResources(f, socket).snapshots < 8, "aggregate byte quota must evict before the independent snapshot-count cap")
+				f.reject(socket, "interaction_inventory", { snapshotId = first })
+				assert(f.request(socket, "remote_inventory", { snapshotId = remote.snapshotId }).retained == 1)
+				f.teardown()
+			end)
+
+			check("interaction byte work and response budgets retain truthful partial coverage without reference leaks", function()
+				local f = interactionFixture()
+				local host = interactionPart(f, "Host")
+				for index = 1, 40 do f.instance(string.rep("long", 1000) .. index, "ClickDetector", host) end
+				local socket = f.boot()
+				f.authenticate(socket)
+				local bytes = f.request(socket, "interaction_inventory", { root = "workspace.Host" })
+				assert(bytes.coverage == "partial" and reason(bytes, "byte-limit") and bytes.retained < 40)
+				assert(interactionResources(f, socket).snapshotBytes <= 262144)
+				local before = interactionResources(f, socket).snapshots
+				f.reject(socket, "interaction_inventory", { root = "workspace.Host", view = "rows", includeReferences = true, _maxResultBytes = 100 })
+				assert(interactionResources(f, socket).snapshots == before and f.global.PotassiumMcp.instanceReferenceCount == 0)
+				local small = interactionPart(f, "Small")
+				for index = 1, 20 do f.instance("C" .. index, "ClickDetector", small) end
+				local page = f.request(socket, "interaction_inventory", { root = "workspace.Small", view = "rows", includeReferences = true, limit = 20, _maxResultBytes = 4000 })
+				assert(#options.jsonEncode(page) <= 4000 and #page.rows > 0 and #page.rows < 20 and page.hasMore)
+				assert(f.global.PotassiumMcp.instanceReferenceCount == #page.rows + 1, "only returned rows and their shared root/host may acquire references")
+				local node = f.instance("WorkRoot", "Folder", f.workspace)
+				local child = f.instance("Only", "Folder", node)
+				node.GetChildren = function() return table.create(100010, child) end
+				local work = f.request(socket, "interaction_inventory", { root = "workspace.WorkRoot", maxVisited = 20000 })
+				assert(work.coverage == "partial" and reason(work, "work-limit"))
+				f.teardown()
+			end)
+		end
+
+		check("typed interaction helpers receive exact defaults signals booleans and no compiled code", function()
+			local f, native = interactionFixture()
+			local source, target = interactionPart(f, "Source"), interactionPart(f, "Target")
+			local click = f.instance("Click", "ClickDetector", target)
+			local prompt = f.instance("Prompt", "ProximityPrompt", target)
+			local socket = f.boot()
+			f.authenticate(socket)
+			f.environment.loadstring = function() error("typed interaction must not compile", 0) end
+			local accepted = f.request(socket, "interaction_call", { kind = "click", target = "workspace.Target.Click" })
+			assertDispatch(f.finished(socket, accepted.jobId), "click")
+			assert(#native.calls == 1 and native.calls[1].arguments.n == 3)
+			assert(native.calls[1].arguments[1] == click and native.calls[1].arguments[2] == 0 and native.calls[1].arguments[3] == "MouseClick")
+			for _, signalName in ipairs({ "RightMouseClick", "MouseHoverEnter", "MouseHoverLeave" }) do
+				local id = f.request(socket, "interaction_call", { kind = "click", target = "workspace.Target.Click", distance = 2.5, signal = signalName }).jobId
+				assertDispatch(f.finished(socket, id), "click")
+				local arguments = native.calls[#native.calls].arguments
+				assert(arguments.n == 3 and arguments[1] == click and arguments[2] == 2.5 and arguments[3] == signalName)
+			end
+			local promptId = f.request(socket, "interaction_call", { kind = "prompt", target = "workspace.Target.Prompt" }).jobId
+			assertDispatch(f.finished(socket, promptId), "prompt")
+			assert(native.calls[5].arguments.n == 1 and native.calls[5].arguments[1] == prompt)
+			for _, touch in ipairs({ false, true }) do
+				local id = f.request(socket, "interaction_call", { kind = "touch", source = "workspace.Source", target = "workspace.Target", touch = touch }).jobId
+				assertDispatch(f.finished(socket, id), "touch")
+				local arguments = native.calls[#native.calls].arguments
+				assert(arguments.n == 3 and arguments[1] == source and arguments[2] == target and arguments[3] == touch)
+			end
+			assert(#native.calls == 7 and source.Position.X == 0 and target.Position.X == 0)
+			assert(click.MaxActivationDistance == 32 and prompt.HoldDuration == 0 and prompt.Enabled and source.CanTouch and target.CanTouch)
+			f.teardown()
+		end)
+
+		check("interaction union rejects numeric touch wrong classes and irrelevant flags before acceptance", function()
+			local f, native = interactionFixture()
+			local source, target = interactionPart(f, "Source"), interactionPart(f, "Target")
+			f.instance("Click", "ClickDetector", target)
+			f.instance("Prompt", "ProximityPrompt", target)
+			f.instance("Transmitter", "TouchTransmitter", target)
+			local socket = f.boot()
+			f.authenticate(socket)
+			for _, invalid in ipairs({
+				{ kind = "touch", source = "workspace.Source", target = "workspace.Target", touch = 0 },
+				{ kind = "touch", source = "workspace.Source", target = "workspace.Target", touch = 1 },
+				{ kind = "touch", source = "workspace.Source", target = "workspace.Target" },
+				{ kind = "touch", target = "workspace.Target", touch = true },
+				{ kind = "touch", source = "workspace.Source", target = "workspace.Target.Transmitter", touch = false },
+				{ kind = "touch", source = "workspace.Target.Click", target = "workspace.Target", touch = true },
+				{ kind = "touch", source = "workspace.Source", target = "workspace.Target", touch = true, signal = "MouseClick" },
+				{ kind = "click", target = "workspace.Target.Click", source = "workspace.Source" },
+				{ kind = "click", target = "workspace.Target.Click", touch = false },
+				{ kind = "click", target = "workspace.Target.Click", distance = -1 },
+				{ kind = "click", target = "workspace.Target.Click", signal = "MouseButton1Click" },
+				{ kind = "click", target = "workspace.Target" },
+				{ kind = "prompt", target = "workspace.Target.Click" },
+				{ kind = "prompt", target = "workspace.Target.Prompt", distance = 0 },
+				{ kind = "prompt", target = "workspace.Target.Prompt", holdDuration = 1 },
+				{ kind = "other", target = "workspace.Target.Click" },
+				{ kind = "click", target = "" }, { kind = "click", target = string.rep("x", 1025) },
+				{ kind = "click", target = "workspace.Target.Click", extra = true },
+			}) do f.reject(socket, "interaction_call", invalid) end
+			assert(#native.calls == 0 and #f.request(socket, "async_job_list", {}).jobs == 0)
+			assert(source.Parent == f.workspace and target.Parent == f.workspace)
+			f.teardown()
+		end)
+
+		check("interaction helper availability is checked before acceptance and again before dispatch", function()
+			local f, native = interactionFixture()
+			local host = interactionPart(f, "Host")
+			f.instance("Click", "ClickDetector", host)
+			f.instance("Prompt", "ProximityPrompt", host)
+			f.environment.fireproximityprompt = nil
+			local socket = f.boot()
+			f.authenticate(socket)
+			f.reject(socket, "interaction_call", { kind = "prompt", target = "workspace.Host.Prompt" })
+			assert(#f.request(socket, "async_job_list", {}).jobs == 0)
+			local blocking = f.begin(socket, "execute_luau", { code = "task.wait(1)" })
+			local id = f.request(socket, "interaction_call", { kind = "click", target = "workspace.Host.Click" }).jobId
+			getfenv(f.shared.PotassiumMcp.enqueueAsyncJob).fireclickdetector = nil
+			local result = f.finished(socket, id)
+			assert(blocking().ok and result.state == "failed" and not result.dispatchStarted and #native.calls == 0)
+			f.teardown()
+		end)
+
+		check("queued interaction cancellation prevents native entry and releases captured participants", function()
+			local f, native = interactionFixture()
+			local host = interactionPart(f, "Host")
+			f.instance("Click", "ClickDetector", host)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local blocking = f.begin(socket, "execute_luau", { code = "task.wait(1)" })
+			local id = f.request(socket, "interaction_call", { kind = "click", target = "workspace.Host.Click" }).jobId
+			local cancelled = f.request(socket, "async_job_cancel", { jobId = id })
+			assert(cancelled.state == "cancelled" and cancelled.cancellationRequested and not cancelled.dispatchStarted)
+			local result = f.request(socket, "async_job_result", { jobId = id })
+			assert(result.ready and result.state == "cancelled" and result.dispatchStarted == false)
+			assert(f.global.PotassiumMcp.asyncJobs[id].callable == nil)
+			f.scheduler.untilTrue(blocking)
+			assert(#native.calls == 0)
+			f.teardown()
+		end)
+
+		check("queued interaction paths retain concrete targets through rename and reparent instead of rebinding", function()
+			local f, native = interactionFixture()
+			local left, right = interactionPart(f, "Left"), interactionPart(f, "Right")
+			local click = f.instance("Click", "ClickDetector", left)
+			local socket = f.boot()
+			f.authenticate(socket)
+			local blocking = f.begin(socket, "execute_luau", { code = "task.wait(1)" })
+			local id = f.request(socket, "interaction_call", { kind = "click", target = "workspace.Left.Click" }).jobId
+			click.Name, click.Parent = "Moved", right
+			local replacement = f.instance("Click", "ClickDetector", left)
+			assertDispatch(f.finished(socket, id), "click")
+			assert(blocking().ok and #native.calls == 1 and native.calls[1].arguments[1] == click and native.calls[1].arguments[1] ~= replacement)
+			for _, remove in ipairs({ "detach", "destroy" }) do
+				local barrier = f.begin(socket, "execute_luau", { code = "task.wait(1)" })
+				local pending = f.request(socket, "interaction_call", { kind = "click", target = "workspace.Left.Click" }).jobId
+				if remove == "detach" then replacement.Parent = nil else replacement:Destroy() end
+				replacement = f.instance("Click", "ClickDetector", left)
+				local rejected = f.finished(socket, pending)
+				assert(barrier().ok and rejected.state == "failed" and not rejected.dispatchStarted and #native.calls == 1)
+			end
+			f.teardown()
+		end)
+
+		check("touch source and target references retain exact ownership through the async queue", function()
+			for _, participant in ipairs({ "source", "target" }) do
+				local f, native = interactionFixture()
+				local source, target = interactionPart(f, "Source"), interactionPart(f, "Target")
+				local socket = f.boot()
+				f.authenticate(socket)
+				local sourceRef = f.request(socket, "interaction_inventory", { view = "detail", root = "workspace.Source", includeReferences = true }).instance.reference
+				local targetRef = f.request(socket, "interaction_inventory", { view = "detail", root = "workspace.Target", includeReferences = true }).instance.reference
+				local call = { kind = "touch", source = sourceRef, target = targetRef, touch = false }
+				local valid = f.request(socket, "interaction_call", call).jobId
+				assertDispatch(f.finished(socket, valid), "touch")
+				assert(native.calls[1].arguments[1] == source and native.calls[1].arguments[2] == target and native.calls[1].arguments[3] == false)
+				local blocking = f.begin(socket, "execute_luau", { code = "task.wait(1)" })
+				local stale = f.request(socket, "interaction_call", call).jobId
+				local reference = call[participant]
+				f.request(socket, "instance_references_release", { references = { reference } })
+				local path = participant == "source" and "workspace.Source" or "workspace.Target"
+				local reacquired = f.request(socket, "interaction_inventory", { view = "detail", root = path, includeReferences = true }).instance.reference
+				assert(reacquired ~= reference)
+				local rejected = f.finished(socket, stale)
+				assert(blocking().ok and rejected.state == "failed" and not rejected.dispatchStarted and #native.calls == 1)
+				f.teardown()
+			end
+		end)
+
+		check("touch queued participants becoming unreachable never dispatch an implicit pair", function()
+			for _, participant in ipairs({ "source", "target" }) do
+				local f, native = interactionFixture()
+				local source, target = interactionPart(f, "Source"), interactionPart(f, "Target")
+				local socket = f.boot()
+				f.authenticate(socket)
+				local blocking = f.begin(socket, "execute_luau", { code = "task.wait(1)" })
+				local id = f.request(socket, "interaction_call", { kind = "touch", source = "workspace.Source", target = "workspace.Target", touch = true }).jobId
+				local removed = participant == "source" and source or target
+				removed:Destroy()
+				interactionPart(f, participant == "source" and "Source" or "Target")
+				local result = f.finished(socket, id)
+				assert(blocking().ok and result.state == "failed" and not result.dispatchStarted and #native.calls == 0)
+				f.teardown()
+			end
+		end)
+
+		check("postdispatch interaction cancellation preserves eventual native success and failure receipts", function()
+			local f, native = interactionFixture()
+			local source, target = interactionPart(f, "Source"), interactionPart(f, "Target")
+			local entered, fail = false, false
+			native.onCall = function(kind, arguments)
+				assert(kind == "touch" and arguments.n == 3 and arguments[1] == source and arguments[2] == target and arguments[3] == true)
+				entered = true
+				f.environment.task.wait(1)
+				if fail then error("fixture native helper rejection", 0) end
+				return "must not become acknowledged", false, 91
+			end
+			local socket = f.boot()
+			f.authenticate(socket)
+			for _, rejects in ipairs({ false, true }) do
+				entered, fail = false, rejects
+				local id = f.request(socket, "interaction_call", { kind = "touch", source = "workspace.Source", target = "workspace.Target", touch = true }).jobId
+				f.scheduler.untilTrue(function() return entered end)
+				local cancelled = f.request(socket, "async_job_cancel", { jobId = id })
+				assert(cancelled.state == "running" and cancelled.cancellationRequested and cancelled.dispatchStarted)
+				assert(not f.request(socket, "async_job_result", { jobId = id }).ready)
+				f.reject(socket, "execute_luau", { code = "_G.interactionOverlap = true" })
+				local result = f.finished(socket, id)
+				assert(result.ready and result.cancellationRequested and result.dispatchStarted)
+				if rejects then
+					assert(result.state == "failed" and string.find(result.error, "fixture native helper rejection", 1, true))
+				else assertDispatch(result, "touch") end
+				assert(f.global.PotassiumMcp.asyncJobs[id].callable == nil)
+			end
+			assert(#native.calls == 2 and not f.global.interactionOverlap)
+			f.teardown()
+		end)
+
+		check("lost interaction acceptance remains recoverable across reconnect without replay", function()
+			local f, native = interactionFixture()
+			local host = interactionPart(f, "Host")
+			f.instance("Click", "ClickDetector", host)
+			local accepted
+			local socket = f.boot()
+			f.authenticate(socket)
+			socket.beforeSend = function(message)
+				if message.ok and message.result and message.result.jobId then accepted = message.result.jobId; error("fixture lost interaction acceptance", 0) end
+			end
+			local receipt, requestId = f.begin(socket, "interaction_call", { kind = "click", target = "workspace.Host.Click" })
+			f.scheduler.untilTrue(function() return accepted ~= nil and #native.calls == 1 end)
+			assert(receipt() == nil and f.responseCount(socket, requestId) == 0)
+			socket.beforeSend = nil
+			socket = f.reconnect(socket)
+			local listed = f.request(socket, "async_job_list", {}).jobs
+			assert(#listed == 1 and listed[1].jobId == accepted and listed[1].kind == "interaction_call")
+			assertDispatch(f.finished(socket, accepted), "click")
+			assert(#native.calls == 1)
+			f.teardown()
+		end)
+
+		check("teardown cancels queued interaction work but retains the in-flight native outcome", function()
+			local f, native = interactionFixture()
+			local host = interactionPart(f, "Host")
+			f.instance("Click", "ClickDetector", host)
+			local entered = false
+			native.onCall = function()
+				entered = true
+				f.environment.task.wait(1)
+				return "ignored native return"
+			end
+			local socket = f.boot()
+			f.authenticate(socket)
+			f.request(socket, "interaction_inventory", { view = "rows", includeReferences = true })
+			local running = f.request(socket, "interaction_call", { kind = "click", target = "workspace.Host.Click" }).jobId
+			f.scheduler.untilTrue(function() return entered end)
+			local queued = f.request(socket, "interaction_call", { kind = "click", target = "workspace.Host.Click" }).jobId
+			local state = f.global.PotassiumMcp
+			state.teardown()
+			assert(state.asyncJobs[running].state == "running" and state.asyncJobs[running].dispatchStarted and state.rawExecutionActive)
+			assert(state.asyncJobs[queued].state == "cancelled" and not state.asyncJobs[queued].dispatchStarted)
+			f.scheduler.advance(2)
+			local job = state.asyncJobs[running]
+			assert(#native.calls == 1 and job.state == "succeeded" and job.cancellationRequested and job.result.count == 0)
+			assert(job.result.dispatched and job.result.serverAcknowledged == false and job.result.interactionKind == "click")
+			assert(job.callable == nil and not state.rawExecutionActive)
+			f.teardown()
+		end)
+	end
+
 	check("remote snapshots page immutable rows and grouped summaries without default references", function()
 		local f = fixture()
 		local remotes = {}

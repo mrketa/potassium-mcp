@@ -1069,6 +1069,48 @@ test("action observation controls bypass execution while start and cancellable r
   assert.equal(messages.some(({ method }) => method === "remote_call"), false);
 });
 
+test("interaction inventory uses ordinary read admission while native calls remain cancellable mutations", async (t) => {
+  const { bridge, url } = await createBridge(2000, { maxPendingRequests: 8 });
+  t.after(() => bridge.close());
+  const socket = await connect(url);
+  t.after(() => socket.close());
+  const messages = [];
+  socket.on("message", (payload) => messages.push(JSON.parse(payload.toString())));
+  const settle = () => { const pong = once(socket, "pong"); socket.ping(); return pong; };
+  const reply = (message) => socket.send(JSON.stringify({ type: "response", id: message.id, ok: true, result: null }));
+  const reads = Array.from({ length: 5 }, () => bridge.request("interaction_inventory", { view: "summary" }));
+  await settle();
+  assert.equal(messages.length, 4, "inventory must share the four-read bound, not the control reserve");
+  reply(messages[0]);
+  await reads[0];
+  await settle();
+  assert.equal(messages.length, 5);
+  const controller = new AbortController();
+  const cancelled = assert.rejects(bridge.request("interaction_call", {
+    kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: false,
+  }, 2000, undefined, controller.signal), (error) => error.code === "CANCELLED" && error.submissionIndeterminate === false);
+  const control = bridge.request("async_job_cancel", { jobId: "a".repeat(32) });
+  await settle();
+  assert.equal(messages.at(-1).method, "async_job_cancel");
+  controller.abort();
+  await cancelled;
+  reply(messages.at(-1));
+  await control;
+  for (const message of messages.slice(1, 5)) reply(message);
+  await Promise.all(reads);
+  const action = bridge.request("interaction_call", { kind: "prompt", target: "Workspace.Prompt" });
+  const inventory = bridge.request("interaction_inventory", { view: "summary" });
+  await settle();
+  assert.equal(messages.at(-1).method, "interaction_call");
+  reply(messages.at(-1));
+  await action;
+  await settle();
+  assert.equal(messages.at(-1).method, "interaction_inventory");
+  reply(messages.at(-1));
+  await inventory;
+  assert.equal(messages.filter(({ method }) => method === "interaction_call").length, 1);
+});
+
 test("pongs live heartbeats and closes a stale executor session", async (t) => {
   const setIntervalOriginal = globalThis.setInterval;
   const clearIntervalOriginal = globalThis.clearInterval;

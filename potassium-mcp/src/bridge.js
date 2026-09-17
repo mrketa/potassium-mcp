@@ -19,7 +19,7 @@ const READ_METHODS = new Set([
   "async_job_status", "async_job_result", "async_job_console",
   "client_state", "list_children", "inspect_instance", "find_instances", "read_properties",
   "list_tags", "diagnostic_snapshot", "script_fingerprint", "script_inventory",
-  "remote_inventory", "performance_snapshot", "spatial_query", "ui_inventory", "signal_inventory",
+  "remote_inventory", "interaction_inventory", "performance_snapshot", "spatial_query", "ui_inventory", "signal_inventory",
   "attribute_inventory", "observe_logs", "observe_changes", "snapshot_diff", "multi_read_properties", "instance_ancestry",
   "class_summary", "overlap_query", "subtree_summary", "batch_read",
   "game_context", "map_observe", "map_probe",

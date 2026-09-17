@@ -75,3 +75,24 @@ test("source roots are separate strict grants with normalized explicit Luau exte
     [{ name: "sources", path: "provided", allowSecrets: true }],
   ]) await assert.rejects(parseConfig({ ...base, sourceRoots }), /Invalid configuration/);
 });
+
+test("native editor configuration is explicit, independent, and resolves its separate credential path", async () => {
+  const base = {
+    host: "127.0.0.1", port: 0, token: "a".repeat(32), requestTimeoutMs: 1000,
+    maxMessageBytes: 65536, maxPendingRequests: 8, shutdownGraceMs: 1000,
+  };
+  const directory = path.resolve("editor-config-fixture");
+  assert.equal((await parseConfig(base)).nativeEditorEnabled, false);
+  await assert.rejects(parseConfig({ ...base, nativeEditorEnabled: true }), /nativeEditorTokenFile is required/);
+  for (const overrides of [{ nativeEditorEnabled: "yes" }, { nativeEditorTokenFile: "" }, { nativeEditorTokenFile: 42 }]) {
+    await assert.rejects(parseConfig({ ...base, ...overrides }), /Invalid configuration/);
+  }
+  const editor = await parseConfig({ ...base, nativeEditorEnabled: true, nativeEditorTokenFile: "editor.token" }, directory);
+  assert.equal(editor.nativeEditorTokenFile, path.join(directory, "editor.token"));
+  assert.equal(editor.builtinFallbackEnabled, false);
+  assert.equal(editor.builtinFallbackTokenFile, undefined);
+  const diagnostic = await parseConfig({ ...base, builtinFallbackEnabled: true, builtinFallbackTokenFile: "diagnostic.token" }, directory);
+  assert.equal(diagnostic.nativeEditorEnabled, false);
+  assert.equal(diagnostic.nativeEditorTokenFile, undefined);
+  await assert.rejects(parseConfig({ ...base, nativeEditorEnabled: true, builtinFallbackTokenFile: "diagnostic.token" }), /nativeEditorTokenFile is required/);
+});

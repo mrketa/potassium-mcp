@@ -28,7 +28,12 @@ const EXECUTE_TOOLS = new Set([
   "potassium_remote_capture_poll",
   "potassium_remote_capture_stop",
   "potassium_remote_call",
+  "potassium_interaction_call",
   "potassium_observe_action",
+  "potassium_editor_open_tab",
+  "potassium_editor_write_tab",
+  "potassium_editor_activate_tab",
+  "potassium_editor_close_tab",
 ]);
 const READ_TOOLS = new Set([
   "potassium_status",
@@ -51,6 +56,7 @@ const READ_TOOLS = new Set([
   "potassium_script_fingerprint",
   "potassium_script_inventory",
   "potassium_remote_inventory",
+  "potassium_interaction_inventory",
   "potassium_performance_snapshot",
   "potassium_overlap_query",
   "potassium_attribute_inventory",
@@ -78,6 +84,8 @@ const READ_TOOLS = new Set([
   "potassium_builtin_status",
   "potassium_builtin_list_clients",
   "potassium_builtin_read_console",
+  "potassium_editor_list_tabs",
+  "potassium_editor_read_tab",
   "potassium_code_index",
   "potassium_code_query",
 ]);

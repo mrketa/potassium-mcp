@@ -321,6 +321,9 @@ export async function doctor(options = {}) {
     record(checks, "builtin-fallback", !runtimeConfig.builtinFallbackEnabled
       || (runtimeConfig.builtinFallbackTokenFile !== undefined && await exists(runtimeConfig.builtinFallbackTokenFile)),
     runtimeConfig.builtinFallbackEnabled ? "diagnostic-only fallback requires its separate token file" : "disabled");
+    record(checks, "native-editor", !runtimeConfig.nativeEditorEnabled
+      || (runtimeConfig.nativeEditorTokenFile !== undefined && await exists(runtimeConfig.nativeEditorTokenFile)),
+    runtimeConfig.nativeEditorEnabled ? "desktop editor requires its separate token file; native readiness is not probed" : "disabled");
   } catch (error) {
     record(checks, "runtime-config", false, `${error.message}; correct the selected config or restore its token file`);
   }

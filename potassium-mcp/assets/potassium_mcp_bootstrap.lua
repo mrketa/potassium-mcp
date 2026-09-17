@@ -4,7 +4,7 @@ local LogService = game:GetService("LogService")
 
 local ENDPOINT = "ws://127.0.0.1:32145"
 local PROTOCOL = 2
-local BOOTSTRAP_BUILD = "lifecycle-5"
+local BOOTSTRAP_BUILD = "lifecycle-6"
 local MAX_SERIALIZE_DEPTH = 6
 local MAX_TABLE_ITEMS = 200
 local MAX_MESSAGE_BYTES = 1048576
@@ -255,6 +255,7 @@ local state = {
 		snapshots = {}, snapshotOrder = {}, snapshotBytes = 0,
 		captures = {}, captureOrder = {}, activeCaptures = 0,
 	},
+	interactionWorkflow = { snapshots = {}, snapshotOrder = {}, snapshotBytes = 0 },
 	actionObservations = { records = {}, order = {}, active = 0 },
 	mapSnapshots = { records = {}, order = {}, reverse = {}, count = 0, bytes = 0, counter = 0 },
 	mapRecordings = { records = {}, order = {}, active = 0 },
@@ -637,6 +638,7 @@ local function rollbackInstanceReferences(requestContext)
 		end
 	end
 	if state.remoteWorkflow.rollback then state.remoteWorkflow.rollback(requestContext) end
+	if state.interactionWorkflow.rollback then state.interactionWorkflow.rollback(requestContext) end
 	if state.actionObservations.rollback then state.actionObservations.rollback(requestContext) end
 	if state.mapSnapshots.rollback then state.mapSnapshots.rollback(requestContext) end
 	if state.mapRecordings.rollback then state.mapRecordings.rollback(requestContext) end
@@ -1301,14 +1303,16 @@ local function runAsyncWorker()
 			disconnectAsyncConnections(job)
 			state.rawExecutionActive = false
 			state.rawExecutionOwner = nil
-			if (job.cancellationRequested or not isCurrent()) and not (job.kind == "remote_call" and job.dispatchStarted) then
+			if (job.cancellationRequested or not isCurrent()) and not ((job.kind == "remote_call" or job.kind == "interaction_call") and job.dispatchStarted) then
 				job.cancellationRequested = true
 				completeAsyncJob(job, "cancelled")
 			elseif not ran then
-				completeAsyncJob(job, "failed", nil, asyncErrorMessage((job.kind == "remote_call" and "Remote call failed: " or "Luau execution failed: ") .. runtimeError))
+				local label = job.kind == "remote_call" and "Remote call failed: "
+					or job.kind == "interaction_call" and "Interaction call failed: " or "Luau execution failed: "
+				completeAsyncJob(job, "failed", nil, asyncErrorMessage(label .. runtimeError))
 			else
 				local converted, result, resultError = pcall(asyncResultFromPacked, packed)
-				if (job.cancellationRequested or not isCurrent()) and not (job.kind == "remote_call" and job.dispatchStarted) then
+				if (job.cancellationRequested or not isCurrent()) and not ((job.kind == "remote_call" or job.kind == "interaction_call") and job.dispatchStarted) then
 					job.cancellationRequested = true
 					completeAsyncJob(job, "cancelled")
 				elseif not converted then
@@ -1319,6 +1323,9 @@ local function runAsyncWorker()
 					if job.kind == "remote_call" then
 						result.dispatchStarted = true
 						if job.method == "FireServer" then result.dispatched, result.serverAcknowledged = true, false end
+					elseif job.kind == "interaction_call" then
+						result.dispatchStarted, result.dispatched, result.serverAcknowledged = true, true, false
+						result.interactionKind = job.interactionKind
 					end
 					completeAsyncJob(job, "succeeded", result)
 				end
@@ -1393,6 +1400,7 @@ local function resourceSnapshot()
 		queue = { pending = math.max(0, #state.asyncQueue - state.asyncQueueHead + 1), retainedSlots = #state.asyncQueue },
 		jobs = jobs, watches = watches, references = references, connections = connections,
 		remoteWorkflow = state.remoteWorkflow.resources and state.remoteWorkflow.resources() or nil,
+		interactionWorkflow = state.interactionWorkflow.resources and state.interactionWorkflow.resources() or nil,
 		actionObservations = state.actionObservations.resources and state.actionObservations.resources() or nil,
 		mapSnapshots = state.mapSnapshots.resources and state.mapSnapshots.resources() or nil,
 		mapRecordings = state.mapRecordings.resources and state.mapRecordings.resources() or nil,
@@ -1424,6 +1432,7 @@ function handlers.capabilities()
 			"async_job_cancel",
 			"execute_luau",
 			"remote_call",
+			"interaction_call",
 			"observe_action",
 			"client_state",
 			"list_children",
@@ -1439,6 +1448,7 @@ function handlers.capabilities()
 			"script_fingerprint",
 			"script_inventory",
 			"remote_inventory",
+			"interaction_inventory",
 			"remote_capture_start",
 			"remote_capture_poll",
 			"remote_capture_stop",
@@ -1472,6 +1482,18 @@ function handlers.capabilities()
 		},
 		remoteCapture = state.remoteWorkflow.capabilities(),
 		remoteActions = { version = 1, maxArguments = 16, maxNodes = 256, maxDepth = 6, argumentBytes = 65536 },
+		interactionInventory = {
+			version = 1, views = { "summary", "rows", "detail", "release" },
+			maxSnapshots = 8, maxRows = 512, snapshotBytes = 262144, totalBytes = 1048576,
+			retentionSeconds = 120, maxWorkItems = MAX_BATCH_WORK_ITEMS,
+			atomicSnapshot = false, survivesReconnect = true, queryScope = "retained-rows",
+			touchCoverage = "observed-transmitters-not-exhaustive", metadataTiming = "live-non-atomic",
+		},
+		interactionActions = {
+			version = 1, touchArgument = "boolean", serverAcknowledged = false,
+			helpers = { click = type(fireclickdetector) == "function", prompt = type(fireproximityprompt) == "function",
+				touch = type(firetouchinterest) == "function" },
+		},
 		actionObservation = { version = 1, maxActive = 4, maxRetained = 8, retentionSeconds = 120,
 			maxRequests = 16, maxChanges = 100, observationBytes = 131072, totalBytes = 1048576,
 			correlation = "temporal", atomicSnapshot = false },
@@ -1709,7 +1731,7 @@ function handlers.async_job_result(params)
 	if not job then
 		error("Unknown or expired async job", 0)
 	end
-	if job.kind ~= "remote_call" then
+	if job.kind ~= "remote_call" and job.kind ~= "interaction_call" then
 		if job.state == "queued" or job.state == "running" then
 			return { jobId = job.jobId, state = job.state, ready = false }
 		end
@@ -2890,6 +2912,7 @@ function state.teardown()
 	state.active = false
 	if state.actionObservations.teardown then state.actionObservations.teardown() end
 	if state.remoteWorkflow.teardown then state.remoteWorkflow.teardown() end
+	if state.interactionWorkflow.teardown then state.interactionWorkflow.teardown() end
 	if state.mapRecordings.teardown then state.mapRecordings.teardown() end
 	if state.mapSnapshots.clear then state.mapSnapshots.clear() end
 	if state.socket then
@@ -2940,6 +2963,7 @@ scheduleLifecycleSweep = function()
 	end
 	if state.activeWatches == 0 and #state.watchTerminalOrder == 0 and state.asyncActiveJobs == 0
 		and #state.remoteWorkflow.snapshotOrder == 0 and #state.remoteWorkflow.captureOrder == 0
+		and #state.interactionWorkflow.snapshotOrder == 0
 		and #state.actionObservations.order == 0 and #state.mapSnapshots.order == 0 and #state.mapRecordings.order == 0 then
 		return
 	end
@@ -2951,6 +2975,7 @@ scheduleLifecycleSweep = function()
 		end
 		pruneWatches()
 		if state.remoteWorkflow.sweep then state.remoteWorkflow.sweep() end
+		if state.interactionWorkflow.sweep then state.interactionWorkflow.sweep() end
 		if state.actionObservations.sweep then state.actionObservations.sweep() end
 		if state.mapRecordings.sweep then state.mapRecordings.sweep() end
 		if state.mapSnapshots.sweep then state.mapSnapshots.sweep() end
@@ -4972,6 +4997,506 @@ do
 	end
 end
 
+-- Interaction snapshots have their own bounded cache. Held instances, not
+-- recorded paths, own row identity; observation never implies server eligibility.
+do
+	local flow = state.interactionWorkflow
+	local classes = { ClickDetector = "click", ProximityPrompt = "prompt", TouchTransmitter = "touch" }
+	local properties = {
+		click = { "MaxActivationDistance", "CursorIcon" },
+		prompt = { "Enabled", "ActionText", "ObjectText", "HoldDuration", "MaxActivationDistance",
+			"RequiresLineOfSight", "KeyboardKeyCode", "GamepadKeyCode", "Exclusivity", "Style" },
+		touch = { "CanTouch", "CanCollide", "CanQuery", "Anchored" },
+	}
+	local touchCoverage = "observed-transmitters-not-exhaustive"
+	local referencePlaceholder = "instance://" .. string.rep("0", 32)
+	local function reachable(instance)
+		local ok, live = pcall(function() return instance and (instance == game or instance:IsDescendantOf(game)) end)
+		return ok and live == true
+	end
+	local function ownedReference(path, instance)
+		if not isInstanceReference(path) then return true end
+		local entry = state.instanceReferences[path]
+		return entry ~= nil and entry.instance == instance
+	end
+	local function size(value)
+		local ok, encoded = pcall(HttpService.JSONEncode, HttpService, value)
+		return ok and type(encoded) == "string" and #encoded or math.huge
+	end
+	local function text(value, maximum, field, required)
+		if value == nil and not required then return nil end
+		if type(value) ~= "string" or #value > maximum or (required and #value == 0) then
+			error(field .. " must be a bounded " .. (required and "non-empty " or "") .. "string", 0)
+		end
+		return value
+	end
+	local function removeSnapshot(id)
+		local snapshot = flow.snapshots[id]
+		if not snapshot then return false end
+		flow.snapshots[id], flow.snapshotBytes = nil, flow.snapshotBytes - snapshot.bytes
+		for index, candidate in ipairs(flow.snapshotOrder) do
+			if candidate == id then table.remove(flow.snapshotOrder, index); break end
+		end
+		return true
+	end
+	function flow.sweep()
+		local now = os.clock()
+		for index = #flow.snapshotOrder, 1, -1 do
+			local id = flow.snapshotOrder[index]
+			if now >= flow.snapshots[id].deadline then removeSnapshot(id) end
+		end
+	end
+	function flow.rollback(context)
+		if context.createdInteractionSnapshot then removeSnapshot(context.createdInteractionSnapshot) end
+	end
+	function flow.teardown()
+		table.clear(flow.snapshots)
+		table.clear(flow.snapshotOrder)
+		flow.snapshotBytes = 0
+	end
+	function flow.resources()
+		return { snapshots = #flow.snapshotOrder, snapshotBytes = flow.snapshotBytes,
+			maxSnapshots = 8, maxSnapshotBytes = 1048576 }
+	end
+	local function getSnapshot(id)
+		if not isResourceId(id) then error("Invalid interaction snapshot id", 0) end
+		local snapshot = flow.snapshots[id]
+		if not snapshot or os.clock() >= snapshot.deadline then
+			error("Interaction snapshot unavailable: expired, released, evicted, or another generation", 0)
+		end
+		return snapshot
+	end
+	local function fence(context, snapshot, root, path)
+		if not isCurrent() or state.tornDown or not context or not context.socket
+			or state.socket ~= context.socket or not state.acknowledged then
+			error("Interaction inventory interrupted", 0)
+		end
+		if snapshot and (flow.snapshots[snapshot.metadata.snapshotId] ~= snapshot or os.clock() >= snapshot.deadline) then
+			error("Interaction snapshot unavailable: expired, released, evicted, or another generation", 0)
+		end
+		if root and (not reachable(root) or not ownedReference(path, root)) then
+			error("Interaction root unavailable", 0)
+		end
+	end
+	local function identityText(value)
+		local result = redaction.text(value, redaction.patterns(), 262144)
+		if not result then error("Interaction identity exceeds snapshot byte limit", 0) end
+		return result
+	end
+	local function identityPath(instance)
+		local ok, path = pcall(function() return instance:GetFullName() end)
+		if not ok or type(path) ~= "string" then error("Interaction identity unavailable", 0) end
+		return identityText(path)
+	end
+	local function identity(instance)
+		return { name = identityText(instance.Name), className = instance.ClassName, path = identityPath(instance) }
+	end
+	local function filters(params)
+		local selected, kinds = {}, {}
+		if params.kinds ~= nil then
+			strictArray(params.kinds, 1, 3, "kinds")
+			for _, kind in ipairs(params.kinds) do
+				if not properties[kind] or selected[kind] then error("Invalid or duplicate interaction kind", 0) end
+				selected[kind] = true
+				table.insert(kinds, kind)
+			end
+		else
+			for kind in pairs(properties) do selected[kind] = true; table.insert(kinds, kind) end
+		end
+		table.sort(kinds)
+		return { kinds = kinds, nameContains = string.lower(text(params.nameContains, 256, "nameContains") or ""),
+			pathContains = string.lower(text(params.pathContains, 256, "pathContains") or "") }, selected
+	end
+	local function matches(row, normalized, selected)
+		return selected[row.kind] and string.find(string.lower(row.name), normalized.nameContains, 1, true)
+			and string.find(string.lower(row.path), normalized.pathContains, 1, true)
+	end
+	local function validVector(value)
+		return typeof(value) == "Vector3" and finiteNumber(value.X) and finiteNumber(value.Y) and finiteNumber(value.Z)
+	end
+	local function origin()
+		local ok, position = pcall(function()
+			local player = Players.LocalPlayer
+			local character = player and player.Character
+			local part = character and character:FindFirstChild("HumanoidRootPart")
+			if part and part:IsA("BasePart") and reachable(part) then return part.Position end
+			return nil
+		end)
+		return ok and validVector(position) and position or nil
+	end
+	local function valueResult(raw, shared)
+		local kind = typeof(raw)
+		if kind ~= "boolean" and kind ~= "number" and kind ~= "string" and kind ~= "EnumItem" and kind ~= "Vector3" then
+			return { ok = false, error = "Property value unavailable" }
+		end
+		if (kind == "number" and not finiteNumber(raw)) or (kind == "Vector3" and not validVector(raw)) then
+			return { ok = false, error = "Non-finite metadata unavailable" }
+		end
+		local budget = { items = 0, bytes = 0, maxItems = 256, maxBytes = MAX_BATCH_VALUE_BYTES, shared = shared }
+		local ok, value, err = pcall(serialize, raw, nil, nil, budget)
+		if not ok or err or size(value) > MAX_BATCH_VALUE_BYTES then
+			return { ok = false, error = "Value serialization limit exceeded" }
+		end
+		local result = { ok = true, value = value }
+		if kind == "string" and value ~= raw then result.value, result.redacted = "[redacted]", true end
+		return result
+	end
+	local function observe(instance, kind, capturedOrigin, work, shared, partial, visitHost)
+		local row = identity(instance)
+		row.kind, row.parent = kind, instance.Parent and identityPath(instance.Parent) or ""
+		row.properties = {}
+		local host, positionSource
+		if kind == "touch" then
+			if instance:IsA("BasePart") then
+				host, row.touchEvidence = instance, "explicit-part"
+			else
+				row.touchEvidence = "transmitter-observed"
+				local parent = instance.Parent
+				if parent and visitHost() then
+					if parent:IsA("BasePart") then host = parent end
+					checkpointWork(work)
+				end
+			end
+			if host then positionSource = "base-part-position" end
+		else
+			local candidate = instance.Parent
+			for depth = 1, MAX_ANCESTRY_DEPTH do
+				if not candidate or not visitHost() then break end
+				if candidate:IsA("BasePart") then host, positionSource = candidate, "base-part-position"
+				elseif candidate:IsA("Attachment") then host, positionSource = candidate, "attachment-world-position"
+				elseif candidate:IsA("Model") then host, positionSource = candidate, "model-pivot" end
+				checkpointWork(work)
+				if host then break end
+				candidate = candidate.Parent
+				if candidate and depth == MAX_ANCESTRY_DEPTH then partial("ancestry-limit") end
+			end
+		end
+		if host then row.host = identity(host) else partial("host-unavailable") end
+		local propertyTarget = instance
+		if kind == "touch" then propertyTarget = host end
+		for _, name in ipairs(properties[kind]) do
+			local ok, raw = pcall(function() return propertyTarget and propertyTarget[name] end)
+			local entry = ok and valueResult(raw, shared) or { ok = false, error = "Property unavailable" }
+			entry.name = name
+			table.insert(row.properties, entry)
+			if not entry.ok then partial("property-unavailable") end
+			checkpointWork(work)
+		end
+		local positionOk, position = pcall(function()
+			if positionSource == "base-part-position" then return host.Position end
+			if positionSource == "attachment-world-position" then return host.WorldPosition end
+			if positionSource == "model-pivot" then return host:GetPivot().Position end
+			return nil
+		end)
+		row.positionSource = positionSource or "unavailable"
+		if positionOk and validVector(position) then row.position = valueResult(position, shared)
+		else row.position = { ok = false, error = "Host position unavailable" } end
+		if not row.position.ok then partial("position-unavailable") end
+		local distanceOk, distance = pcall(function()
+			if capturedOrigin and row.position.ok then return (position - capturedOrigin).Magnitude end
+			return nil
+		end)
+		if distanceOk and finiteNumber(distance) then row.distanceStuds = { ok = true, value = distance }
+		else row.distanceStuds = { ok = false, error = "Observed local-player distance unavailable" }; partial("distance-unavailable") end
+		if host and not reachable(host) then error("Interaction host unavailable during observation", 0) end
+		return row, host
+	end
+	local function projection(row, record, bindings)
+		local result = table.clone(row)
+		if row.host then result.host = table.clone(row.host) end
+		if bindings then
+			local function bind(summary, instance)
+				if reachable(instance) then
+					summary.reference = referencePlaceholder
+					table.insert(bindings, { summary = summary, instance = instance })
+				else summary.referenceUnavailable = true end
+			end
+			bind(result, record.instance)
+			if result.host then bind(result.host, record.host) end
+		end
+		return result
+	end
+	local function scan(params, context)
+		local normalized, selected = filters(params)
+		local rootPath = text(params.root == nil and "Workspace" or params.root, 1024, "root", true)
+		local root, err = resolvePath(rootPath)
+		if not root then error(err, 0) end
+		fence(context, nil, root, rootPath)
+		local id = newResourceId(flow.snapshots)
+		if not id then error("Interaction snapshot identity unavailable", 0) end
+		local maximum = strictInteger(params.maxVisited, 5000, 1, 20000, "maxVisited")
+		local work = newWorkBudget()
+		work.maxItems = MAX_BATCH_WORK_ITEMS
+		work.cancelled = function()
+			return not isCurrent() or state.tornDown or state.socket ~= context.socket or not state.acknowledged
+				or not reachable(root) or not ownedReference(rootPath, root)
+		end
+		local shared = { items = 0, bytes = 0, maxItems = MAX_BATCH_SERIALIZED_ITEMS, maxBytes = MAX_BATCH_SERIALIZED_BYTES }
+		local metadata = {
+			snapshotId = id, generation = generation, root = identity(root), observedAt = os.clock(),
+			visited = 0, matchedVisited = 0, retained = 0, coverage = "complete", truncated = false,
+			stopReasons = {}, counts = { click = 0, prompt = 0, touch = 0 }, touchCoverage = touchCoverage,
+		}
+		local reasons, rows, records = {}, {}, {}
+		local function partial(reason)
+			metadata.coverage, metadata.truncated = "partial", true
+			if not reasons[reason] then reasons[reason] = true; table.insert(metadata.stopReasons, reason) end
+		end
+		local charged = size(metadata) + 2048
+		local queue, head, clippedVisits, capturedOrigin = { root }, 1, false, origin()
+		local function withinRoot(instance)
+			return reachable(instance) and (instance == root or instance:IsDescendantOf(root))
+		end
+		local ok, readError = pcall(function()
+			while head <= #queue and metadata.visited < maximum do
+				local node = queue[head]
+				head = head + 1
+				metadata.visited = metadata.visited + 1
+				if not withinRoot(node) then partial("instance-unavailable"); continue end
+				local kind = classes[node.ClassName]
+				if kind and selected[kind] then
+					local candidate = identity(node)
+					candidate.kind = kind
+					if matches(candidate, normalized, selected) then
+						metadata.matchedVisited = metadata.matchedVisited + 1
+						if #rows == 512 then partial("row-limit"); break end
+						local row, host = observe(node, kind, capturedOrigin, work, shared, partial, function() return true end)
+						if withinRoot(node) then
+							row.id = newResourceId(records)
+							if not row.id then error("Interaction row identity unavailable", 0) end
+							local bytes = size(row) + 2
+							if charged + bytes > 262144 then
+								if #rows == 0 then error("Interaction row exceeds snapshot byte limit", 0) end
+								partial("byte-limit"); break
+							end
+							charged = charged + bytes
+							table.insert(rows, row)
+							metadata.counts[kind] = metadata.counts[kind] + 1
+							records[row.id] = { instance = node, host = host }
+						else partial("instance-unavailable") end
+					end
+				end
+				checkpointWork(work)
+				local children, clipped = sortedChildren(node, maximum - #queue, work)
+				clippedVisits = clippedVisits or clipped
+				for _, child in ipairs(children) do table.insert(queue, child); checkpointWork(work) end
+			end
+		end)
+		if not ok then
+			if readError == "Read work limit exceeded" then partial("work-limit") else error(readError, 0) end
+		end
+		if clippedVisits or (head <= #queue and metadata.visited >= maximum) then partial("visit-limit") end
+		fence(context, nil, root, rootPath)
+		metadata.retained = #rows
+		local bytes = size({ metadata = metadata, rows = rows })
+		if bytes > 262144 then error("Interaction snapshot metadata byte limit exceeded", 0) end
+		flow.sweep()
+		while #flow.snapshotOrder >= 8 or flow.snapshotBytes + bytes > 1048576 do removeSnapshot(flow.snapshotOrder[1]) end
+		local snapshot = { metadata = metadata, rows = rows, records = records, root = root,
+			bytes = bytes, deadline = os.clock() + 120 }
+		flow.snapshots[id] = snapshot
+		table.insert(flow.snapshotOrder, id)
+		flow.snapshotBytes = flow.snapshotBytes + bytes
+		context.createdInteractionSnapshot = id
+		scheduleLifecycleSweep()
+		return snapshot
+	end
+	local function detail(params, context)
+		local instance, snapshot, rootPath
+		if params.root ~= nil then
+			if params.snapshotId ~= nil or params.rowId ~= nil then error("detail requires root or snapshotId with rowId", 0) end
+			rootPath = text(params.root, 1024, "root", true)
+			local err
+			instance, err = resolvePath(rootPath)
+			if not instance then error(err, 0) end
+		else
+			if not isResourceId(params.rowId) then error("detail requires root or snapshotId with rowId", 0) end
+			snapshot = getSnapshot(params.snapshotId)
+			local record = snapshot.records[params.rowId]
+			if not record then error("Interaction snapshot row unavailable", 0) end
+			instance = record.instance
+		end
+		fence(context, snapshot, instance, rootPath)
+		local kind = classes[instance.ClassName] or (instance:IsA("BasePart") and "touch" or nil)
+		if not kind then error("detail root must be a ClickDetector, ProximityPrompt, TouchTransmitter, or BasePart", 0) end
+		local maximum = strictInteger(params.maxVisited, 5000, 1, 20000, "maxVisited")
+		local maximumBytes, bindings = referenceResultLimit(params), referenceBindings(params)
+		local result = { view = "detail", generation = generation, snapshotId = params.snapshotId, rowId = params.rowId,
+			observedAt = os.clock(), metadataTiming = "live-non-atomic", touchCoverage = touchCoverage,
+			visited = 1, truncated = false, coverage = "complete", stopReasons = {} }
+		local reasons = {}
+		local function partial(reason)
+			result.coverage, result.truncated = "partial", true
+			if not reasons[reason] then reasons[reason] = true; table.insert(result.stopReasons, reason) end
+		end
+		local work = newWorkBudget()
+		work.maxItems = MAX_BATCH_WORK_ITEMS
+		work.cancelled = function()
+			return not isCurrent() or state.tornDown or state.socket ~= context.socket or not state.acknowledged
+				or not reachable(instance) or not ownedReference(rootPath, instance)
+				or (snapshot and (flow.snapshots[params.snapshotId] ~= snapshot or os.clock() >= snapshot.deadline))
+		end
+		local shared = { items = 0, bytes = 0, maxItems = MAX_BATCH_SERIALIZED_ITEMS, maxBytes = MAX_BATCH_SERIALIZED_BYTES }
+		local row, host = observe(instance, kind, origin(), work, shared, partial, function()
+			if result.visited >= maximum then partial("visit-limit"); return false end
+			result.visited = result.visited + 1
+			return true
+		end)
+		fence(context, snapshot, instance, rootPath)
+		result.instance = projection(row, { instance = instance, host = host }, bindings)
+		if size(result) > maximumBytes then error("Interaction detail result limit exceeded", 0) end
+		return finishReferenceResult(result, bindings, maximumBytes, context)
+	end
+	function handlers.interaction_inventory(params, context)
+		strictObject(params, { view = true, root = true, snapshotId = true, rowId = true, cursor = true,
+			kinds = true, nameContains = true, pathContains = true, query = true, limit = true,
+			maxVisited = true, includeReferences = true, _maxResultBytes = true }, "params")
+		local view = params.view == nil and "summary" or params.view
+		if view ~= "summary" and view ~= "rows" and view ~= "detail" and view ~= "release" then
+			error("Invalid interaction inventory view", 0)
+		end
+		local function reject(fields)
+			for _, field in ipairs(fields) do
+				if params[field] ~= nil then error(field .. " is not supported for this interaction selector", 0) end
+			end
+		end
+		flow.sweep()
+		local maximumBytes = referenceResultLimit(params)
+		if view == "release" then
+			reject({ "root", "rowId", "cursor", "kinds", "nameContains", "pathContains", "query", "limit", "maxVisited", "includeReferences" })
+			if not isResourceId(params.snapshotId) then error("release requires snapshotId", 0) end
+			fence(context)
+			local result = { view = view, generation = generation, snapshotId = params.snapshotId, released = false }
+			if size(result) > maximumBytes then error("Interaction release result limit exceeded", 0) end
+			result.released = removeSnapshot(params.snapshotId)
+			return result
+		end
+		referenceBindings(params)
+		if view == "detail" then
+			reject({ "cursor", "kinds", "nameContains", "pathContains", "query", "limit" })
+			return detail(params, context)
+		end
+		reject({ "rowId" })
+		if view ~= "rows" then reject({ "cursor", "limit" }) end
+		if params.snapshotId ~= nil then reject({ "root", "kinds", "nameContains", "pathContains", "maxVisited" })
+		else reject({ "query", "cursor" }) end
+		local limit = strictInteger(params.limit, 20, 1, 200, "limit")
+		local normalized, selected, queryHash
+		if params.query ~= nil then
+			strictObject(params.query, { kinds = true, nameContains = true, pathContains = true }, "query")
+			normalized, selected = filters(params.query)
+			queryHash = sha256(#normalized.nameContains .. ":" .. normalized.nameContains
+				.. #normalized.pathContains .. ":" .. normalized.pathContains .. table.concat(normalized.kinds, ","))
+			if not queryHash then error("Interaction query cursor hash unavailable", 0) end
+		end
+		text(params.cursor, 256, "cursor")
+		local snapshot = params.snapshotId ~= nil and getSnapshot(params.snapshotId) or scan(params, context)
+		fence(context, snapshot)
+		local data, source, bindings = snapshot.metadata, snapshot.rows, referenceBindings(params)
+		local result = table.clone(data)
+		result.view = view
+		result.root = projection(data.root, { instance = snapshot.root }, bindings)
+		result.expiresInMs = math.max(0, math.floor((snapshot.deadline - os.clock()) * 1000))
+		if normalized then
+			source = {}
+			result.counts = { click = 0, prompt = 0, touch = 0 }
+			for _, row in ipairs(snapshot.rows) do
+				if matches(row, normalized, selected) then
+					table.insert(source, row)
+					result.counts[row.kind] = result.counts[row.kind] + 1
+				end
+			end
+			result.queryScope, result.queryMatched = "retained-rows", #source
+		end
+		if view == "rows" then
+			local prefix = data.snapshotId .. ":" .. generation .. ":rows:" .. (queryHash or "-")
+				.. ":" .. (params.includeReferences and "r" or "-") .. ":" .. limit .. ":"
+			local offset = 0
+			if params.cursor then
+				if string.sub(params.cursor, 1, #prefix) ~= prefix then error("Interaction snapshot cursor mismatch", 0) end
+				local suffix = string.sub(params.cursor, #prefix + 1)
+				if not string.match(suffix, "^%d+$") then error("Invalid interaction snapshot cursor", 0) end
+				offset = strictInteger(tonumber(suffix), nil, 0, #source, "cursor offset")
+				if offset == nil then error("Invalid interaction snapshot cursor", 0) end
+			end
+			result.rows = {}
+			local function pagination()
+				result.hasMore = offset + #result.rows < #source
+				result.cursor = result.hasMore and prefix .. (offset + #result.rows) or nil
+			end
+			pagination()
+			for index = offset + 1, math.min(#source, offset + limit) do
+				local bindingCount = bindings and #bindings or 0
+				table.insert(result.rows, projection(source[index], snapshot.records[source[index].id], bindings))
+				pagination()
+				if size(result) > maximumBytes then
+					table.remove(result.rows)
+					if bindings then while #bindings > bindingCount do table.remove(bindings) end end
+					pagination()
+					if #result.rows == 0 then error("Interaction row exceeds result byte limit", 0) end
+					break
+				end
+			end
+		end
+		fence(context, snapshot)
+		if size(result) > maximumBytes then error("Interaction inventory result limit exceeded", 0) end
+		return finishReferenceResult(result, bindings, maximumBytes, context)
+	end
+	function handlers.interaction_call(params)
+		local kind = type(params) == "table" and params.kind or nil
+		local allowed = kind == "click" and { kind = true, target = true, distance = true, signal = true }
+			or kind == "prompt" and { kind = true, target = true }
+			or kind == "touch" and { kind = true, source = true, target = true, touch = true }
+		if not allowed then error("Invalid interaction kind", 0) end
+		strictObject(params, allowed, "params")
+		local targetPath = text(params.target, 1024, "target", true)
+		local sourcePath = kind == "touch" and text(params.source, 1024, "source", true) or nil
+		local distance, signal, touch = params.distance, params.signal, params.touch
+		if kind == "click" then
+			if distance == nil then distance = 0 end
+			if not finiteNumber(distance) or distance < 0 then error("distance must be finite and nonnegative", 0) end
+			if signal == nil then signal = "MouseClick" end
+			if signal ~= "MouseClick" and signal ~= "RightMouseClick" and signal ~= "MouseHoverEnter" and signal ~= "MouseHoverLeave" then
+				error("Invalid click signal", 0)
+			end
+		elseif kind == "touch" and type(touch) ~= "boolean" then error("touch must be a boolean", 0) end
+		local function helper()
+			if kind == "click" then return fireclickdetector end
+			if kind == "prompt" then return fireproximityprompt end
+			return firetouchinterest
+		end
+		if type(helper()) ~= "function" then error("Native interaction helper unavailable", 0) end
+		local target, targetError = resolvePath(targetPath)
+		local source, sourceError
+		if sourcePath then source, sourceError = resolvePath(sourcePath) end
+		local function valid(instance, path)
+			return reachable(instance) and ownedReference(path, instance)
+				and (kind == "touch" and instance:IsA("BasePart")
+					or kind == "click" and instance.ClassName == "ClickDetector"
+					or kind == "prompt" and instance.ClassName == "ProximityPrompt")
+		end
+		if not valid(target, targetPath) then error(targetError or "Interaction target class or identity unavailable", 0) end
+		if sourcePath and not valid(source, sourcePath) then error(sourceError or "Interaction source class or identity unavailable", 0) end
+		local targetClass, sourceClass = target.ClassName, source and source.ClassName
+		local job = { kind = "interaction_call", interactionKind = kind, dispatchStarted = false }
+		job.callable = function(running)
+			if not valid(target, targetPath) or target.ClassName ~= targetClass then error("Interaction target unavailable before dispatch", 0) end
+			if sourcePath and (not valid(source, sourcePath) or source.ClassName ~= sourceClass) then
+				error("Interaction source unavailable before dispatch", 0)
+			end
+			local native = helper()
+			if type(native) ~= "function" then error("Native interaction helper unavailable before dispatch", 0) end
+			if running.cancellationRequested or not isCurrent() then error("Interaction call cancelled before dispatch", 0) end
+			running.dispatchStarted, running.dispatchedAt = true, os.time()
+			if kind == "click" then native(target, distance, signal)
+			elseif kind == "prompt" then native(target)
+			else native(source, target, touch) end
+			-- Native return values are not server acknowledgements.
+		end
+		return state.enqueueAsyncJob(job)
+	end
+end
+
 -- The observer retains type labels and, only when requested, bounded sanitized
 -- copies made with raw primitive operations. Native objects remain type-only.
 -- The original call remains outside pcall and is returned directly.
@@ -6315,7 +6840,7 @@ do
 		capabilities = true, watch_start = true, watch_poll = true, watch_stop = true, async_job_list = true,
 		async_job_cancel = true, instance_references_release = true, remote_capture_poll = true, remote_capture_stop = true,
 	}
-	local mutations = { execute_luau = true, execute_luau_async = true, remote_call = true, remote_capture_start = true }
+	local mutations = { execute_luau = true, execute_luau_async = true, remote_call = true, interaction_call = true, remote_capture_start = true }
 	function state.requestClass(method, params)
 		if method == "map_recording" then
 			return type(params) == "table" and params.operation == "start" and "read" or "control"

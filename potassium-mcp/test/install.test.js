@@ -556,6 +556,79 @@ test("built-in fallback requires a separate credential, including hard-link alia
   await assert.rejects(repair({ ...value, builtinFallbackTokenFile: alias }), /hard-linked managed/);
 });
 
+test("native editor setup and repair preserve all host, HTTP and global execution grants", async (t) => {
+  const value = await fixture(t);
+  const editor = path.join(value.root, "editor-token");
+  const fallback = path.join(value.root, "diagnostic-token");
+  await writeFile(editor, "e".repeat(64));
+  await writeFile(fallback, "f".repeat(64));
+  await setup({ ...value, allowUnsafeExecute: true, executeHost: ["omp", "agent", "project-a"],
+    adminHost: ["agent"], denyReadHost: ["project-a"], httpPolicy: { read: true, admin: true, execute: true },
+    builtinFallbackTokenFile: fallback });
+  const before = await readJson(configPath(value));
+  const brokerToken = await readFile(tokenPath(value));
+  await repair({ ...value, nativeEditorTokenFile: "editor-token" });
+  let config = await readJson(configPath(value));
+  assert.deepEqual(config, { ...before, nativeEditorEnabled: true, nativeEditorTokenFile: editor });
+  await repair({ ...value, builtinFallbackEnabled: false });
+  config = await readJson(configPath(value));
+  assert.equal(config.nativeEditorEnabled, true);
+  assert.equal(config.nativeEditorTokenFile, editor);
+  await setup({ ...value, nativeEditorEnabled: false });
+  config = await readJson(configPath(value));
+  assert.equal(config.nativeEditorEnabled, false);
+  assert.equal(Object.hasOwn(config, "nativeEditorTokenFile"), false);
+  assert.deepEqual(config.hostPolicies, before.hostPolicies);
+  assert.deepEqual(config.httpPolicy, before.httpPolicy);
+  assert.equal(config.allowUnsafeExecute, true);
+  const policies = parsePolicyConfig(config);
+  for (const id of ["omp", "agent", "project-a"]) {
+    assert.equal(allowsTool(policies.hosts[id], "potassium_execute_luau", config), true);
+    assert.equal(allowsTool(policies.hosts[id], "potassium_execute_luau_async", config), true);
+  }
+  assert.deepEqual(await readFile(tokenPath(value)), brokerToken);
+});
+
+test("native editor opt-in neither grants execution nor disables diagnostic fallback", async (t) => {
+  const value = await fixture(t);
+  const nativeToken = path.join(value.root, "native-token");
+  await writeFile(nativeToken, "n".repeat(64));
+  await setup({ ...value, builtinFallbackTokenFile: nativeToken, nativeEditorTokenFile: nativeToken });
+  let config = await readJson(configPath(value));
+  assert.equal(config.allowUnsafeExecute, false);
+  assert.equal(allowsTool(parsePolicyConfig(config).hosts.omp, "potassium_execute_luau", config), false);
+  await repair({ ...value, nativeEditorEnabled: false });
+  config = await readJson(configPath(value));
+  assert.equal(config.builtinFallbackEnabled, true);
+  assert.equal(config.builtinFallbackTokenFile, nativeToken);
+  assert.equal(config.allowUnsafeExecute, false);
+});
+
+test("native editor rejects broker credentials, linked files and malformed tokens without exposing paths", async (t) => {
+  const value = await fixture(t);
+  await setup(value);
+  const before = await readFile(configPath(value));
+  const duplicate = path.join(value.root, "private-native-token");
+  await writeFile(duplicate, `${(await readFile(tokenPath(value), "utf8")).trim()}\n`);
+  await assert.rejects(repair({ ...value, nativeEditorTokenFile: duplicate }), /must be distinct/);
+  const alias = path.join(value.root, "private-alias-token");
+  await link(duplicate, alias);
+  await assert.rejects(repair({ ...value, nativeEditorTokenFile: alias }), (error) => {
+    assert.match(error.message, /without links/);
+    assert.equal(error.message.includes(alias), false);
+    return true;
+  });
+  await rm(alias);
+  await writeFile(duplicate, `${"x".repeat(32)} internal-secret`);
+  await assert.rejects(repair({ ...value, nativeEditorTokenFile: duplicate }), (error) => {
+    assert.match(error.message, /without whitespace/);
+    assert.equal(error.message.includes("internal-secret"), false);
+    return true;
+  });
+  await assert.rejects(repair({ ...value, nativeEditorTokenFile: "missing-token" }), /existing readable regular file/);
+  assert.deepEqual(await readFile(configPath(value)), before);
+});
+
 test("orphan reclamation serializes competing repair callers before replacing the dead owner's lock", async (t) => {
   const value = await fixture(t);
   await setup(value);

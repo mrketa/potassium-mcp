@@ -109,6 +109,7 @@ jobs:
           test/mcp.test.js test/host-policy.test.js test/transport-audit-regressions.test.js
           test/safe-read.test.js test/safe-read-boundaries.test.js test/read-policy-audit.test.js
           test/async-artifact-store.test.js test/builtin-fallback.test.js test/server-config.test.js
+          test/native-editor.test.js
           test/deploy.test.js test/release-publish.test.js
       - run: node --test tools/release.test.mjs tools/github-release.test.mjs tools/package-smoke.test.mjs
       - run: node tools/bootstrap-runner.mjs toolchain

@@ -4,7 +4,9 @@ An extended MCP toolkit for Potassium — built for deeper inspection, reusable 
 
 Connect your AI assistant to explore a live session, save useful scene data, understand Luau code and run scripts.
 
-**[Download Windows Setup · 1.0.0](https://github.com/mrketa/potassium-mcp/releases/download/v1.0.0/Setup.exe)** · [Release & downloads](https://github.com/mrketa/potassium-mcp/releases/tag/v1.0.0) · [Agent guide](docs/API.md#agent-workflow)
+**[Releases & Windows downloads](https://github.com/mrketa/potassium-mcp/releases)** · [1.1.0 release notes](CHANGELOG.md#110) · [Agent guide](docs/API.md#agent-workflow)
+
+This source targets **1.1.0**. Use its version-specific release assets only once published; a source checkout or draft is not a qualified download.
 
 ## What makes it Advanced?
 
@@ -17,6 +19,8 @@ Potassium already includes a built-in MCP. This independent project is for users
 - **Investigate changes.** Browse remote metadata, read logs and compare the state before and after an action.
 - **Run scripts and follow results.** Execute Luau with the connection's permissions, track longer-running jobs and read their output.
 - **Work across assistants and clients.** Share a connection between MCP apps and choose the intended Potassium client when several are attached.
+- **Edit native drafts.** Opt into listing, reading and editing Potassium desktop tabs without attaching Roblox.
+- **Inspect interactions.** Browse bounded click/prompt/touch metadata and dispatch one explicitly authorized native interaction at a time.
 
 Live inspection sees what the connected client exposes, not the entire server. Captures can be partial; saved maps and recordings are data for analysis, not an automatic gameplay controller.
 
@@ -46,16 +50,16 @@ What is available depends on the connected client, its capabilities and your con
 
 ## Updating
 
-For a supported Windows Setup installation, close active MCP sessions and run the newer installer using the same Windows account and installation folders. Choose **Update** when the installation is recognized. Existing settings and saved data are preserved; restart your AI app and Potassium afterward.
+Updates are manual: download the newer version's verified Setup and run it using the same Windows account and installation folders after closing active MCP sessions. Choose **Update** when the installation is recognized. Setup installs its embedded, sealed bundle; it does not fetch a newer package automatically. Existing settings and saved data are preserved. Restart your AI app and manually restart/reattach Potassium afterward so the updated bootstrap runs.
 
 Very old, manual or npm installations may need a different migration path. If Setup does not recognize the installation or reports a conflict, **do not delete your configuration to force an update**. See [update and migration guidance](docs/DEPLOYMENT.md#windows-maintenance-and-custom-roots).
 
 ## Prefer npm?
 
-For the CLI route, use Node.js 22 or 24:
+For the CLI route, use Node.js 22 or 24. Once 1.1.0 is published:
 
 ```sh
-npm install --global @mrketa/potassium-mcp@1.0.0
+npm install --global @mrketa/potassium-mcp@1.1.0
 ```
 
 Then follow the [CLI setup and connection guide](docs/AGENT-INSTALL.md). The CLI has its own permission setup; it does not automatically enable Windows Setup's full-access defaults.

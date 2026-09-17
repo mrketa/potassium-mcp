@@ -36,6 +36,7 @@ import {
 } from "./map-schemas.js";
 import { imageDimensions } from "./game-context-images.js";
 import { createSessionStats } from "./session-stats.js";
+import { createNativeEditorClient, NativeEditorError } from "./native-editor.js";
 
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -102,6 +103,8 @@ export const configSchema = z.object({
   }).strict().optional(),
   builtinFallbackEnabled: z.boolean().default(false),
   builtinFallbackTokenFile: z.string().min(1).max(4096).optional(),
+  nativeEditorEnabled: z.boolean().default(false),
+  nativeEditorTokenFile: z.string().min(1).max(4096).optional(),
 }).strict().superRefine((config, context) => {
   if ((config.token === undefined) === (config.tokenFile === undefined)) {
     context.addIssue({
@@ -139,6 +142,9 @@ export const configSchema = z.object({
   }
   if (config.builtinFallbackEnabled && !config.builtinFallbackTokenFile) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: "builtinFallbackTokenFile is required when builtinFallbackEnabled", path: ["builtinFallbackTokenFile"] });
+  }
+  if (config.nativeEditorEnabled && !config.nativeEditorTokenFile) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "nativeEditorTokenFile is required when nativeEditorEnabled", path: ["nativeEditorTokenFile"] });
   }
   if (config.streamableHttpEnabled || config.statefulHttpEnabled) {
     const endpoints = [
@@ -198,8 +204,31 @@ function nativeMapErrorCode(error) {
   return prefix && (mapErrorCodePattern.test(prefix) || recordingErrorCodePattern.test(prefix)) ? prefix : undefined;
 }
 
+const editorErrorMessages = Object.freeze({
+  unavailable: "Native editor is unavailable.",
+  conflict: "Native editor tab content changed; read the tab again before writing.",
+  "too-large": "Native editor input or response exceeds the documented limit.",
+  refused: "Native editor refused the operation.",
+  cancelled: "Native editor operation was cancelled before mutation dispatch.",
+  indeterminate: "Native editor mutation may have completed; inspect the tab state before retrying.",
+});
+function editorToolError(error, mutation = false) {
+  const kind = error instanceof NativeEditorError && Object.hasOwn(editorErrorMessages, error.code)
+    ? error.code : mutation ? "indeterminate" : "unavailable";
+  return toolError(Object.assign(new Error(editorErrorMessages[kind]), {
+    code: `NATIVE_EDITOR_${kind.replaceAll("-", "_").toUpperCase()}`,
+    submissionIndeterminate: kind === "indeterminate",
+  }));
+}
+function editorSensitiveContentError() {
+  return toolError(Object.assign(new Error("Native editor operation refused because content contains a protected credential."), {
+    code: "EDITOR_SENSITIVE_CONTENT", submissionIndeterminate: false,
+  }));
+}
+
 function errorCode(error) {
-  if (sourceErrorCodes.has(error?.code) || error?.code === "INVALID_INPUT") return error.code;
+  if (sourceErrorCodes.has(error?.code) || error?.code === "INVALID_INPUT" || error?.code === "EDITOR_SENSITIVE_CONTENT") return error.code;
+  if (typeof error?.code === "string" && /^NATIVE_EDITOR_(?:UNAVAILABLE|CONFLICT|TOO_LARGE|REFUSED|CANCELLED|INDETERMINATE)$/.test(error.code)) return error.code;
   if (typeof error?.code === "string" && /^GAME_CONTEXT_(?:UNAVAILABLE|STORAGE|INVALID_INPUT|INVALID_DATA|BUSY|CANCELLED|CLIENT_CHANGED|NOT_FOUND|IMAGE_UNAVAILABLE|SECTION_UNAVAILABLE)$/.test(error.code)) return error.code;
   const mapCode = nativeMapErrorCode(error);
   if (mapCode) return mapCode;
@@ -269,6 +298,17 @@ const mapWriteViews = new Set(["build", "update", "observe", "probe"]);
 const offlineMapTools = new Set(["potassium_map_geometry", "potassium_map_navigation", "potassium_map_motion", "potassium_map_mechanics"]);
 const recordingTools = new Set(["potassium_map_recording", "potassium_map_recording_read"]);
 const mapTools = new Set(["potassium_map_context", ...recordingTools, ...offlineMapTools]);
+const editorMutationTools = new Set([
+  "potassium_editor_open_tab", "potassium_editor_write_tab", "potassium_editor_activate_tab", "potassium_editor_close_tab",
+]);
+const editorTools = new Set(["potassium_editor_list_tabs", "potassium_editor_read_tab", ...editorMutationTools]);
+const editorId = z.string().min(1).max(256);
+const editorContent = z.string().max(262144).refine((value) => Buffer.byteLength(value, "utf8") <= 262144, "content exceeds 262144 UTF-8 bytes");
+const editorHash = z.string().regex(/^[a-f0-9]{64}(?![\s\S])/, "expectedSha256 must be a lowercase 64-hex SHA-256");
+const editorTabOutput = z.object({
+  id: editorId, title: z.string().max(1024), kind: z.string().max(64),
+  dirty: z.boolean(), active: z.boolean(), pinned: z.boolean(), path: z.string().max(4096).optional(),
+}).strict();
 const isMapWrite = (name, view) => name === "potassium_map_context" ? mapWriteViews.has(view)
   : name === "potassium_map_mechanics" && view === "apply";
 const mapAcceptanceOutput = z.object({
@@ -302,6 +342,9 @@ const compactDescriptorOutput = z.object({
   contextId: contextIdOutput.optional(), capturedAt: z.string().datetime().optional(), accepted: z.literal(true).optional(),
   mapId: mapIdOutput.optional(), revision: z.number().int().positive().optional(),
 }).passthrough();
+const compactReadDescriptorOutput = compactDescriptorOutput.omit({
+  contextId: true, capturedAt: true, accepted: true, mapId: true, revision: true,
+}).strict();
 const resultPageOutput = z.object({
   resultId: resourceIdOutput, toolName: z.string(), pointer: z.string(),
   offsetBytes: z.number().int().nonnegative(), nextOffsetBytes: z.number().int().nonnegative(),
@@ -473,7 +516,8 @@ function compactOutputSchema(original) {
   const cached = compactOutputSchemas.get(original);
   if (cached) return cached;
   const schema = objectUnionOutput([
-    original, compactDescriptorOutput, ...(original === gameContextOutputSchema ? [contextAcceptanceOutput] : []),
+    original, original === interactionInventoryOutput ? compactReadDescriptorOutput : compactDescriptorOutput,
+    ...(original === gameContextOutputSchema ? [contextAcceptanceOutput] : []),
     ...(original === mapContextOutputSchema || original === mapMechanicsOutputSchema ? [mapAcceptanceOutput] : []),
     ...(original === mapRecordingOutputSchema ? [recordingAcceptanceOutput, recordingSaveAcceptanceOutput] : []),
   ]);
@@ -499,7 +543,13 @@ function acceptedRecordingFallback(result, warning = "RESULT_FORMAT_FAILED") {
   return formatToolResult({ ...recordingAcceptance(result), warning });
 }
 const jobStateOutput = z.enum(["queued", "running", "succeeded", "failed", "cancelled"]);
-const jobOutput = z.object({ jobId: resourceIdOutput, state: jobStateOutput }).passthrough();
+const interactionKind = z.enum(["click", "prompt", "touch"]);
+const asyncSubmissionTools = new Set(["potassium_execute_luau_async", "potassium_remote_call", "potassium_interaction_call"]);
+const jobOutput = z.object({
+  jobId: resourceIdOutput, state: jobStateOutput,
+  kind: z.enum(["remote_call", "interaction_call"]).optional(),
+  dispatchStarted: z.boolean().optional(), cancellationRequested: z.boolean().optional(),
+}).passthrough();
 const acceptanceOutput = z.object({
   jobId: resourceIdOutput, state: jobStateOutput.optional(), accepted: z.literal(true).optional(),
 }).passthrough();
@@ -531,6 +581,11 @@ const capabilitiesOutput = objectUnionOutput([
     view: z.literal("section"), section: z.string().min(1).max(64), value: z.unknown(),
   }).strict(),
 ]);
+const interactionDispatchOutput = z.object({
+  count: z.literal(0), values: z.array(z.never()).length(0),
+  dispatchStarted: z.literal(true), dispatched: z.literal(true), serverAcknowledged: z.literal(false),
+  interactionKind,
+}).strict();
 // These schemas guarantee the envelope and discriminants, not arbitrary engine values.
 const criticalOutputSchemas = {
   potassium_status: statusOutput,
@@ -538,12 +593,17 @@ const criticalOutputSchemas = {
   potassium_capabilities: capabilitiesOutput,
   potassium_execute_luau_async: acceptanceOutput,
   potassium_remote_call: acceptanceOutput,
+  potassium_interaction_call: acceptanceOutput,
   potassium_async_job_status: jobOutput,
   potassium_async_job_cancel: jobOutput,
   potassium_async_job_list: z.object({ jobs: z.array(jobOutput).max(40), truncated: z.boolean() }).passthrough(),
   potassium_async_job_result: jobOutput.extend({ ready: z.boolean() }).superRefine((result, context) => {
     if (result.ready === ["queued", "running"].includes(result.state)) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: "ready must agree with the terminal job state", path: ["ready"] });
+    }
+    if (result.kind === "interaction_call" && result.state === "succeeded"
+      && (result.dispatchStarted !== true || !interactionDispatchOutput.safeParse(result.result).success)) {
+      context.addIssue({ code: "custom", message: "Successful native jobs report dispatch only", path: ["result"] });
     }
   }),
   potassium_async_job_console: z.object({
@@ -810,6 +870,147 @@ const inventoryOutput = z.object(Object.fromEntries(Object.entries(remoteDetailF
     }
   });
 
+const interactionPropertyNames = {
+  click: ["MaxActivationDistance", "CursorIcon"],
+  prompt: ["Enabled", "ActionText", "ObjectText", "HoldDuration", "MaxActivationDistance", "RequiresLineOfSight", "KeyboardKeyCode", "GamepadKeyCode", "Exclusivity", "Style"],
+  touch: ["CanTouch", "CanCollide", "CanQuery", "Anchored"],
+};
+const interactionIdentityText = z.string().max(262144).refine(
+  (value) => value.isWellFormed() && Buffer.byteLength(value, "utf8") <= 262144,
+  "Interaction identity exceeds the snapshot byte bound",
+);
+const interactionIdentity = z.object({
+  name: interactionIdentityText, className: z.string().min(1).max(128), path: interactionIdentityText.min(1),
+  reference: z.string().regex(/^instance:\/\/[a-f0-9]{32}(?![\s\S])/).optional(),
+  referenceUnavailable: z.literal(true).optional(),
+}).strict().superRefine((identity, context) => {
+  if (identity.reference !== undefined && identity.referenceUnavailable) {
+    context.addIssue({ code: "custom", message: "Unavailable identity cannot also issue a reference" });
+  }
+});
+const interactionPosition = metadataValueResult.safeExtend({
+  value: z.object({ type: z.literal("Vector3"), x: metadataNumber, y: metadataNumber, z: metadataNumber }).strict().optional(),
+});
+const interactionDistance = metadataValueResult.safeExtend({ value: z.number().finite().nonnegative().optional() });
+const interactionPropertyValue = z.union([
+  z.boolean(), metadataNumber, z.string().max(4096),
+  z.object({ type: z.literal("EnumItem"), value: z.string().max(4096) }).strict(),
+  z.object({ type: z.literal("nil") }).strict(),
+  z.object({ type: z.literal("number"), value: z.enum(["nan", "inf", "-inf"]) }).strict(),
+]);
+const interactionBody = interactionIdentity.safeExtend({
+  id: resourceIdOutput.optional(),
+  kind: interactionKind, parent: interactionIdentityText, host: interactionIdentity.optional(),
+  properties: z.array(metadataValueResult.safeExtend({
+    name: z.string().min(1).max(64), value: interactionPropertyValue.optional(),
+  })).max(10),
+  position: interactionPosition,
+  positionSource: z.enum(["base-part-position", "attachment-world-position", "model-pivot", "unavailable"]),
+  distanceStuds: interactionDistance,
+  touchEvidence: z.enum(["explicit-part", "transmitter-observed"]).optional(),
+}).superRefine((row, context) => {
+  if ((row.kind === "click" && row.className !== "ClickDetector")
+    || (row.kind === "prompt" && row.className !== "ProximityPrompt")
+    || (row.kind === "touch" ? row.touchEvidence === undefined
+      || (row.touchEvidence === "transmitter-observed") !== (row.className === "TouchTransmitter") : row.touchEvidence !== undefined)
+    || row.properties.length !== interactionPropertyNames[row.kind].length
+    || row.properties.some(({ name }) => !interactionPropertyNames[row.kind].includes(name))
+    || new Set(row.properties.map(({ name }) => name)).size !== row.properties.length
+    || (row.position.ok && row.position.value?.type !== "Vector3")
+    || (row.position.ok && row.positionSource === "unavailable")
+    || (row.distanceStuds.ok && (typeof row.distanceStuds.value !== "number" || row.distanceStuds.value < 0 || !row.position.ok))) {
+    context.addIssue({ code: "custom", message: "Invalid interaction class, properties, position or distance metadata" });
+  }
+});
+const interactionRow = z.intersection(interactionBody, z.object({ id: resourceIdOutput }).passthrough())
+  .superRefine((row, context) => {
+    if (row.kind === "touch" && row.touchEvidence !== "transmitter-observed") {
+      context.addIssue({ code: "custom", message: "Snapshot touch rows describe observed transmitters only" });
+    }
+  });
+const interactionDetailBody = z.intersection(interactionBody, z.object({ id: z.never().optional() }).passthrough());
+const interactionCoverageFields = {
+  visited: z.number().int().min(0).max(20000), coverage: z.enum(["complete", "partial"]),
+  truncated: z.boolean(), stopReasons: z.array(z.string().min(1).max(128)).max(32),
+};
+function checkInteractionCoverage(result, context) {
+  if ((result.coverage === "partial") !== result.truncated
+    || result.truncated !== (result.stopReasons.length > 0)) {
+    context.addIssue({ code: "custom", message: "Interaction coverage must preserve its truncation reasons" });
+  }
+}
+const interactionSnapshot = z.object({
+  snapshotId: resourceIdOutput, generation: remoteCount, root: interactionIdentity,
+  observedAt: z.number().finite().nonnegative(), ...interactionCoverageFields,
+  matchedVisited: z.number().int().min(0).max(20000), retained: z.number().int().min(0).max(512),
+  expiresInMs: z.number().finite().min(0).max(120000),
+  counts: z.object({ click: remoteCount, prompt: remoteCount, touch: remoteCount }).strict(),
+  touchCoverage: z.literal("observed-transmitters-not-exhaustive"),
+  queryScope: z.literal("retained-rows").optional(), queryMatched: z.number().int().min(0).max(512).optional(),
+}).strict().superRefine((result, context) => {
+  checkInteractionCoverage(result, context);
+  if (result.retained > result.matchedVisited || result.matchedVisited > result.visited
+    || (result.queryScope === undefined) !== (result.queryMatched === undefined)
+    || (result.queryMatched !== undefined && result.queryMatched > result.retained)
+    || result.counts.click + result.counts.prompt + result.counts.touch !== (result.queryMatched ?? result.retained)) {
+    context.addIssue({ code: "custom", message: "Invalid retained interaction counts or query coverage" });
+  }
+});
+const interactionInventoryViews = [
+  interactionSnapshot.safeExtend({ view: z.literal("summary") }),
+  interactionSnapshot.safeExtend({
+    view: z.literal("rows"), rows: z.array(interactionRow).max(200), hasMore: z.boolean(),
+    cursor: z.string().min(1).max(256).optional(),
+  }).superRefine((result, context) => {
+    if (result.hasMore !== (result.cursor !== undefined) || result.rows.length > (result.queryMatched ?? result.retained)
+      || new Set(result.rows.map(({ id }) => id)).size !== result.rows.length) {
+      context.addIssue({ code: "custom", message: "Invalid interaction page or cursor" });
+    }
+  }),
+  z.object({
+    view: z.literal("detail"), generation: remoteCount, snapshotId: resourceIdOutput.optional(), rowId: resourceIdOutput.optional(),
+    observedAt: z.number().finite().nonnegative(), metadataTiming: z.literal("live-non-atomic"),
+    touchCoverage: z.literal("observed-transmitters-not-exhaustive"),
+    instance: interactionDetailBody, ...interactionCoverageFields,
+  }).strict().superRefine((result, context) => {
+    checkInteractionCoverage(result, context);
+    if ((result.snapshotId === undefined) !== (result.rowId === undefined)) {
+      context.addIssue({ code: "custom", message: "Retained detail requires snapshot and row identities" });
+    }
+  }),
+  z.object({
+    view: z.literal("release"), generation: remoteCount, snapshotId: resourceIdOutput, released: z.boolean(),
+  }).strict(),
+];
+const interactionInventoryUnion = z.union(interactionInventoryViews);
+const interactionInventoryFields = Object.fromEntries(interactionInventoryViews.flatMap(
+  (view) => Object.entries(view.shape).map(([key, schema]) => [key, schema.optional()]),
+));
+// Declare shared fields once. Branches only select required and forbidden fields;
+// the canonical runtime union retains every strict metadata and coverage check.
+const interactionInventoryOutput = z.object({
+  ...interactionInventoryFields, view: z.enum(["summary", "rows", "detail", "release"]), generation: remoteCount,
+}).strict().superRefine(async (result, context) => {
+  if (!(await interactionInventoryUnion.safeParseAsync(result)).success) {
+    context.addIssue({ code: "custom", message: "Invalid interaction inventory envelope" });
+  }
+}).meta({
+  anyOf: interactionInventoryViews.map((view) => {
+    const allowed = Object.keys(view.shape);
+    const required = allowed.filter((key) => !view.shape[key].isOptional());
+    return {
+      properties: {
+        view: { const: view.shape.view.value },
+        ...(required.length === allowed.length ? {} : Object.fromEntries(
+          Object.keys(interactionInventoryFields).filter((key) => !Object.hasOwn(view.shape, key)).map((key) => [key, false]),
+        )),
+      },
+      required: required.filter((key) => key !== "view" && key !== "generation"),
+      ...(required.length === allowed.length ? { maxProperties: allowed.length } : {}),
+    };
+  }),
+});
+
 const sourcePosition = z.object({ line: remoteCount, column: remoteCount, offset: remoteCount }).strict();
 const remoteCallsitesOutput = z.object({
   indexId: resourceIdOutput, view: z.literal("remote_callsites"), total: remoteCount, hasMore: z.boolean(),
@@ -842,16 +1043,18 @@ function requiredFeatures(method, params) {
   if (method.startsWith("watch_")) required.push(["watches", 1]);
   if (method === "batch_read") required.push(["batchRead", 1]);
   if (method === "remote_inventory") required.push(["remoteInventory", params?.query === undefined ? 3 : 4]);
+  if (method === "interaction_inventory") required.push(["interactionInventory", 1]);
   if (method === "game_context") required.push(["gameContext", 2]);
   if (method === "map_observe" || method === "map_probe") required.push(["mapObservation", 1]);
   if (method === "map_recording") required.push(["mapRecording", 1]);
   if (method.startsWith("remote_capture_")) required.push(["remoteCapture", 2]);
   if (method === "remote_call") required.push(["remoteActions", 1], ["asyncJobs", 2]);
+  if (method === "interaction_call") required.push(["interactionActions", 1], ["asyncJobs", 2]);
   if (method === "observe_action") required.push(["actionObservation", 1]);
   if (method === "diagnostic_snapshot" && params?.view && params.view !== "overview") {
     required.push(["diagnosticSnapshot", 2], ["instanceReferences", 1]);
   }
-  const paths = [params?.path, params?.root, params?.otherPath, params?.target, ...(params?.excludePaths ?? []),
+  const paths = [params?.path, params?.root, params?.otherPath, params?.target, params?.source, ...(params?.excludePaths ?? []),
     ...(params?.targets ?? []), ...(params?.remotes ?? []), ...(params?.requests ?? []).map((request) => request.path)];
   const visitArgument = (value) => {
     if (!value || typeof value !== "object") return;
@@ -872,6 +1075,7 @@ const metadataTools = new Set([
   "potassium_admin_status", "potassium_admin_history", "potassium_admin_recover",
   "potassium_builtin_status", "potassium_builtin_list_clients",
   "potassium_game_context", ...mapTools,
+  "potassium_interaction_inventory",
 ]);
 const titleWords = new Map([["http", "HTTP"], ["ui", "UI"]]);
 
@@ -975,20 +1179,21 @@ class PotassiumMcpServer extends McpServer {
   registerTool(name, config, handler) {
     if (this.policy && !allowsTool(this.policy, name, { allowUnsafeExecute: this.allowUnsafeExecute })) return undefined;
     const clientId = z.string().regex(/^[a-f0-9]{32}(?![\s\S])/, "clientId must be a lowercase 32-hex identifier").optional();
-    const inputSchema = offlineMapTools.has(name) || recordingTools.has(name) ? config.inputSchema : typeof config.inputSchema?.safeExtend === "function"
+    const inputSchema = offlineMapTools.has(name) || recordingTools.has(name) || editorTools.has(name) ? config.inputSchema : typeof config.inputSchema?.safeExtend === "function"
       ? config.inputSchema.safeExtend({ clientId })
       : typeof config.inputSchema?.extend === "function"
         ? config.inputSchema.extend({ clientId })
         : config.inputSchema && typeof config.inputSchema === "object"
           ? { ...config.inputSchema, clientId }
           : z.object({ clientId }).strict();
+    const inputMetadata = typeof config.inputSchema?.meta === "function" ? config.inputSchema.meta() : undefined;
     const source = config.outputSchema ?? criticalOutputSchemas[name] ?? objectOutputSchema;
     const originalOutput = typeof source.safeParseAsync === "function" ? source : z.object(source);
     const title = config.title ?? potassiumToolTitle(name);
     const registered = super.registerTool(name, {
       title: potassiumToolTitle(name),
       ...config,
-      inputSchema: compactInputSchema(inputSchema),
+      inputSchema: compactInputSchema(inputMetadata === undefined ? inputSchema : inputSchema.meta(inputMetadata)),
       outputSchema: identifyOutputSchema(name === "potassium_result_read" ? originalOutput : compactOutputSchema(originalOutput)),
       annotations: {
         readOnlyHint: true,
@@ -1015,10 +1220,14 @@ class PotassiumMcpServer extends McpServer {
         return this.redactToolResult(toolError(error));
       }
       const finish = this.sessionStats.begin(name, args);
-      let result, acceptedMap, acceptedRecording;
+      let result, acceptedMap, acceptedRecording, acceptedEditor, acceptedJob;
       try {
         try {
           const handled = await handler(args, extra);
+          acceptedEditor = editorMutationTools.has(name) && !handled.isError;
+          if (asyncSubmissionTools.has(name) && !handled.isError && acceptanceOutput.safeParse(handled.structuredContent).success) {
+            acceptedJob = { jobId: handled.structuredContent.jobId, state: handled.structuredContent.state };
+          }
           if (isMapWrite(name, handled.structuredContent?.view) && !handled.isError
             && (await originalOutput.safeParseAsync(handled.structuredContent)).success) {
             acceptedMap = { mapId: handled.structuredContent.mapId, revision: handled.structuredContent.revision, accepted: true };
@@ -1028,14 +1237,18 @@ class PotassiumMcpServer extends McpServer {
             acceptedRecording = recordingAcceptance(handled.structuredContent);
           }
           result = await this.finishToolResult(name, originalOutput, handled);
+          if (result.isError && acceptedJob) result = acceptedJobFallback(acceptedJob);
           if (result.isError && acceptedMap) result = this.redactToolResult(toolError(
             Object.assign(new Error("Map committed, but response formatting failed."), { code: "MAP_CONTEXT_INVALID_DATA" }), acceptedMap,
           ));
           if (result.isError && acceptedRecording) result = this.redactToolResult(toolError(
             Object.assign(new Error("Recording operation accepted, but response formatting failed."), { code: "MAP_CONTEXT_INVALID_DATA" }), acceptedRecording,
           ));
+          if (result.isError && acceptedEditor) result = editorToolError(undefined, true);
         } catch (error) {
-          result = this.redactToolResult(toolError(error, acceptedRecording ?? acceptedMap));
+          result = acceptedJob ? acceptedJobFallback(acceptedJob)
+            : editorTools.has(name) ? editorToolError(error, editorMutationTools.has(name))
+              : this.redactToolResult(toolError(error, acceptedRecording ?? acceptedMap));
         }
         return result;
       } finally {
@@ -1064,7 +1277,7 @@ export async function parseConfig(config, directory = here) {
     throw new Error(`Invalid configuration: ${z.prettifyError(parsed.error)}`);
   }
 
-  const { tokenFile, artifactRoots, sourceRoots, httpAllowedHosts, adminAuditPath, builtinFallbackTokenFile, ...resolved } = parsed.data;
+  const { tokenFile, artifactRoots, sourceRoots, httpAllowedHosts, adminAuditPath, builtinFallbackTokenFile, nativeEditorTokenFile, ...resolved } = parsed.data;
   let token = resolved.token;
   if (tokenFile !== undefined) {
     try {
@@ -1091,6 +1304,7 @@ export async function parseConfig(config, directory = here) {
     httpAllowedHosts: httpAllowedHosts.map((host) => host.toLowerCase()),
     ...(adminAuditPath === undefined ? {} : { adminAuditPath: resolve(directory, adminAuditPath) }),
     ...(builtinFallbackTokenFile === undefined ? {} : { builtinFallbackTokenFile: resolve(directory, builtinFallbackTokenFile) }),
+    ...(nativeEditorTokenFile === undefined ? {} : { nativeEditorTokenFile: resolve(directory, nativeEditorTokenFile) }),
   };
 }
 
@@ -1120,7 +1334,7 @@ export async function loadConfig(path = resolveConfigPath()) {
 
 export function createToolServer(config, bridge, {
   audit = new AdminAuditRecorder({ path: config.adminAuditPath }), sessionId = randomBytes(16).toString("hex"),
-  hostId = "standalone", policy = fullAccessPolicy, artifactStore, builtinFallback,
+  hostId = "standalone", policy = fullAccessPolicy, artifactStore, builtinFallback, nativeEditor,
   compactResultStore = createCompactResultStore(), resultScopeId = sessionId,
   releaseResultScopeOnClose = true, retainedSession = true,
   codeIndexService = createCodeIndexService(), gameContextService, mapContextService, mapRecordingService, configFile,
@@ -1235,7 +1449,7 @@ export function createToolServer(config, bridge, {
   server.onRequestCancelled = onRequestCancelled;
   server.onRequestStart = onRequestStart;
   server.onResponseSent = onResponseSent;
-  const errorSecrets = [config.token, config.adminAuditPath, config.builtinFallbackTokenFile,
+  const errorSecrets = [config.token, config.adminAuditPath, config.builtinFallbackTokenFile, config.nativeEditorTokenFile,
     ...(config.artifactRoots ?? []).map((root) => root.path),
     ...(config.sourceRoots ?? []).map((root) => root.path)].filter((value) => typeof value === "string" && value.length > 0);
   const redactValue = (_key, value) => {
@@ -1301,6 +1515,14 @@ export function createToolServer(config, bridge, {
         return server.createToolError("Output validation error: redacted result");
       }
     }
+    if (editorTools.has(name)) {
+      // Redact metadata only: intentional source reads and their UTF-8 hashes
+      // must remain exact, including strings that resemble credentials.
+      const { content, ...metadata } = result.structuredContent;
+      const sanitized = JSON.parse(JSON.stringify(metadata), (key, value) => key === "sha256" ? value : redactValue(key, value));
+      result = formatToolResult(content === undefined ? sanitized : { ...sanitized, content });
+      if (!(await originalOutput.safeParseAsync(result.structuredContent)).success) return editorToolError(undefined, editorMutationTools.has(name));
+    }
     const image = resultImages.get(result);
     if (image !== undefined) {
       // Metadata retains the ordinary cap; only ImageContent may use the media lane.
@@ -1334,7 +1556,7 @@ export function createToolServer(config, bridge, {
         scopeId: resultScopeId, toolName: name,
         json: canonicalResultJson.get(result) ?? JSON.stringify(result.structuredContent),
       });
-      if (name === "potassium_execute_luau_async" || name === "potassium_remote_call") {
+      if (asyncSubmissionTools.has(name)) {
         Object.assign(descriptor, { jobId: original.jobId, accepted: true });
       }
       if (name === "potassium_game_context" && original.view === "capture") {
@@ -1356,7 +1578,7 @@ export function createToolServer(config, bridge, {
       }
       return compact;
     } catch (error) {
-      if (name === "potassium_execute_luau_async" || name === "potassium_remote_call") return acceptedJobFallback(original);
+      if (asyncSubmissionTools.has(name)) return acceptedJobFallback(original);
       if (name === "potassium_game_context" && original.view === "capture") {
         return acceptedContextFallback(original, errorCode(error));
       }
@@ -1450,6 +1672,42 @@ export function createToolServer(config, bridge, {
         try { return formatToolResult(await builtinFallback.readConsole(pid, { afterCursor, limit, waitMs })); } catch (error) { return toolError(error); }
       },
     );
+  }
+  if (config.nativeEditorEnabled && nativeEditor) {
+    for (const [name, method, description, inputSchema, outputSchema, destructiveHint, idempotentHint] of [
+      ["potassium_editor_list_tabs", "listTabs", "List native desktop editor tab metadata without reading scripts; no Roblox client is required.",
+        z.object({}).strict(), z.object({ tabs: z.array(editorTabOutput).max(512) }).strict(), false, true],
+      ["potassium_editor_read_tab", "readTab", "Read exact native desktop tab text and its UTF-8 SHA-256; no Roblox client is required. Large reads use permission-bound retention. Protected credential echoes are refused, never silently redacted.",
+        z.object({ id: editorId }).strict(), z.object({ tab: editorTabOutput, content: editorContent, sha256: editorHash }).strict(), false, true],
+      ["potassium_editor_open_tab", "openTab", "Open and activate a native desktop editor tab, optionally with draft text; requires execute permission and allowUnsafeExecute. Never automatically replay an indeterminate mutation.",
+        z.object({ title: z.string().max(1024).optional(), content: editorContent.optional() }).strict(), z.object({ tab: editorTabOutput }).strict(), false, false],
+      ["potassium_editor_write_tab", "writeTab", "Replace native desktop tab text after checking expectedSha256; requires execute permission and allowUnsafeExecute. Broker writes serialize per tab, but native UI/external races remain non-atomic. Never automatically replay an indeterminate mutation.",
+        z.object({ id: editorId, content: editorContent, expectedSha256: editorHash }).strict(),
+        z.object({ tab: editorTabOutput, sha256: editorHash, preconditionAtomic: z.literal(false) }).strict(), true, false],
+      ["potassium_editor_activate_tab", "activateTab", "Activate a native desktop editor tab without executing it; requires execute permission and allowUnsafeExecute. No Roblox client is required.",
+        z.object({ id: editorId }).strict(), z.object({ tab: editorTabOutput }).strict(), false, true],
+      ["potassium_editor_close_tab", "closeTab", "Close a clean native desktop editor tab; dirty tabs are refused. Requires execute permission and allowUnsafeExecute. Never automatically replay an indeterminate mutation.",
+        z.object({ id: editorId }).strict(), z.object({ id: editorId, closed: z.literal(true) }).strict(), true, false],
+    ]) {
+      const mutation = editorMutationTools.has(name);
+      server.registerTool(name, {
+        description, inputSchema, outputSchema,
+        annotations: { readOnlyHint: !mutation, destructiveHint, idempotentHint, openWorldHint: false },
+      }, async (args, extra) => {
+        try {
+          if (mutation && Object.values(args).some((value) => typeof value === "string" && value.includes(config.token))) {
+            return editorSensitiveContentError();
+          }
+          const options = { signal: extra?.signal };
+          const value = await (method === "listTabs" ? nativeEditor.listTabs(options) : nativeEditor[method](args, options));
+          if (method === "readTab" && typeof value?.content === "string" && value.content.includes(config.token)) {
+            return editorSensitiveContentError();
+          }
+          const result = formatToolResult(value);
+          return result.isError ? editorToolError(undefined, mutation) : result;
+        } catch (error) { return editorToolError(error, mutation); }
+      });
+    }
   }
   server.registerTool(
     "potassium_result_read",
@@ -2070,6 +2328,43 @@ export function createToolServer(config, bridge, {
       },
     );
 
+    const interactionClickDistance = z.number().finite().nonnegative().max(Number.MAX_VALUE)
+      .describe("Native argument, default 0; not an observed distance.");
+    const interactionClickSignal = z.enum(["MouseClick", "RightMouseClick", "MouseHoverEnter", "MouseHoverLeave"]);
+    const interactionCallInput = z.discriminatedUnion("kind", [
+      z.object({
+        kind: z.literal("click"), target: instancePath, clientId: resourceIdOutput.optional(),
+        distance: interactionClickDistance.optional(), signal: interactionClickSignal.optional(),
+      }).strict(),
+      z.object({ kind: z.literal("prompt"), target: instancePath, clientId: resourceIdOutput.optional() }).strict(),
+      z.object({
+        kind: z.literal("touch"), source: instancePath, target: instancePath, touch: z.boolean(), clientId: resourceIdOutput.optional(),
+      }).strict(),
+    ]);
+    // The SDK requires an object root; preserve the strict union in both parsers.
+    const interactionCallWire = z.toJSONSchema(interactionCallInput, { target: "draft-7", io: "input" });
+    server.registerTool(
+      "potassium_interaction_call",
+      {
+        description: "Queue one native click, prompt, or boolean touch dispatch; returns an async job ID, not server or gameplay acknowledgement. Never automatically replay uncertain submissions.",
+        inputSchema: z.object({
+          kind: interactionKind, target: instancePath, source: instancePath.optional(), touch: z.boolean().optional(),
+          distance: interactionClickDistance.optional(), signal: interactionClickSignal.optional(),
+        }).strict().superRefine((args, context) => {
+          const parsed = interactionCallInput.safeParse(args);
+          if (!parsed.success) for (const issue of parsed.error.issues) context.addIssue(issue);
+        }).meta({ anyOf: interactionCallWire.anyOf }),
+        annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+      },
+      async ({ clientId, ...args }) => {
+        const params = args.kind === "click" ? {
+          ...args, distance: args.distance === undefined ? 0 : args.distance,
+          signal: args.signal === undefined ? "MouseClick" : args.signal,
+        } : args;
+        return submitAsync("interaction_call", params, JSON.stringify(params), clientId);
+      },
+    );
+
     server.registerTool(
       "potassium_observe_action",
       {
@@ -2514,6 +2809,80 @@ export function createToolServer(config, bridge, {
       } catch (error) {
         return toolError(error);
       }
+    },
+  );
+
+  const interactionFilter = z.string().max(256).refine(
+    (value) => value.isWellFormed() && Buffer.byteLength(value, "utf8") <= 256,
+    "Filter must be valid Unicode within 256 UTF-8 bytes",
+  );
+  const interactionKinds = z.array(interactionKind).min(1).max(3)
+    .refine((kinds) => new Set(kinds).size === kinds.length, "kinds must be unique");
+  server.registerTool(
+    "potassium_interaction_inventory",
+    {
+      description: "Read bounded interaction snapshots or live detail; touch discovery is non-exhaustive. No helper dispatch.",
+      inputSchema: z.object({
+        root: instancePath.optional().describe("Fresh default Workspace; detail root OR snapshotId+rowId."),
+        view: z.enum(["summary", "rows", "detail", "release"]).default("summary"),
+        snapshotId: resourceIdOutput.optional(), rowId: resourceIdOutput.optional(),
+        cursor: z.string().min(1).max(256).optional(),
+        kinds: interactionKinds.optional(), nameContains: interactionFilter.optional(), pathContains: interactionFilter.optional(),
+        query: z.object({
+          kinds: interactionKinds.optional(), nameContains: interactionFilter.optional(), pathContains: interactionFilter.optional(),
+        }).strict().optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+        maxVisited: z.number().int().min(1).max(20000).optional(),
+        includeReferences: z.boolean().optional(),
+      }).strict().superRefine((args, context) => {
+        const reject = (key, message) => context.addIssue({ code: "custom", message, path: [key] });
+        if (args.view === "release") {
+          if (args.snapshotId === undefined) reject("snapshotId", "release requires snapshotId");
+          for (const key of ["root", "rowId", "cursor", "kinds", "nameContains", "pathContains", "query", "limit", "maxVisited", "includeReferences"]) {
+            if (args[key] !== undefined) reject(key, `${key} is unavailable in release view`);
+          }
+          return;
+        }
+        if (args.view === "detail") {
+          if (args.root !== undefined ? args.snapshotId !== undefined || args.rowId !== undefined : args.snapshotId === undefined || args.rowId === undefined) {
+            reject("root", "detail requires exactly root or snapshotId with rowId");
+          }
+          for (const key of ["cursor", "kinds", "nameContains", "pathContains", "query", "limit"]) {
+            if (args[key] !== undefined) reject(key, `${key} is unavailable in detail view`);
+          }
+          return;
+        }
+        if (args.rowId !== undefined) reject("rowId", "rowId requires detail view");
+        if (args.limit !== undefined && args.view !== "rows") reject("limit", "limit requires rows view");
+        if (args.cursor !== undefined && (args.snapshotId === undefined || args.view !== "rows")) reject("cursor", "cursor requires rows and snapshotId");
+        if (args.query !== undefined && args.snapshotId === undefined) reject("query", "query requires a retained snapshot");
+        if (args.snapshotId !== undefined) {
+          for (const key of ["root", "kinds", "nameContains", "pathContains", "maxVisited"]) {
+            if (args[key] !== undefined) reject(key, `${key} is a fresh-scan selector`);
+          }
+        }
+      }),
+      outputSchema: interactionInventoryOutput,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    },
+    async (args) => {
+      const params = {
+        ...args,
+        ...(args.view === "release" ? {} : { includeReferences: args.includeReferences ?? false }),
+        ...(args.view === "rows" ? { limit: args.limit ?? 20 } : {}),
+        ...(args.view === "detail" || (args.snapshotId === undefined && args.view !== "release") ? { maxVisited: args.maxVisited ?? 5000 } : {}),
+        ...(args.root === undefined && args.snapshotId === undefined && args.view !== "detail" ? { root: "Workspace" } : {}),
+        _maxResultBytes: referenceResultBytes,
+      };
+      const result = await bridge.request("interaction_inventory", params);
+      if (result?.view !== args.view
+        || (args.snapshotId !== undefined && result.snapshotId !== args.snapshotId)
+        || (args.view === "detail" && result.rowId !== args.rowId)
+        || ((args.query !== undefined) !== (result?.queryScope === "retained-rows"))
+        || (args.view === "rows" && (!Array.isArray(result.rows) || result.rows.length > params.limit))) {
+        throw Object.assign(new Error("Interaction result does not match the requested selection"), { code: "RESULT_INVALID" });
+      }
+      return formatToolResult(result);
     },
   );
 
@@ -3043,7 +3412,7 @@ export function createToolServer(config, bridge, {
   return server;
 }
 
-export async function createServer(config, { configFile, gameContextService, mapContextService, mapRecordingService } = {}) {
+export async function createServer(config, { configFile, gameContextService, mapContextService, mapRecordingService, nativeEditor } = {}) {
   if (config === undefined) configFile = resolveConfigPath({ configFile });
   config = config === undefined ? await loadConfig(configFile) : await parseConfig(config);
   gameContextService ??= configFile === undefined ? undefined : createGameContextService({ configFile: resolve(configFile) });
@@ -3051,6 +3420,7 @@ export async function createServer(config, { configFile, gameContextService, map
     configFile: resolve(configFile), gameContextService,
   });
   mapRecordingService ??= mapContextService === undefined ? undefined : createMapRecordingService({ mapContextService });
+  nativeEditor ??= config.nativeEditorEnabled ? createNativeEditorClient({ tokenFile: config.nativeEditorTokenFile }) : undefined;
   const logger = {
     info: (...args) => console.error("[potassium-mcp]", ...args),
     error: (...args) => console.error("[potassium-mcp]", ...args),
@@ -3058,7 +3428,7 @@ export async function createServer(config, { configFile, gameContextService, map
   const bridge = new PotassiumBridge(config, logger);
   const audit = new AdminAuditRecorder({ path: config.adminAuditPath });
   const policy = config.hostPolicies === undefined ? fullAccessPolicy : config.policies.hosts.omp;
-  const server = createToolServer(config, bridge, { audit, hostId: "omp", policy, gameContextService, mapContextService, mapRecordingService });
+  const server = createToolServer(config, bridge, { audit, hostId: "omp", policy, gameContextService, mapContextService, mapRecordingService, nativeEditor });
   let closePromise;
   const close = () => {
     closePromise ??= Promise.allSettled([server.close(), bridge.close(), gameContextService?.close(), mapContextService?.close(), mapRecordingService?.close()]).then((results) => {

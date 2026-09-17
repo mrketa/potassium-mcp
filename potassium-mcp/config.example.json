@@ -21,6 +21,8 @@
   "httpPolicy": { "read": true, "admin": false, "execute": false },
   "builtinFallbackEnabled": false,
   "builtinFallbackTokenFile": "../workspace/.potassium-builtin-token",
+  "nativeEditorEnabled": false,
+  "nativeEditorTokenFile": "../workspace/.potassium-editor-token",
   "adminAuditPath": "../workspace/potassium-mcp-admin-audit.ndjson",
   "artifactRoots": [
     {

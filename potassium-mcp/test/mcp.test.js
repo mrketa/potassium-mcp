@@ -12,7 +12,7 @@ import { CallToolRequestSchema, ErrorCode } from "@modelcontextprotocol/sdk/type
 import { AjvJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/ajv-provider.js";
 import { z } from "zod";
 import WebSocket from "ws";
-import { createToolServer, formatToolResult, loadConfig, parseConfig } from "../src/server.js";
+import { createServer, createToolServer, formatToolResult, loadConfig, parseConfig } from "../src/server.js";
 import { AdminAuditRecorder } from "../src/admin-audit.js";
 import { createCompactResultStore } from "../src/compact-results.js";
 import { createCodeIndexService } from "../src/code-index.js";
@@ -21,6 +21,7 @@ import { createMapContextService } from "../src/map-context.js";
 import { analyzeNativeSourcePackage } from "../src/code-tree-adapter.js";
 import { listAllTools } from "./helpers/list-tools.js";
 import { parseAuthoredModules } from "./helpers/code-parser.js";
+import { createNativeEditorClient, NativeEditorError } from "../src/native-editor.js";
 
 const testToken = "test-token-that-is-longer-than-thirty-two-characters";
 
@@ -87,12 +88,14 @@ const featureCapabilities = {
     "list_children", "read_properties", "watch_start", "watch_poll", "watch_stop",
     "remote_inventory", "remote_capture_start", "remote_capture_poll", "remote_capture_stop",
     "remote_call", "observe_action", "diagnostic_snapshot", "game_context", "map_observe", "map_probe", "map_recording",
+    "interaction_inventory", "interaction_call",
   ],
   asyncJobs: { version: 2 }, batchRead: { version: 1 },
   instanceReferences: { version: 1 }, watches: { version: 1 },
   remoteInventory: { version: 4 }, remoteCapture: { version: 2, available: true }, gameContext: { version: 2 }, mapObservation: { version: 1 },
   remoteActions: { version: 1 }, actionObservation: { version: 1 }, diagnosticSnapshot: { version: 2 },
   mapRecording: { version: 1 },
+  interactionInventory: { version: 1 }, interactionActions: { version: 1 },
 };
 
 function captureReceipt(overrides = {}) {
@@ -120,6 +123,29 @@ function detailReceipt(overrides = {}) {
   };
 }
 
+function interactionRowReceipt(overrides = {}) {
+  return {
+    id: "f".repeat(32), kind: "click", name: "Switch", className: "ClickDetector",
+    path: "Workspace.Panel.Switch", parent: "Workspace.Panel",
+    host: { name: "Panel", className: "Part", path: "Workspace.Panel" },
+    properties: [{ name: "MaxActivationDistance", ok: true, value: 0 }, { name: "CursorIcon", ok: true, value: "" }],
+    position: { ok: true, value: { type: "Vector3", x: 3, y: 4, z: 0 } }, positionSource: "base-part-position",
+    distanceStuds: { ok: true, value: 5 },
+    ...overrides,
+  };
+}
+
+function interactionSnapshotReceipt(overrides = {}) {
+  return {
+    view: "summary", snapshotId: "e".repeat(32), generation: 1,
+    root: { name: "Workspace", className: "Workspace", path: "Workspace" },
+    observedAt: 12.5, visited: 2, matchedVisited: 1, retained: 1,
+    coverage: "complete", truncated: false, stopReasons: [], expiresInMs: 120000,
+    counts: { click: 1, prompt: 0, touch: 0 }, touchCoverage: "observed-transmitters-not-exhaustive",
+    ...overrides,
+  };
+}
+
 async function receiveFeatureRequest(socket) {
   const [probePayload] = await once(socket, "message");
   const probe = JSON.parse(probePayload.toString());
@@ -131,7 +157,7 @@ async function receiveFeatureRequest(socket) {
 
 async function connectToolFixture(t, {
   config = {}, policy, audit, artifactStore, compactResultStore, resultScopeId, releaseResultScopeOnClose, retainedSession,
-  codeIndexService, gameContextService, mapContextService, mapRecordingService, sessionStats, releaseSessionStatsOnClose,
+  codeIndexService, gameContextService, mapContextService, mapRecordingService, sessionStats, releaseSessionStatsOnClose, nativeEditor,
   clients = [{ clientId: "c".repeat(32), generation: 1, client: { executor: "Potassium", protocol: 2 } }],
   capabilities = () => featureCapabilities,
   request = async () => ({ ok: true }),
@@ -156,7 +182,7 @@ async function connectToolFixture(t, {
   };
   const server = createToolServer(await parseConfig(baseConfig(config)), bridge, {
     policy, audit, artifactStore, compactResultStore, resultScopeId, releaseResultScopeOnClose, retainedSession,
-    codeIndexService, gameContextService, mapContextService, mapRecordingService, sessionStats, releaseSessionStatsOnClose,
+    codeIndexService, gameContextService, mapContextService, mapRecordingService, sessionStats, releaseSessionStatsOnClose, nativeEditor,
   });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   t.after(async () => { await client.close(); await server.close(); });
@@ -164,6 +190,336 @@ async function connectToolFixture(t, {
   await client.connect(clientTransport);
   return { client, server, requests };
 }
+
+const editorConfig = { nativeEditorEnabled: true, nativeEditorTokenFile: resolve("private-editor-token") };
+const editorDigest = (content) => createHash("sha256").update(content, "utf8").digest("hex");
+function editorFixture(content = "") {
+  const tabs = new Map([["original", {
+    tab: { id: "original", title: "Original", kind: "script", dirty: false, active: true, pinned: false }, content,
+  }]]);
+  let counter = 0;
+  const requireTab = (id) => {
+    const entry = tabs.get(id);
+    if (!entry) throw new NativeEditorError("refused", "Tab not found.");
+    return entry;
+  };
+  const nativeEditor = {
+    async listTabs() { return { tabs: [...tabs.values()].map(({ tab }) => ({ ...tab })) }; },
+    async readTab({ id }) {
+      const entry = requireTab(id);
+      return { tab: { ...entry.tab }, content: entry.content, sha256: editorDigest(entry.content) };
+    },
+    async openTab({ title = "", content = "" }) {
+      for (const entry of tabs.values()) entry.tab.active = false;
+      const tab = { id: `draft-${++counter}`, title, kind: "script", dirty: content !== "", active: true, pinned: false };
+      tabs.set(tab.id, { tab, content });
+      return { tab: { ...tab } };
+    },
+    async writeTab({ id, content, expectedSha256 }) {
+      const entry = requireTab(id);
+      if (editorDigest(entry.content) !== expectedSha256) throw new NativeEditorError("conflict", "Content changed.");
+      entry.content = content;
+      entry.tab.dirty = true;
+      return { tab: { ...entry.tab }, sha256: editorDigest(content), preconditionAtomic: false };
+    },
+    async activateTab({ id }) {
+      const entry = requireTab(id);
+      for (const row of tabs.values()) row.tab.active = row === entry;
+      return { tab: { ...entry.tab } };
+    },
+    async closeTab({ id }) {
+      if (requireTab(id).tab.dirty) throw new NativeEditorError("refused", "Dirty tab.");
+      tabs.delete(id);
+      return { id, closed: true };
+    },
+  };
+  return nativeEditor;
+}
+
+test("native desktop tools work with no Roblox client or ambiguous clients and preserve exact script reads", async (t) => {
+  for (const clients of [[], [
+    { clientId: "a".repeat(32), generation: 1, client: {} },
+    { clientId: "b".repeat(32), generation: 1, client: {} },
+  ]]) {
+    await t.test(`clients ${clients.length}`, async (t) => {
+      const { client, requests } = await connectToolFixture(t, {
+        config: { ...editorConfig, allowUnsafeExecute: true }, clients, nativeEditor: editorFixture(),
+      });
+      const tools = (await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined))).tools;
+      const editorTools = tools.filter(({ name }) => name.startsWith("potassium_editor_"));
+      assert.equal(editorTools.length, 6);
+      for (const tool of editorTools) {
+        assert.equal("clientId" in tool.inputSchema.properties, false);
+        assert.equal(tool.annotations.readOnlyHint, /_(?:list_tabs|read_tab)$/.test(tool.name));
+      }
+      const call = (name, args = {}) => client.callTool({ name: `potassium_editor_${name}`, arguments: args });
+      assert.deepEqual((await call("list_tabs")).structuredContent.tabs.map(({ id }) => id), ["original"]);
+      const source = `-- token-like-string-not-the-broker-token\r\nlocal password = "snow 雪😀"\0\nreturn password`;
+      const opened = await call("open_tab", { title: "Draft", content: source });
+      assert.equal(opened.structuredContent.tab.active, true);
+      assert.equal("content" in opened.structuredContent, false);
+      const id = opened.structuredContent.tab.id;
+      const read = await call("read_tab", { id });
+      assert.equal(read.structuredContent.content, source);
+      assert.equal(read.structuredContent.sha256, editorDigest(source));
+      const replacement = "return 'replacement'\r\n";
+      const written = await call("write_tab", { id, content: replacement, expectedSha256: read.structuredContent.sha256 });
+      assert.equal(written.structuredContent.sha256, editorDigest(replacement));
+      assert.equal(written.structuredContent.preconditionAtomic, false);
+      assert.equal("content" in written.structuredContent, false);
+      assert.equal((await call("read_tab", { id })).structuredContent.content, replacement);
+      assert.equal((await call("activate_tab", { id: "original" })).structuredContent.tab.active, true);
+      const refused = await call("close_tab", { id });
+      assert.equal(refused._meta.error.code, "NATIVE_EDITOR_REFUSED");
+      assert.deepEqual((await call("close_tab", { id: "original" })).structuredContent, { id: "original", closed: true });
+      assert.deepEqual(requests, [], "desktop actions must not probe or dispatch to Roblox");
+    });
+  }
+});
+
+test("native editor input bounds and required hash reject before service dispatch", async (t) => {
+  let calls = 0;
+  const nativeEditor = Object.fromEntries(["listTabs", "readTab", "openTab", "writeTab", "activateTab", "closeTab"]
+    .map((name) => [name, async () => { calls += 1; throw new Error("must not dispatch"); }]));
+  const { client } = await connectToolFixture(t, {
+    config: { ...editorConfig, allowUnsafeExecute: true }, nativeEditor, clients: [],
+  });
+  for (const [name, arguments_] of [
+    ["list_tabs", { clientId: "a".repeat(32) }],
+    ["read_tab", { id: "" }],
+    ["activate_tab", { id: "x".repeat(257) }],
+    ["close_tab", {}],
+    ["open_tab", { title: "x".repeat(1025) }],
+    ["open_tab", { content: "😀".repeat(65537) }],
+    ["write_tab", { id: "original", content: "" }],
+    ["write_tab", { id: "original", content: "", expectedSha256: "A".repeat(64) }],
+    ["write_tab", { id: "original", content: "", expectedSha256: `${"a".repeat(64)}\n` }],
+    ["write_tab", { id: "original", content: "é".repeat(131073), expectedSha256: "a".repeat(64) }],
+  ]) assert.equal((await client.callTool({ name: `potassium_editor_${name}`, arguments: arguments_ })).isError, true);
+  assert.equal(calls, 0);
+});
+
+test("disabled native editor does not expose desktop tools or remove execution tools", async (t) => {
+  const { client } = await connectToolFixture(t, {
+    config: { allowUnsafeExecute: true }, nativeEditor: editorFixture(),
+  });
+  const names = (await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined))).tools.map(({ name }) => name);
+  assert.equal(names.some((name) => name.startsWith("potassium_editor_")), false);
+  for (const name of ["potassium_execute_luau", "potassium_execute_luau_async", "potassium_remote_call"]) assert.equal(names.includes(name), true);
+});
+
+test("native editor errors never echo service bodies and malformed mutation receipts remain indeterminate", async (t) => {
+  const secret = `private-script ${testToken} private-editor-token`;
+  const nativeEditor = editorFixture();
+  nativeEditor.listTabs = async () => { throw new Error(secret); };
+  nativeEditor.readTab = async () => { throw new NativeEditorError("too-large", secret); };
+  nativeEditor.openTab = async () => { throw new Error(secret); };
+  nativeEditor.writeTab = async () => { throw new NativeEditorError("conflict", secret); };
+  nativeEditor.activateTab = async () => ({ tab: { content: secret } });
+  nativeEditor.closeTab = async () => ({ toJSON() { throw new Error(secret); } });
+  const { client, server } = await connectToolFixture(t, {
+    config: { ...editorConfig, allowUnsafeExecute: true }, nativeEditor,
+  });
+  for (const [name, args, code, indeterminate] of [
+    ["list_tabs", {}, "UNAVAILABLE", false],
+    ["read_tab", { id: "original" }, "TOO_LARGE", false],
+    ["open_tab", {}, "INDETERMINATE", true],
+    ["write_tab", { id: "original", content: "private-script replacement", expectedSha256: "a".repeat(64) }, "CONFLICT", false],
+    ["activate_tab", { id: "original" }, "INDETERMINATE", true],
+    ["close_tab", { id: "original" }, "INDETERMINATE", true],
+  ]) {
+    const result = await client.callTool({ name: `potassium_editor_${name}`, arguments: args });
+    assert.equal(result._meta.error.code, `NATIVE_EDITOR_${code}`);
+    assert.equal(result._meta.error.submissionIndeterminate, indeterminate);
+    assert.equal(JSON.stringify(result).includes("private-script"), false);
+    assert.equal(JSON.stringify(result).includes(testToken), false);
+  }
+  assert.equal(JSON.stringify(server.sessionStats.snapshot()).includes("private-script"), false);
+});
+
+test("retained editor text stays exact and read-permission bound without script-bearing statistics or audit", async (t) => {
+  const source = `-- token-like-string-not-the-broker-token\r\nlocal path = "${editorConfig.nativeEditorTokenFile}"\nlocal secret = "private-editor-source 雪😀"\n`.repeat(200);
+  const nativeEditor = editorFixture(source);
+  const audit = new AdminAuditRecorder();
+  const { client, server } = await connectToolFixture(t, {
+    config: { ...editorConfig, allowUnsafeExecute: true }, nativeEditor, audit, clients: [],
+  });
+  const result = await client.callTool({ name: "potassium_editor_read_tab", arguments: { id: "original" } });
+  assert.equal(result.structuredContent.kind, "potassium/result");
+  const resultId = result.structuredContent.resultId;
+  let json = "", offsetBytes = 0;
+  for (;;) {
+    const response = await client.callTool({ name: "potassium_result_read", arguments: { resultId, view: "text", offsetBytes, maxBytes: 4096 } });
+    const page = response.structuredContent;
+    assert.equal(page.toolName, "potassium_editor_read_tab");
+    json += page.text;
+    if (!page.hasMore) break;
+    offsetBytes = page.nextOffsetBytes;
+  }
+  assert.equal(JSON.parse(json).content, source);
+  assert.equal(JSON.parse(json).sha256, editorDigest(source));
+  const statistics = await client.callTool({ name: "potassium_session_stats", arguments: {} });
+  for (const text of [JSON.stringify(statistics), JSON.stringify(server.sessionStats.snapshot()), JSON.stringify(audit.history(100))]) {
+    assert.equal(text.includes("private-editor-source"), false);
+    assert.equal(text.includes(testToken), false);
+  }
+  server.policy = { read: false, admin: true, execute: true };
+  const denied = await client.callTool({ name: "potassium_result_read", arguments: { resultId } });
+  assert.equal(denied._meta.error.code, "RESULT_ORIGIN_DENIED");
+});
+
+test("actual broker credentials are refused without mutating or retaining editor script text", async (t) => {
+  let writes = 0, reads = 0;
+  const nativeEditor = editorFixture(`local password = "${testToken}"`);
+  const readTab = nativeEditor.readTab;
+  nativeEditor.readTab = async (args) => { reads += 1; return readTab(args); };
+  nativeEditor.openTab = nativeEditor.writeTab = async () => { writes += 1; throw new Error("must not dispatch"); };
+  const { client, server } = await connectToolFixture(t, {
+    config: { ...editorConfig, allowUnsafeExecute: true }, nativeEditor,
+    compactResultStore: { put() { assert.fail("Protected content must not enter retention"); }, releaseScope() {} },
+  });
+  for (const [name, args] of [
+    ["read_tab", { id: "original" }],
+    ["open_tab", { content: `return "${testToken}"` }],
+    ["open_tab", { title: testToken }],
+    ["write_tab", { id: "original", content: testToken, expectedSha256: "a".repeat(64) }],
+  ]) {
+    const result = await client.callTool({ name: `potassium_editor_${name}`, arguments: args });
+    assert.equal(result._meta.error.code, "EDITOR_SENSITIVE_CONTENT");
+    assert.equal(result._meta.error.submissionIndeterminate, false);
+    assert.equal(JSON.stringify(result).includes(testToken), false);
+  }
+  assert.equal(reads, 1);
+  assert.equal(writes, 0);
+  assert.equal(JSON.stringify(server.sessionStats.snapshot()).includes(testToken), false);
+});
+
+test("standalone server exposes configured native editor without connecting a Roblox client", async (t) => {
+  const lifecycle = await createServer(baseConfig({ ...editorConfig, allowUnsafeExecute: true }), { nativeEditor: editorFixture("return 17") });
+  t.after(() => lifecycle.close());
+  const client = new Client({ name: "standalone-editor-test", version: "1" });
+  t.after(() => client.close());
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await lifecycle.server.connect(serverTransport);
+  await client.connect(clientTransport);
+  assert.equal(lifecycle.bridge.status().connected, false);
+  const read = await client.callTool({ name: "potassium_editor_read_tab", arguments: { id: "original" } });
+  assert.equal(read.structuredContent.content, "return 17");
+});
+
+test("standalone native editor construction is lazy and does not disable existing execution", async (t) => {
+  const lifecycle = await createServer(baseConfig({ ...editorConfig, allowUnsafeExecute: true }));
+  t.after(() => lifecycle.close());
+  const client = new Client({ name: "standalone-editor-construction", version: "1" });
+  t.after(() => client.close());
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await lifecycle.server.connect(serverTransport);
+  await client.connect(clientTransport);
+  const names = (await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined))).tools.map(({ name }) => name);
+  assert.equal(names.filter((name) => name.startsWith("potassium_editor_")).length, 6);
+  for (const name of ["potassium_execute_luau", "potassium_execute_luau_async", "potassium_remote_call"]) assert.equal(names.includes(name), true);
+});
+
+test("successful editor mutation followed by retention failure is never reported as safe to retry", async (t) => {
+  let calls = 0;
+  const nativeEditor = editorFixture();
+  const openTab = nativeEditor.openTab;
+  nativeEditor.openTab = async () => { calls += 1; return openTab({ title: "x".repeat(1024) }); };
+  const { client } = await connectToolFixture(t, {
+    config: { ...editorConfig, allowUnsafeExecute: true, maxMessageBytes: 1024 }, nativeEditor,
+    compactResultStore: {
+      put() { throw new Error("private mutation result storage failure"); },
+      releaseScope() {},
+    },
+  });
+  const response = await client.callTool({ name: "potassium_editor_open_tab", arguments: {} });
+  assert.equal(response._meta.error.code, "NATIVE_EDITOR_INDETERMINATE");
+  assert.equal(response._meta.error.submissionIndeterminate, true);
+  assert.equal(JSON.stringify(response).includes("private mutation"), false);
+  assert.equal(calls, 1);
+});
+
+test("SDK cancellation removes a queued shared-editor write without blocking another agent's execution", { timeout: 5000 }, async (t) => {
+  let content = "original", releaseWrite, signalWrite, signalQueued, signalCancelled, signalSettled;
+  const heldWrite = new Promise((resolve) => { releaseWrite = resolve; });
+  const writeStarted = new Promise((resolve) => { signalWrite = resolve; });
+  const queued = new Promise((resolve) => { signalQueued = resolve; });
+  const cancelled = new Promise((resolve) => { signalCancelled = resolve; });
+  const settled = new Promise((resolve) => { signalSettled = resolve; });
+  t.after(() => releaseWrite());
+  const writes = [];
+  const tab = { id: "shared", title: "Draft", kind: "script", dirty: false, active: true, pinned: false };
+  const editor = createNativeEditorClient({
+    tokenFile: "unused-native-token", readToken: async () => "n".repeat(64),
+    fetch: async (_url, options) => {
+      const request = JSON.parse(options.body);
+      let result;
+      if (request.method === "initialize") result = { protocolVersion: "2025-06-18" };
+      else if (request.method === "tools/list") result = { tools: [{ name: "tabs" }] };
+      else {
+        assert.equal(request.method, "tools/call");
+        assert.equal(request.params.name, "tabs");
+        const args = request.params.arguments;
+        if (args.action === "read") result = { structuredContent: { message: "read", tab: { ...tab }, content }, content: [] };
+        else {
+          assert.equal(args.action, "write");
+          writes.push(args.content);
+          signalWrite();
+          await heldWrite;
+          content = args.content;
+          tab.dirty = true;
+          result = { structuredContent: { message: "written", tab: { ...tab } }, content: [] };
+        }
+      }
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: request.id, result }), { headers: { "content-type": "application/json" } });
+    },
+  });
+  const nativeEditor = Object.fromEntries(["listTabs", "readTab", "openTab", "writeTab", "activateTab", "closeTab"]
+    .map((method) => [method, editor[method].bind(editor)]));
+  nativeEditor.writeTab = (args, options) => {
+    const operation = editor.writeTab(args, options);
+    if (args.content === "cancelled-overwrite") {
+      options.signal.addEventListener("abort", signalCancelled, { once: true });
+      signalQueued();
+      operation.then(signalSettled, signalSettled);
+    }
+    return operation;
+  };
+  const fixtureOptions = {
+    config: { ...editorConfig, allowUnsafeExecute: true }, nativeEditor,
+    policy: { read: true, admin: false, execute: true },
+    request: async () => ({ count: 1, values: [42] }),
+  };
+  const first = await connectToolFixture(t, fixtureOptions);
+  const second = await connectToolFixture(t, fixtureOptions);
+  const writing = first.client.callTool({
+    name: "potassium_editor_write_tab", arguments: { id: "shared", content: "first-write", expectedSha256: editorDigest("original") },
+  });
+  await writeStarted;
+  const controller = new AbortController();
+  const pending = second.client.callTool({
+    name: "potassium_editor_write_tab",
+    arguments: { id: "shared", content: "cancelled-overwrite", expectedSha256: editorDigest("first-write") },
+  }, undefined, { signal: controller.signal });
+  const rejected = assert.rejects(pending, /cancel|abort/i);
+  await queued;
+  controller.abort();
+  await rejected;
+  await cancelled;
+  const executed = await second.client.callTool({ name: "potassium_execute_luau", arguments: { code: "return 42" } });
+  assert.deepEqual(executed.structuredContent.values, [42]);
+  releaseWrite();
+  assert.equal((await writing).structuredContent.sha256, editorDigest("first-write"));
+  await settled;
+  const read = await second.client.callTool({ name: "potassium_editor_read_tab", arguments: { id: "shared" } });
+  assert.equal(read.structuredContent.content, "first-write");
+  assert.deepEqual(writes, ["first-write"]);
+  const resumed = await second.client.callTool({
+    name: "potassium_editor_write_tab", arguments: { id: "shared", content: "resumed", expectedSha256: editorDigest("first-write") },
+  });
+  assert.equal(resumed.structuredContent.sha256, editorDigest("resumed"));
+  assert.deepEqual(writes, ["first-write", "resumed"]);
+});
 
 test("rejects invalid config bounds and conflicting token sources", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "potassium-mcp-"));
@@ -291,12 +647,12 @@ test("completes MCP initialization with the bounded public tool set", async (t) 
       readOnlyHint: ![
         "potassium_watch_start", "potassium_watch_stop", "potassium_batch_read",
         "potassium_find_instances", "potassium_list_children", "potassium_inspect_instance",
-        "potassium_instance_references_release", "potassium_remote_inventory",
+        "potassium_instance_references_release", "potassium_remote_inventory", "potassium_interaction_inventory",
         "potassium_admin_recover", "potassium_tool_catalog",
         "potassium_code_index", "potassium_code_query", "potassium_diagnostic_snapshot", "potassium_game_context", "potassium_map_context", "potassium_map_mechanics", "potassium_map_recording",
       ].includes(tool.name),
       destructiveHint: tool.name === "potassium_admin_recover",
-      idempotentHint: !["potassium_watch_start", "potassium_admin_recover", "potassium_remote_inventory", "potassium_code_index", "potassium_game_context", "potassium_map_context", "potassium_map_mechanics", "potassium_map_recording"].includes(tool.name),
+      idempotentHint: !["potassium_watch_start", "potassium_admin_recover", "potassium_remote_inventory", "potassium_interaction_inventory", "potassium_code_index", "potassium_game_context", "potassium_map_context", "potassium_map_mechanics", "potassium_map_recording"].includes(tool.name),
       openWorldHint: ["potassium_http_get", "potassium_place_metadata"].includes(tool.name),
     });
   }
@@ -515,6 +871,7 @@ test("async submission errors preserve technical causes and authoritative indete
   for (const [name, args] of [
     ["potassium_execute_luau_async", { code: "return 1" }],
     ["potassium_remote_call", { target: "workspace.Echo", method: "InvokeServer", arguments: [] }],
+    ["potassium_interaction_call", { kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: false }],
   ]) {
     for (const failure of [
       Object.assign(new Error("Potassium request timed out after 30000 ms"), { code: "TIMEOUT", submissionIndeterminate: true }),
@@ -693,7 +1050,7 @@ test("registration and calls honor all independent read admin execute axes", asy
       await t.test(`grants ${bits}, unsafe ${allowUnsafeExecute}`, async (t) => {
         const policy = { read: Boolean(bits & 1), admin: Boolean(bits & 2), execute: Boolean(bits & 4) };
         const { client, requests } = await connectToolFixture(t, {
-          config: { allowUnsafeExecute }, policy,
+          config: { ...editorConfig, allowUnsafeExecute }, policy, nativeEditor: editorFixture(),
           mapRecordingService: {
             read: async () => ({ operation: "read", view: "summary", mapId: mapSummary().mapId, revision: 1, recordings: [] }),
             release: async () => ({ operation: "release", recordingId: "a".repeat(32), released: false }),
@@ -701,7 +1058,9 @@ test("registration and calls honor all independent read admin execute axes", asy
           mapContextService: { read: async () => ({
             view: "read", section: "tracks", mapId: mapSummary().mapId, revision: 1, offset: 0, total: 0, entries: [], coverage: "partial", warnings: [],
           }) },
-          request: async (method) => method === "execute_luau" ? { count: 1, values: [42] } : { loaded: true },
+          request: async (method) => method === "execute_luau" ? { count: 1, values: [42] }
+            : method === "interaction_inventory" ? interactionSnapshotReceipt()
+              : ["execute_luau_async", "interaction_call"].includes(method) ? { jobId: "a".repeat(32), state: "queued" } : { loaded: true },
         });
         const names = new Set((await listAllTools((cursor) => client.listTools(cursor === undefined ? undefined : { cursor }))).tools.map((tool) => tool.name));
         for (const [name, args, allowed, method] of [
@@ -711,6 +1070,15 @@ test("registration and calls honor all independent read admin execute axes", asy
           ["potassium_map_motion", { mapId: mapSummary().mapId }, policy.read, undefined],
           ["potassium_admin_status", {}, policy.admin, undefined],
           ["potassium_execute_luau", { code: "return 42" }, policy.execute && allowUnsafeExecute, "execute_luau"],
+          ["potassium_execute_luau_async", { code: "return 42" }, policy.execute && allowUnsafeExecute, "execute_luau_async"],
+          ["potassium_interaction_call", { kind: "prompt", target: "Workspace.Prompt" }, policy.execute && allowUnsafeExecute, "interaction_call"],
+          ["potassium_interaction_inventory", {}, policy.read, "interaction_inventory"],
+          ["potassium_editor_list_tabs", {}, policy.read, undefined],
+          ["potassium_editor_read_tab", { id: "original" }, policy.read, undefined],
+          ["potassium_editor_open_tab", {}, policy.execute && allowUnsafeExecute, undefined],
+          ["potassium_editor_write_tab", { id: "original", content: "", expectedSha256: editorDigest("") }, policy.execute && allowUnsafeExecute, undefined],
+          ["potassium_editor_activate_tab", { id: "original" }, policy.execute && allowUnsafeExecute, undefined],
+          ["potassium_editor_close_tab", { id: "draft-1" }, policy.execute && allowUnsafeExecute, undefined],
         ]) {
           assert.equal(names.has(name), allowed);
           const response = await client.callTool({ name, arguments: args });
@@ -3215,4 +3583,401 @@ test("shared input schemas validate through pointer-only consumers before SDK di
     assert.equal(rejected.isError, true);
     assert.equal(rejected._meta.error.code, "INVALID_INPUT");
   }
+});
+
+test("interaction inputs reject irrelevant selectors and native argument coercions before any dispatch", async (t) => {
+  const { client, requests } = await connectToolFixture(t, { config: { allowUnsafeExecute: true } });
+  const tools = (await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined))).tools;
+  const validateCall = new AjvJsonSchemaValidator().getValidator(tools.find(({ name }) => name === "potassium_interaction_call").inputSchema);
+  for (const args of [
+    { kind: "click", target: "Workspace.Click", signal: "MouseHoverEnter", distance: 0 },
+    { kind: "prompt", target: "Workspace.Prompt", clientId: "c".repeat(32) },
+    { kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: false },
+  ]) assert.equal(validateCall(args).valid, true);
+  const snapshotId = "e".repeat(32), rowId = "f".repeat(32);
+  for (const args of [
+    { kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: 0 },
+    { kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: 1 },
+    { kind: "touch", source: "Workspace.A", target: "Workspace.B" },
+    { kind: "touch", target: "Workspace.B", touch: false },
+    { kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: true, signal: "MouseClick" },
+    { kind: "click", target: "Workspace.Click", distance: -1 },
+    { kind: "click", target: "Workspace.Click", distance: Infinity },
+    { kind: "click", target: "Workspace.Click", distance: NaN },
+    { kind: "click", target: "Workspace.Click", distance: null },
+    { kind: "click", target: "Workspace.Click", signal: "Touched" },
+    { kind: "click", target: "Workspace.Click", source: "Workspace.Part" },
+    { kind: "prompt", target: "Workspace.Prompt", distance: 0 },
+    { kind: "prompt", target: "Workspace.Prompt", touch: false },
+    { kind: "prompt", target: "Workspace.Prompt", holdDuration: 0 },
+    { kind: "prompt", target: "x".repeat(1025) },
+    { kind: "prompt", target: "" },
+  ]) {
+    assert.equal(validateCall(JSON.parse(JSON.stringify(args))).valid, false, JSON.stringify(args));
+    const result = await client.callTool({ name: "potassium_interaction_call", arguments: args });
+    assert.equal(result._meta.error.code, "INVALID_INPUT", JSON.stringify(args));
+  }
+  for (const args of [
+    { view: "diff", snapshotId }, { view: "summary", limit: 20 },
+    { view: "detail" }, { view: "detail", root: "Workspace.Click", snapshotId, rowId },
+    { view: "detail", snapshotId }, { view: "rows", rowId },
+    { cursor: "unbound" }, { view: "rows", cursor: "unbound" },
+    { snapshotId, cursor: "rows-only" }, { query: {} },
+    { snapshotId, query: { classNames: ["ClickDetector"] } },
+    { kinds: [] }, { kinds: ["touch", "touch"] },
+    { nameContains: "é".repeat(129) }, { pathContains: "\ud800" },
+    { view: "rows", limit: 201 }, { maxVisited: 20001 },
+    ...["root", "kinds", "nameContains", "pathContains", "maxVisited"].map((key) => ({
+      snapshotId, [key]: key === "kinds" ? ["click"] : key === "maxVisited" ? 5000 : "Workspace",
+    })),
+    ...["cursor", "kinds", "query", "limit"].map((key) => ({
+      view: "detail", root: "Workspace.Click", [key]: key === "kinds" ? ["click"] : key === "query" ? {} : key === "limit" ? 1 : "cursor",
+    })),
+    { view: "release" },
+    ...["root", "rowId", "cursor", "query", "limit", "maxVisited", "includeReferences"].map((key) => ({
+      view: "release", snapshotId, [key]: key === "query" ? {} : key === "includeReferences" ? false
+        : ["limit", "maxVisited"].includes(key) ? 1 : key === "rowId" ? rowId : "Workspace",
+    })),
+  ]) {
+    const result = await client.callTool({ name: "potassium_interaction_inventory", arguments: args });
+    assert.equal(result._meta.error.code, "INVALID_INPUT", JSON.stringify(args));
+  }
+  assert.deepEqual(requests, []);
+});
+
+test("interaction features, touch source references, and generation changes fail before submission", async (t) => {
+  const current = { clientId: "c".repeat(32), generation: 1, client: { protocol: 2 } };
+  const old = { clientId: "b".repeat(32), generation: 1, client: { protocol: 2 } };
+  for (const [label, features, name, args] of [
+    ["inventory", { interactionInventory: {} }, "potassium_interaction_inventory", {}],
+    ["actions", { interactionActions: {} }, "potassium_interaction_call", { kind: "prompt", target: "Workspace.Prompt" }],
+    ["async v2", { asyncJobs: { version: 1 } }, "potassium_interaction_call", { kind: "click", target: "Workspace.Click" }],
+    ["source references", { instanceReferences: {} }, "potassium_interaction_call", {
+      kind: "touch", source: `instance://${"d".repeat(32)}`, target: "Workspace.B", touch: false,
+    }],
+    ["inventory references", { instanceReferences: {} }, "potassium_interaction_inventory", { includeReferences: true }],
+    ["method", { methods: featureCapabilities.methods.filter((method) => method !== "interaction_call") },
+      "potassium_interaction_call", { kind: "prompt", target: "Workspace.Prompt" }],
+  ]) {
+    await t.test(label, async (t) => {
+      const { client, requests } = await connectToolFixture(t, {
+        config: { allowUnsafeExecute: true }, clients: [old, current],
+        capabilities: (clientId) => clientId === old.clientId ? { ...featureCapabilities, ...features } : featureCapabilities,
+        request: async (method) => method === "interaction_inventory" ? interactionSnapshotReceipt() : { jobId: "a".repeat(32), state: "queued" },
+      });
+      const rejected = await client.callTool({ name, arguments: { ...args, clientId: old.clientId } });
+      assert.equal(rejected._meta.error.code, "INCOMPATIBLE_CLIENT");
+      if (name === "potassium_interaction_call") assert.equal(rejected._meta.error.submissionIndeterminate, false);
+      assert.equal(requests.every(({ method }) => method === "capabilities"), true);
+      const accepted = await client.callTool({ name, arguments: { ...args, clientId: current.clientId } });
+      assert.equal(accepted.isError, undefined);
+    });
+  }
+  const clients = [structuredClone(current)];
+  const changed = await connectToolFixture(t, {
+    config: { allowUnsafeExecute: true }, clients,
+    capabilities() { clients[0].generation += 1; return featureCapabilities; },
+  });
+  const rejected = await changed.client.callTool({
+    name: "potassium_interaction_call", arguments: { kind: "prompt", target: "Workspace.Prompt" },
+  });
+  assert.equal(rejected._meta.error.code, "CLIENT_CHANGED");
+  assert.equal(rejected._meta.error.submissionIndeterminate, false);
+  assert.equal(changed.requests.every(({ method }) => method === "capabilities"), true);
+});
+
+test("interaction inventory preserves observed metadata, retained query coverage, and expired identity errors", async (t) => {
+  const snapshotId = "e".repeat(32), rowId = "f".repeat(32);
+  const row = interactionRowReceipt({
+    referenceUnavailable: true, host: { name: "Panel", className: "Part", path: "Workspace.Panel", referenceUnavailable: true },
+    properties: [{ name: "MaxActivationDistance", ok: true, value: 0 }, { name: "CursorIcon", ok: false, error: "Property unavailable" }],
+    position: { ok: false, error: "Host unavailable" }, positionSource: "base-part-position",
+    distanceStuds: { ok: false, error: "Local character unavailable" },
+  });
+  let expired = false;
+  const { client, requests } = await connectToolFixture(t, {
+    request: async (_method, params) => {
+      if (params.view === "release") return { view: "release", snapshotId, generation: 1, released: false };
+      if (expired) throw new Error("Interaction snapshot unavailable: expired, released, evicted, or another generation");
+      if (params.view === "detail") {
+        const { id, ...instance } = row;
+        return { view: "detail", generation: 1, snapshotId, rowId, observedAt: 20, metadataTiming: "live-non-atomic",
+          instance, visited: 1, coverage: "partial", truncated: true, stopReasons: ["metadata-unavailable"],
+          touchCoverage: "observed-transmitters-not-exhaustive" };
+      }
+      if (params.snapshotId === undefined) return interactionSnapshotReceipt();
+      const filtered = params.query !== undefined;
+      return interactionSnapshotReceipt({
+        view: params.view, observedAt: 12.5, expiresInMs: 500, visited: 5000, matchedVisited: 2, retained: 1,
+        coverage: "partial", truncated: true, stopReasons: ["visit-limit", "metadata-unavailable"],
+        counts: { click: filtered ? 0 : 1, prompt: 0, touch: 0 },
+        ...(filtered ? { queryScope: "retained-rows", queryMatched: 0 } : {}),
+        ...(params.view === "rows" ? { rows: filtered ? [] : [row], hasMore: false } : {}),
+      });
+    },
+  });
+  const name = "potassium_interaction_inventory";
+  await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined), { forTool: name });
+  const complete = await client.callTool({ name, arguments: {} });
+  assert.equal(complete.structuredContent.coverage, "complete");
+  const observed = await client.callTool({ name, arguments: { snapshotId, view: "rows", includeReferences: true } });
+  assert.equal(observed.structuredContent.rows[0].properties[0].value, 0);
+  assert.deepEqual(observed.structuredContent.rows[0].position, { ok: false, error: "Host unavailable" });
+  assert.equal(observed.structuredContent.rows[0].referenceUnavailable, true);
+  assert.equal(observed.structuredContent.rows[0].host.referenceUnavailable, true);
+  const filtered = await client.callTool({ name, arguments: { snapshotId, view: "rows", query: { kinds: ["prompt"] } } });
+  assert.deepEqual(filtered.structuredContent.rows, []);
+  assert.equal(filtered.structuredContent.queryMatched, 0);
+  assert.equal(filtered.structuredContent.retained, 1);
+  assert.equal(filtered.structuredContent.coverage, "partial");
+  assert.equal(filtered.structuredContent.observedAt, observed.structuredContent.observedAt);
+  assert.equal(filtered.structuredContent.expiresInMs, observed.structuredContent.expiresInMs);
+  const detail = await client.callTool({ name, arguments: { view: "detail", snapshotId, rowId } });
+  assert.equal(detail.structuredContent.instance.properties[1].ok, false);
+  assert.equal(detail.structuredContent.metadataTiming, "live-non-atomic");
+  expired = true;
+  const missing = await client.callTool({ name, arguments: { snapshotId, view: "rows" } });
+  assert.equal(missing._meta.error.code, "REQUEST_FAILED");
+  const released = await client.callTool({ name, arguments: { view: "release", snapshotId } });
+  assert.equal(released.structuredContent.released, false);
+  assert.equal(requests.filter(({ method, params }) => method === "interaction_inventory" && params.snapshotId === undefined).length, 1);
+});
+
+test("malformed interaction metadata fails before compact retention instead of inventing usable targets", async (t) => {
+  const valid = interactionSnapshotReceipt({ view: "rows", rows: [interactionRowReceipt()], hasMore: false });
+  const secret = "malformed-private-value";
+  for (const mutate of [
+    (copy) => { copy.rows[0].properties[0] = { name: "MaxActivationDistance", ok: false, value: 0 }; },
+    (copy) => { copy.rows[0].properties[1] = { name: "CursorIcon", ok: true, value: secret, redacted: true }; },
+    (copy) => { copy.rows[0].properties[0].name = "Source"; },
+    (copy) => { copy.rows[0].position.value = { type: "Vector3", x: 0, y: 0 }; },
+    (copy) => { copy.rows[0].position.value = 0; },
+    (copy) => { copy.rows[0].positionSource = "unavailable"; },
+    (copy) => { copy.rows[0].distanceStuds.value = "0"; },
+    (copy) => { copy.rows[0].distanceStuds.value = -1; },
+    (copy) => { copy.rows[0].reference = `instance://${"a".repeat(32)}`; copy.rows[0].referenceUnavailable = true; },
+    (copy) => { copy.rows[0].helperTarget = "Workspace.Other"; },
+    (copy) => { copy.rows[0].className = "Folder"; },
+    (copy) => { copy.coverage = "complete"; copy.truncated = true; copy.stopReasons = ["visit-limit"]; },
+    (copy) => { copy.retained = 513; },
+    (copy) => { copy.counts.click = 0; },
+    (copy) => { copy.hasMore = true; },
+    (copy) => { copy.rows.push({ ...copy.rows[0], id: "b".repeat(32) }); copy.retained = 2; copy.matchedVisited = 2; copy.counts.click = 2; },
+    (copy) => { copy.unrequested = secret; },
+  ]) {
+    const invalid = structuredClone(valid);
+    mutate(invalid);
+    const { client } = await connectToolFixture(t, {
+      config: { maxMessageBytes: 1024 }, request: async () => invalid,
+      compactResultStore: { put() { assert.fail("Invalid interaction metadata entered retention"); }, releaseScope() {} },
+    });
+    const result = await client.callTool({ name: "potassium_interaction_inventory", arguments: { view: "rows", limit: 1 } });
+    assert.equal(result._meta.error.code, "RESULT_INVALID");
+    assert.equal(result.structuredContent, undefined);
+    assert.equal(JSON.stringify(result).includes(secret), false);
+  }
+});
+
+test("accepted native jobs survive audit, serialization, finishing, and compact-storage faults without replay", async (t) => {
+  const jobId = "a".repeat(32);
+  for (const failure of ["audit begin", "audit finish", "serialization", "serialized identity", "invalid state", "finishing", "retention failure", "compact success"]) {
+    await t.test(failure, async (t) => {
+      const payload = { jobId, state: failure === "invalid state" ? "unknown" : "queued" };
+      if (failure === "serialization") payload.toJSON = () => { throw new Error(testToken); };
+      if (failure === "serialized identity") payload.toJSON = () => ({});
+      if (["retention failure", "compact success"].includes(failure)) payload.metadata = "large acceptance".repeat(2000);
+      const { client, server, requests } = await connectToolFixture(t, {
+        config: { allowUnsafeExecute: true, maxMessageBytes: 1024 },
+        audit: {
+          begin() { if (failure === "audit begin") throw new Error(testToken); return {}; },
+          async finish() { if (failure === "audit finish") throw new Error(testToken); },
+        },
+        request: async () => payload,
+        ...(failure === "retention failure" ? { compactResultStore: {
+          put() { throw new Error(testToken); }, releaseScope() {},
+        } } : {}),
+      });
+      await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined), { forTool: "potassium_interaction_call" });
+      if (failure === "finishing") server.finishToolResult = async () => { throw new Error(testToken); };
+      const result = await client.callTool({
+        name: "potassium_interaction_call", arguments: { kind: "touch", source: "Workspace.A", target: "Workspace.B", touch: false },
+      });
+      assert.equal(result.isError, undefined);
+      assert.equal(result.structuredContent.jobId, jobId);
+      assert.equal(result.structuredContent.accepted, true);
+      assert.equal(Buffer.byteLength(JSON.stringify(result)) <= 1024, true);
+      assert.equal(JSON.stringify(result).includes(testToken), false);
+      assert.equal(requests.filter(({ method }) => method === "interaction_call").length, 1);
+      if (failure === "compact success") {
+        assert.equal(result.structuredContent.kind, "potassium/result");
+        const page = await client.callTool({
+          name: "potassium_result_read", arguments: { resultId: result.structuredContent.resultId, pointer: "/jobId" },
+        });
+        assert.equal(page.structuredContent.selections[0].value, jobId);
+      } else {
+        assert.equal(result.structuredContent.warning, failure.startsWith("audit") ? "AUDIT_FAILED" : "RESULT_FORMAT_FAILED");
+      }
+    });
+  }
+});
+
+test("native terminal receipts retain dispatch-only meaning through existing async readers", async (t) => {
+  const jobId = "a".repeat(32);
+  const status = { jobId, kind: "interaction_call", state: "succeeded", dispatchStarted: true, cancellationRequested: true };
+  const receipt = { count: 0, values: [], dispatchStarted: true, dispatched: true, serverAcknowledged: false, interactionKind: "touch" };
+  const { client } = await connectToolFixture(t, {
+    config: { allowUnsafeExecute: true },
+    request: async (method) => method === "async_job_result" ? { ...status, ready: true, result: receipt }
+      : method === "async_job_list" ? { jobs: [status], truncated: false } : status,
+  });
+  await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined), { forTool: "potassium_async_job_result" });
+  const terminal = await client.callTool({ name: "potassium_async_job_result", arguments: { jobId } });
+  assert.equal(terminal.structuredContent.ready, true);
+  assert.equal(terminal.structuredContent.state, "succeeded");
+  assert.equal(terminal.structuredContent.cancellationRequested, true);
+  assert.deepEqual(terminal.structuredContent.result, receipt);
+  const listed = await client.callTool({ name: "potassium_async_job_list", arguments: {} });
+  assert.equal(listed.structuredContent.jobs[0].kind, "interaction_call");
+  const cancelled = await client.callTool({ name: "potassium_async_job_cancel", arguments: { jobId } });
+  assert.equal(cancelled.structuredContent.state, "succeeded");
+  assert.equal(cancelled.structuredContent.dispatchStarted, true);
+  receipt.serverAcknowledged = true;
+  const falseAcknowledgement = await client.callTool({ name: "potassium_async_job_result", arguments: { jobId } });
+  assert.equal(falseAcknowledgement._meta.error.code, "RESULT_INVALID");
+  receipt.serverAcknowledged = false;
+  receipt.values = ["invented helper success"];
+  const helperReturn = await client.callTool({ name: "potassium_async_job_result", arguments: { jobId } });
+  assert.equal(helperReturn._meta.error.code, "RESULT_INVALID");
+});
+
+test("interaction touch metadata distinguishes observed transmitters from explicitly selected parts", async (t) => {
+  const body = {
+    kind: "touch", name: "Pad", className: "Part", path: "Workspace.Pad", parent: "Workspace",
+    touchEvidence: "explicit-part", host: { name: "Pad", className: "Part", path: "Workspace.Pad" },
+    properties: ["CanTouch", "CanCollide", "CanQuery", "Anchored"].map((name) => ({ name, ok: true, value: name !== "CanCollide" })),
+    position: { ok: true, value: { type: "Vector3", x: 0, y: 2, z: 0 } }, positionSource: "base-part-position",
+    distanceStuds: { ok: true, value: 2 }, reference: `instance://${"a".repeat(32)}`,
+  };
+  const { client } = await connectToolFixture(t, {
+    request: async (_method, params) => params.view === "detail" ? {
+      view: "detail", generation: 1, observedAt: 124.5, metadataTiming: "live-non-atomic",
+      touchCoverage: "observed-transmitters-not-exhaustive", instance: body,
+      visited: 1, truncated: false, coverage: "complete", stopReasons: [],
+    } : interactionSnapshotReceipt({
+      view: "rows", counts: { click: 0, prompt: 0, touch: 1 }, rows: [{
+        ...body, id: "f".repeat(32), name: "TouchInterest", className: "TouchTransmitter",
+        path: "Workspace.Pad.TouchInterest", parent: "Workspace.Pad", touchEvidence: "transmitter-observed",
+        reference: `instance://${"b".repeat(32)}`, host: { ...body.host, reference: body.reference },
+      }], hasMore: false,
+    }),
+  });
+  const name = "potassium_interaction_inventory";
+  await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined), { forTool: name });
+  const rows = await client.callTool({ name, arguments: { view: "rows", includeReferences: true } });
+  const detail = await client.callTool({ name, arguments: { view: "detail", root: "Workspace.Pad", includeReferences: true } });
+  assert.equal(rows.structuredContent.rows[0].touchEvidence, "transmitter-observed");
+  assert.notEqual(rows.structuredContent.rows[0].reference, detail.structuredContent.instance.reference);
+  assert.equal(rows.structuredContent.rows[0].host.reference, detail.structuredContent.instance.reference);
+  assert.equal(detail.structuredContent.instance.touchEvidence, "explicit-part");
+  assert.equal(detail.structuredContent.instance.properties[1].value, false);
+});
+
+test("interaction prompt metadata accepts whole-value redaction but rejects partially exposed text", async (t) => {
+  const actionText = { name: "ActionText", ok: true, value: "[redacted]", redacted: true };
+  const { id, ...instance } = interactionRowReceipt({
+    kind: "prompt", name: "Prompt", className: "ProximityPrompt", path: "Workspace.Panel.Prompt",
+    properties: [
+      { name: "Enabled", ok: true, value: true }, actionText,
+      { name: "ObjectText", ok: true, value: "Panel" }, { name: "HoldDuration", ok: true, value: 0 },
+      { name: "MaxActivationDistance", ok: true, value: 10 }, { name: "RequiresLineOfSight", ok: true, value: false },
+      { name: "KeyboardKeyCode", ok: true, value: { type: "EnumItem", value: "Enum.KeyCode.E" } },
+      { name: "GamepadKeyCode", ok: true, value: { type: "EnumItem", value: "Enum.KeyCode.ButtonX" } },
+      { name: "Exclusivity", ok: true, value: { type: "EnumItem", value: "Enum.ProximityPromptExclusivity.OnePerButton" } },
+      { name: "Style", ok: true, value: { type: "EnumItem", value: "Enum.ProximityPromptStyle.Default" } },
+    ],
+  });
+  const { client } = await connectToolFixture(t, {
+    request: async (_method, params) => params.view === "detail" ? {
+      view: "detail", generation: 1, observedAt: 20, metadataTiming: "live-non-atomic",
+      touchCoverage: "observed-transmitters-not-exhaustive", instance,
+      visited: 1, coverage: "complete", truncated: false, stopReasons: [],
+    } : interactionSnapshotReceipt({
+      view: "rows", counts: { click: 0, prompt: 1, touch: 0 }, rows: [{ ...instance, id }], hasMore: false,
+    }),
+    compactResultStore: { put() { assert.fail("Rejected prompt metadata must not enter retention"); }, releaseScope() {} },
+  });
+  const name = "potassium_interaction_inventory";
+  await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined), { forTool: name });
+  for (const args of [{ view: "rows" }, { view: "detail", root: "Workspace.Panel.Prompt" }]) {
+    const valid = await client.callTool({ name, arguments: args });
+    assert.equal(valid.isError, undefined);
+    const properties = args.view === "rows" ? valid.structuredContent.rows[0].properties : valid.structuredContent.instance.properties;
+    assert.deepEqual(properties.find(({ name }) => name === "ActionText"), actionText);
+    actionText.value = "Open [redacted]";
+    const malformed = await client.callTool({ name, arguments: args });
+    assert.equal(malformed._meta.error.code, "RESULT_INVALID");
+    assert.equal(JSON.stringify(malformed).includes("Open [redacted]"), false);
+    actionText.value = "[redacted]";
+  }
+});
+
+test("advertised interaction views preserve strict contracts through SDK and local-reference consumers", async (t) => {
+  const { client, requests } = await connectToolFixture(t, { config: { proxyMaxFrameBytes: 16384 } });
+  const name = "potassium_interaction_inventory";
+  const tools = (await listAllTools((cursor) => client.listTools(cursor ? { cursor } : undefined), { forTool: name })).tools;
+  const wire = tools.find((tool) => tool.name === name).outputSchema;
+  // As in the pointer-only input consumer, expand local refs before validation.
+  // Outputs also publish local fragment IDs; resolve their declared definitions,
+  // then strip the inlined IDs so a pointer-only consumer needs no anchor support.
+  const definitions = Object.values(wire.definitions ?? {});
+  const expand = (node) => {
+    if (!node || typeof node !== "object") return node;
+    if (Array.isArray(node)) return node.map(expand);
+    if (node.$ref !== undefined) {
+      const target = node.$ref.startsWith("#/")
+        ? node.$ref.slice(2).split("/").reduce((value, key) => value?.[key.replace(/~1/g, "/").replace(/~0/g, "~")], wire)
+        : definitions.find((definition) => definition.$id === node.$ref);
+      if (target === undefined) throw new Error(`Unresolved output reference: ${node.$ref}`);
+      const { $ref, $id, ...siblings } = node;
+      return { ...expand(target), ...expand(siblings) };
+    }
+    const { $id, ...unscoped } = node;
+    return Object.fromEntries(Object.entries(unscoped).map(([key, value]) => [key, expand(value)]));
+  };
+  const validateSdk = new AjvJsonSchemaValidator().getValidator(wire);
+  const validateLocal = new AjvJsonSchemaValidator().getValidator(expand(wire));
+  const { id, ...instance } = interactionRowReceipt();
+  const summary = interactionSnapshotReceipt();
+  const rows = interactionSnapshotReceipt({ view: "rows", rows: [{ ...instance, id }], hasMore: false });
+  const detail = {
+    view: "detail", generation: 1, observedAt: 20, metadataTiming: "live-non-atomic",
+    touchCoverage: "observed-transmitters-not-exhaustive", instance,
+    visited: 1, coverage: "complete", truncated: false, stopReasons: [],
+  };
+  const release = { view: "release", generation: 1, snapshotId: summary.snapshotId, released: false };
+  for (const valid of [summary, rows, detail, release]) {
+    assert.equal(validateSdk(valid).valid, true, valid.view);
+    assert.equal(validateLocal(valid).valid, true, valid.view);
+  }
+  for (const [base, mutate] of [
+    [summary, (value) => { delete value.root; }],
+    [rows, (value) => { delete value.rows; }],
+    [rows, (value) => { delete value.hasMore; }],
+    [release, (value) => { value.counts = summary.counts; }],
+    [detail, (value) => { value.touchEvidence = "explicit-part"; }],
+    [detail, (value) => { delete value.metadataTiming; }],
+    [rows, (value) => { value.rows[0].position.value = { type: "Vector2", x: 0, y: 0 }; }],
+    [rows, (value) => { value.rows[0].distanceStuds.value = -1; }],
+    [rows, (value) => { value.rows[0].unknown = true; }],
+    [rows, (value) => { value.rows[0].path = ""; }],
+    [rows, (value) => { value.rows[0].properties[0].value = { type: "Vector3", x: 0, y: 0, z: 0 }; }],
+    [rows, (value) => { delete value.rows[0].id; }],
+    [detail, (value) => { value.instance.id = id; }],
+  ]) {
+    const invalid = structuredClone(base);
+    mutate(invalid);
+    assert.equal(validateSdk(invalid).valid, false, JSON.stringify(invalid));
+    assert.equal(validateLocal(invalid).valid, false, JSON.stringify(invalid));
+  }
+  assert.deepEqual(requests, []);
 });

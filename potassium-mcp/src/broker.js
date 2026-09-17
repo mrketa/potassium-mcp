@@ -23,6 +23,7 @@ import { createMapRecordingService } from "./map-recording.js";
 import { createSessionStats } from "./session-stats.js";
 import { createStatefulHttpSessionRegistry, MCP_SESSION_HEADER } from "./stateful-http.js";
 import { createBuiltinFallbackClient } from "./builtin-fallback.js";
+import { createNativeEditorClient } from "./native-editor.js";
 import { resolveHostPolicy, TOOL_NAMES } from "./host-policy.js";
 import { resolveConfigPath } from "./paths.js";
 import { acquireInstallLock, readRepairDrainCredentials, verifyInstallLease } from "./install.js";
@@ -788,7 +789,7 @@ export class WebSocketMcpTransport {
   async close() { if (this.socket.readyState < 2) this.socket.close(); }
 }
 
-export async function createBroker(inputConfig, { configFile, gameContextService, mapContextService, mapRecordingService } = {}) {
+export async function createBroker(inputConfig, { configFile, gameContextService, mapContextService, mapRecordingService, nativeEditor } = {}) {
   if (inputConfig === undefined) configFile = resolveConfigPath({ configFile });
   const config = inputConfig === undefined ? await loadConfig(configFile) : await parseConfig(inputConfig);
   const log = logger();
@@ -947,6 +948,7 @@ export async function createBroker(inputConfig, { configFile, gameContextService
   const builtinFallback = config.builtinFallbackEnabled
     ? createBuiltinFallbackClient({ tokenFile: config.builtinFallbackTokenFile })
     : undefined;
+  nativeEditor ??= config.nativeEditorEnabled ? createNativeEditorClient({ tokenFile: config.nativeEditorTokenFile }) : undefined;
   let listener;
   let httpListener;
   let statefulSessions;
@@ -996,7 +998,7 @@ export async function createBroker(inputConfig, { configFile, gameContextService
         mcpTransports.add(transport);
         socket.once("close", () => { mcpTransports.delete(transport); responseActivity(); });
         const server = createToolServer(config, bridge, {
-          audit, sessionId, hostId: hello.hostId, policy, artifactStore, builtinFallback, compactResultStore, codeIndexService, gameContextService, mapContextService, mapRecordingService, onToolStart, onRequestStart,
+          audit, sessionId, hostId: hello.hostId, policy, artifactStore, builtinFallback, nativeEditor, compactResultStore, codeIndexService, gameContextService, mapContextService, mapRecordingService, onToolStart, onRequestStart,
           onRequestCancelled: (id) => transport.cancelRequest(id),
         });
         try {
@@ -1075,6 +1077,7 @@ export async function createBroker(inputConfig, { configFile, gameContextService
             policy: config.policies.http,
             artifactStore,
             builtinFallback,
+            nativeEditor,
             compactResultStore,
             codeIndexService,
             gameContextService,
@@ -1118,6 +1121,7 @@ export async function createBroker(inputConfig, { configFile, gameContextService
               policy: config.policies.http,
               artifactStore,
               builtinFallback,
+              nativeEditor,
               compactResultStore,
               codeIndexService,
               gameContextService,
